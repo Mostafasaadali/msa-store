@@ -1,0 +1,9 @@
+@import "tailwindcss";
+.custom-cursor, .custom-cursor-dot {
+  pointer-events: none !important;
+}
+
+input, button, textarea, select {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
