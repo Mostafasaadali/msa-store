@@ -44,7 +44,7 @@ const translations = {
     noDesc: "لا يتوفر وصف دقيق لهذا المنتج في الوقت الحالي.",
     itemCount: "صنف",
     installApp: "تثبيت التطبيق",
-    whatsappSupport: "دعم الواتساب",
+    whatsappSupport: "ارسل رسالة عبر الواتساب",
     menu: "القائمة"
   },
   en: {
@@ -82,7 +82,7 @@ const translations = {
     noDesc: "No description available.",
     itemCount: "Items",
     installApp: "Install App",
-    whatsappSupport: "WhatsApp Support",
+    whatsappSupport: "Send a message via WhatsApp",
     menu: "Menu"
   },
   ku: {
@@ -120,7 +120,7 @@ const translations = {
     noDesc: "هیچ وەسفێکی ورد بەردەست نییە.",
     itemCount: "پارچە",
     installApp: "دابەزاندنی بەرنامە",
-    whatsappSupport: "پشتگیری واتساب",
+    whatsappSupport: "لە ڕێگەی واتسئەپەوە نامە بنێرە",
     menu: "پێڕست"
   }
 };
@@ -387,19 +387,37 @@ export default function App() {
     }
   };
 
+  // ✅ تأثير التحديث لعداد الزوار مع خاصية التصفير الأوتوماتيكي اليومي
   useEffect(() => {
     fetchProducts(); 
     fetchCategories();
     fetchDeliveryLocations();
     
     const statsRef = doc(db, "system", "stats");
-    setDoc(statsRef, { visitorCount: increment(1) }, { merge: true }).catch(e => console.error(e));
+    const todayStr = new Date().toDateString(); // يحصل على تاريخ اليوم كنص
+
+    // التأكد من التاريخ وتحديث العداد أو تصفيره
+    getDoc(statsRef).then((docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.lastResetDate !== todayStr) {
+          // يوم جديد = تصفير العداد ليمسح الجلسات المعلقة
+          setDoc(statsRef, { visitorCount: 1, lastResetDate: todayStr }, { merge: true });
+        } else {
+          // نفس اليوم = زيادة عادية
+          setDoc(statsRef, { visitorCount: increment(1) }, { merge: true }).catch(e => console.error(e));
+        }
+      } else {
+        setDoc(statsRef, { visitorCount: 1, lastResetDate: todayStr }, { merge: true });
+      }
+    });
 
     const decreaseCount = () => {
       setDoc(statsRef, { visitorCount: increment(-1) }, { merge: true });
     };
 
     window.addEventListener('beforeunload', decreaseCount);
+    
     const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
       if (docSnap.exists()) {
         const count = docSnap.data().visitorCount || 0;
@@ -773,16 +791,14 @@ export default function App() {
   });
 
   return (
-    <div className={`tech-grid relative min-h-200 font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 bg-[#030212] text-gray-100`} dir={lang === 'en' ? 'ltr' : 'rtl'}>
+    <div className={`tech-grid relative min-h-200 font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 bg-[#0f172a] text-gray-100`} dir={lang === 'en' ? 'ltr' : 'rtl'}>
       
       <div ref={cursorOuterRef} className={`custom-cursor hidden md:block fixed top-0 left-0 w-[30px] h-[30px] border rounded-full pointer-events-none -translate-x-1/2 -translate-y-1/2 z-[9999] border-teal-500/60`}></div>
       <div ref={cursorInnerRef} className={`custom-cursor-dot hidden md:block fixed top-0 left-0 w-[6px] h-[6px] rounded-full pointer-events-none -translate-x-1/2 -translate-y-1/2 z-[9999] bg-teal-500`}></div>
 
-      {/* Header - ترتيب احترافي وأيقونات واضحة */}
-      <header className={`border-b fixed top-0 left-0 right-0 z-50 px-3 sm:px-6 py-3 backdrop-blur-md transition-colors duration-500 border-teal-500/20 bg-black/80 shadow-lg`}>
+      <header className={`border-b fixed top-0 left-0 right-0 z-50 px-3 sm:px-6 py-3 backdrop-blur-md transition-colors duration-500 border-teal-500/20 bg-slate-900/90 shadow-lg`}>
         <div className="max-w-7xl mx-auto flex justify-between items-center w-full">
           
-          {/* الجانب الأيمن (اللوجو وزر القائمة الجانبية) */}
           <div className="flex flex-row items-center gap-3 flex-shrink-0" style={{ direction: 'ltr' }}>
             <div className="w-10 h-10 rounded-xl border flex items-center justify-center transition-all bg-teal-500/10 border-teal-500/60 shadow-[0_0_15px_rgba(20,184,166,0.3)] animate-deep-pulse">
               <i className="fas fa-microchip text-xl text-teal-400"></i>
@@ -790,39 +806,53 @@ export default function App() {
             
             <button 
               onClick={() => setIsSideMenuOpen(true)} 
-              className="flex items-center gap-2 text-teal-400 bg-teal-500/10 border border-teal-500/30 px-3 py-2 rounded-lg hover:bg-teal-500 hover:text-black transition-colors cursor-pointer shadow-sm"
+              className="flex items-center gap-2 text-teal-400 bg-teal-500/10 border border-teal-500/30 px-3 py-2 rounded-lg hover:bg-teal-500 hover:text-slate-900 transition-colors cursor-pointer shadow-sm"
             >
               <i className="fas fa-bars text-lg"></i> <span className={`font-mono text-xs font-bold tracking-widest hidden sm:inline`}>{t.menu}</span>
             </button>
           </div>
 
-          {/* الجانب الأيسر (الأزرار) */}
           <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
             
-            {/* اللغات */}
-            <div className={`flex items-center bg-black/60 border border-teal-500/30 rounded-full p-1 backdrop-blur-sm shadow-inner`}>
-              <button type="button" onClick={() => setLang('ar')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'ar' ? 'bg-teal-500 text-black shadow-md' : 'text-gray-400 hover:text-white'}`}>AR</button>
-              <button type="button" onClick={() => setLang('en')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'en' ? 'bg-teal-500 text-black shadow-md' : 'text-gray-400 hover:text-white'}`}>EN</button>
-              <button type="button" onClick={() => setLang('ku')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'ku' ? 'bg-teal-500 text-black shadow-md' : 'text-gray-400 hover:text-white'}`}>KU</button>
+            <div className={`flex items-center bg-slate-900/80 border border-teal-500/30 rounded-full p-1 backdrop-blur-sm shadow-inner`}>
+              <button type="button" onClick={() => setLang('ar')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'ar' ? 'bg-teal-500 text-slate-900 shadow-md' : 'text-gray-400 hover:text-white'}`}>AR</button>
+              <button type="button" onClick={() => setLang('en')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'en' ? 'bg-teal-500 text-slate-900 shadow-md' : 'text-gray-400 hover:text-white'}`}>EN</button>
+              <button type="button" onClick={() => setLang('ku')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'ku' ? 'bg-teal-500 text-slate-900 shadow-md' : 'text-gray-400 hover:text-white'}`}>KU</button>
             </div>
 
-            {/* الإدارة */}
             {user && user.uid === ADMIN_UID && (
-              <button 
-                type="button"
-                onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-                onClick={() => { playSynthSound(900, 'sine', 0.1); setIsAdminMode(!isAdminMode); }}
-                className="w-10 h-10 sm:w-auto sm:px-4 sm:py-2 bg-red-600/20 border border-red-500 text-red-400 hover:bg-red-500 hover:text-white rounded-full font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
-                title={isAdminMode ? t.adminLeave : t.adminLogin}
-              >
-                <i className={`fas ${isAdminMode ? 'fa-sign-out-alt' : 'fa-user-shield'} text-sm`}></i> 
-                <span className="hidden sm:inline font-mono text-xs">{isAdminMode ? t.adminLeave : t.adminLogin}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                 {/* زر تصفير العداد اليدوي الخاص بالمدير */}
+                 <button
+                    type="button"
+                    onClick={() => {
+                       if(window.confirm("هل أنت متأكد من تصفير عداد الزوار الحاليين؟")) {
+                          setDoc(doc(db, "system", "stats"), { visitorCount: 0 }, { merge: true });
+                          playSuccessBeep();
+                       }
+                    }}
+                    className="w-10 h-10 sm:w-auto sm:px-4 sm:py-2 bg-yellow-500/20 border border-yellow-500 text-yellow-400 hover:bg-yellow-500 hover:text-slate-900 rounded-full font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
+                    title="تصفير عداد الزوار (يمسح الزوار العالقين)"
+                 >
+                    <i className="fas fa-users-slash text-sm"></i>
+                    <span className="hidden sm:inline font-mono text-xs">تصفير الزوار</span>
+                 </button>
+
+                 <button 
+                   type="button"
+                   onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
+                   onClick={() => { playSynthSound(900, 'sine', 0.1); setIsAdminMode(!isAdminMode); }}
+                   className="w-10 h-10 sm:w-auto sm:px-4 sm:py-2 bg-red-600/20 border border-red-500 text-red-400 hover:bg-red-500 hover:text-white rounded-full font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
+                   title={isAdminMode ? t.adminLeave : t.adminLogin}
+                 >
+                   <i className={`fas ${isAdminMode ? 'fa-sign-out-alt' : 'fa-user-shield'} text-sm`}></i> 
+                   <span className="hidden sm:inline font-mono text-xs">{isAdminMode ? t.adminLeave : t.adminLogin}</span>
+                 </button>
+              </div>
             )}
 
-            {/* الحساب والدخول */}
             {user ? (
-              <div className={`flex items-center gap-1 sm:gap-2 bg-black/60 border border-teal-500/30 rounded-full p-1 sm:px-2 shadow-inner`}>
+              <div className={`flex items-center gap-1 sm:gap-2 bg-slate-900/80 border border-teal-500/30 rounded-full p-1 sm:px-2 shadow-inner`}>
                 <img src={user.photoURL} alt="pfp" className="w-8 h-8 rounded-full border border-teal-400" />
                 <span className={`text-gray-200 hidden lg:inline text-xs font-bold`}>{user.name}</span>
                 <button type="button" onClick={handleLogout} className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-500/20 rounded-full transition-colors" title={t.adminLeave}>
@@ -830,24 +860,22 @@ export default function App() {
                 </button>
               </div>
             ) : (
-              <button type="button" onClick={handleGoogleLogin} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-10 h-10 sm:w-auto sm:px-4 sm:py-2 flex items-center justify-center rounded-full font-bold transition-all shadow-md bg-gradient-to-r from-teal-500 to-emerald-500 text-black`}>
+              <button type="button" onClick={handleGoogleLogin} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-10 h-10 sm:w-auto sm:px-4 sm:py-2 flex items-center justify-center rounded-full font-bold transition-all shadow-md bg-gradient-to-r from-teal-500 to-emerald-500 text-slate-900`}>
                 <i className="fab fa-google text-sm"></i> <span className="hidden sm:inline font-mono text-xs mx-2">{t.cloudLogin}</span>
               </button>
             )}
 
-            {/* السلة */}
-            <button type="button" onClick={() => { setIsCartOpen(true); playSynthSound(800, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`relative flex items-center justify-center w-10 h-10 sm:w-auto sm:px-5 sm:py-2 rounded-full transition-all shadow-[0_0_15px_rgba(20,184,166,0.5)] bg-teal-500 text-black hover:bg-teal-400 hover:scale-105 flex-shrink-0`}>
+            <button type="button" onClick={() => { setIsCartOpen(true); playSynthSound(800, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`relative flex items-center justify-center w-10 h-10 sm:w-auto sm:px-5 sm:py-2 rounded-full transition-all shadow-[0_0_15px_rgba(20,184,166,0.5)] bg-teal-500 text-slate-900 hover:bg-teal-400 hover:scale-105 flex-shrink-0`}>
               <i className={`fas fa-shopping-cart text-lg`}></i>
               <span className="font-mono text-sm hidden sm:inline font-bold ml-2 mr-2">{totalQty.toString().padStart(2, '0')}</span>
-              <span className={`absolute -top-1.5 -right-1.5 w-6 h-6 font-mono text-xs font-bold rounded-full flex items-center justify-center shadow-lg bg-red-600 text-white border-2 border-[#030212]`}>{totalQty}</span>
+              <span className={`absolute -top-1.5 -right-1.5 w-6 h-6 font-mono text-xs font-bold rounded-full flex items-center justify-center shadow-lg bg-red-600 text-white border-2 border-[#0f172a]`}>{totalQty}</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* القائمة الجانبية (للتنزيل والتواصل السريع) */}
-      <div className={`fixed inset-y-0 ${lang === 'en' ? 'left-0' : 'right-0'} w-72 bg-[#0a0a0f] border-${lang === 'en' ? 'r' : 'l'} border-teal-500/20 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[100] transform transition-transform duration-300 flex flex-col ${isSideMenuOpen ? 'translate-x-0' : (lang === 'en' ? '-translate-x-full' : 'translate-x-full')}`}>
-        <div className="p-5 border-b border-teal-500/20 flex justify-between items-center bg-black/40">
+      <div className={`fixed inset-y-0 ${lang === 'en' ? 'left-0' : 'right-0'} w-72 bg-[#1e293b] border-${lang === 'en' ? 'r' : 'l'} border-teal-500/20 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[100] transform transition-transform duration-300 flex flex-col ${isSideMenuOpen ? 'translate-x-0' : (lang === 'en' ? '-translate-x-full' : 'translate-x-full')}`}>
+        <div className="p-5 border-b border-teal-500/20 flex justify-between items-center bg-slate-900/50">
           <h3 className="text-teal-400 font-bold text-lg flex items-center gap-2"><i className="fas fa-list-ul"></i> {t.menu}</h3>
           <button type="button" onClick={() => setIsSideMenuOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full border border-teal-500/20 text-teal-400 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-all">
             <i className="fas fa-times text-lg"></i>
@@ -855,21 +883,20 @@ export default function App() {
         </div>
         
         <div className="p-5 flex flex-col gap-4 flex-grow overflow-y-auto">
-          <button onClick={() => { handleInstallApp(); setIsSideMenuOpen(false); }} className="w-full flex items-center gap-4 bg-teal-500/10 border border-teal-500/30 text-teal-400 p-4 rounded-xl hover:bg-teal-500 hover:text-black transition-all font-bold shadow-md hover:scale-105">
+          <button onClick={() => { handleInstallApp(); setIsSideMenuOpen(false); }} className="w-full flex items-center gap-4 bg-teal-500/10 border border-teal-500/30 text-teal-400 p-4 rounded-xl hover:bg-teal-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
             <i className="fas fa-download text-2xl"></i> 
             <span className="text-sm">{t.installApp}</span>
           </button>
           
-          <a href="https://wa.me/9647760599953" target="_blank" rel="noopener noreferrer" className="w-full flex items-center gap-4 bg-green-500/10 border border-green-500/30 text-green-400 p-4 rounded-xl hover:bg-green-500 hover:text-black transition-all font-bold shadow-md hover:scale-105">
+          <a href="https://wa.me/9647760599953" target="_blank" rel="noopener noreferrer" className="w-full flex items-center gap-4 bg-green-500/10 border border-green-500/30 text-green-400 p-4 rounded-xl hover:bg-green-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
             <i className="fab fa-whatsapp text-2xl"></i> 
             <span className="text-sm">{t.whatsappSupport}</span>
           </a>
         </div>
       </div>
       
-      {/* الغطاء الشفاف عند فتح القائمة الجانبية */}
       {isSideMenuOpen && (
-        <div onClick={() => setIsSideMenuOpen(false)} className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[90] transition-opacity"></div>
+        <div onClick={() => setIsSideMenuOpen(false)} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[90] transition-opacity"></div>
       )}
 
       {isAdminMode && user?.uid === ADMIN_UID ? (
@@ -909,11 +936,11 @@ export default function App() {
               </span> 
               <span className="scanline-text text-white mx-2">{t.heroTitle3}</span>
             </h1>
-            <p className="max-w-xl m-auto p-4 sm:p-6 text-xs sm:text-lg mb-2 font-light text-gray-400">
+            <p className="max-w-xl m-auto p-4 sm:p-6 text-xs sm:text-lg mb-2 font-light text-gray-300">
               {t.heroDesc}
             </p>
             <div ref={magneticContainerRef} className="p-4 sm:p-10 cursor-pointer">
-              <button type="button" ref={magneticBtnRef} onClick={() => document.getElementById('productsSection').scrollIntoView({ behavior: 'smooth' })} className={`relative px-6 py-3 sm:px-10 sm:py-5 bg-transparent border rounded-full text-sm uppercase tracking-widest overflow-hidden group transition-all duration-300 shadow-sm border-teal-500/30 text-teal-400 hover:border-teal-400 hover:text-black`}>
+              <button type="button" ref={magneticBtnRef} onClick={() => document.getElementById('productsSection').scrollIntoView({ behavior: 'smooth' })} className={`relative px-6 py-3 sm:px-10 sm:py-5 bg-transparent border rounded-full text-sm uppercase tracking-widest overflow-hidden group transition-all duration-300 shadow-sm border-teal-500/30 text-teal-400 hover:border-teal-400 hover:text-slate-900`}>
                 <span className="relative z-10 font-bold flex items-center gap-3 transition-colors duration-300">
                   <i className="fas fa-arrow-down animate-bounce"></i> {t.browseCat}
                 </span>
@@ -927,7 +954,7 @@ export default function App() {
               <div>
                 <h2 className={`text-2xl md:text-5xl font-extrabold tracking-tight mt-2 text-white`}>{t.catTitle}</h2>
               </div>
-              <p className={`max-w-sm text-xs sm:text-sm font-mono text-gray-500`}>{t.catDesc}</p>
+              <p className={`max-w-sm text-xs sm:text-sm font-mono text-gray-400`}>{t.catDesc}</p>
             </div>
 
             <div className="mb-8 relative w-full md:w-1/2 lg:w-1/3">
@@ -941,14 +968,14 @@ export default function App() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onMouseEnter={handleMouseEnterInteractive} 
                 onMouseLeave={handleMouseLeaveInteractive}
-                className={`w-full p-3 sm:p-4 ${lang === 'en' ? 'pl-12' : 'pr-12'} rounded-2xl text-xs sm:text-sm outline-none transition-all border border-teal-500 bg-white text-black placeholder-gray-500 shadow-lg focus:border-teal-600 focus:ring-2 focus:ring-teal-300`}
+                className={`w-full p-3 sm:p-4 ${lang === 'en' ? 'pl-12' : 'pr-12'} rounded-2xl text-xs sm:text-sm outline-none transition-all border border-teal-500 bg-white text-slate-900 placeholder-gray-500 shadow-lg focus:border-teal-600 focus:ring-2 focus:ring-teal-300`}
               />
             </div>
 
             <div className={`flex gap-2 mb-8 overflow-x-auto pb-4 custom-scrollbar hide-scroll ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
                <button 
                   onClick={() => setSelectedCatFilter('')} 
-                  className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-black font-bold border-teal-500' : 'bg-black/40 text-gray-400 border-teal-500/20 hover:border-teal-400'}`}
+                  className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-slate-900 font-bold border-teal-500' : 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400'}`}
                >
                   All / الكل
                </button>
@@ -956,20 +983,19 @@ export default function App() {
                    <button 
                       key={c.id} 
                       onClick={() => setSelectedCatFilter(c.name)} 
-                      className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-black font-bold border-teal-500' : 'bg-black/40 text-gray-400 border-teal-500/20 hover:border-teal-400'}`}
+                      className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-slate-900 font-bold border-teal-500' : 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400'}`}
                    >
                       {c.name}
                    </button>
                ))}
             </div>
 
-            {/* الكروت متساوية ومشدودة (items-stretch) */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8 items-stretch">
               {filteredProducts.length === 0 ? (
-                <div className="col-span-2 md:col-span-3 lg:col-span-4 text-center py-16 border rounded-2xl border-dashed border-teal-500/20 bg-neutral-900/20">
+                <div className="col-span-2 md:col-span-3 lg:col-span-4 text-center py-16 border rounded-2xl border-dashed border-teal-500/20 bg-slate-800/40">
                   <i className="fas fa-microchip text-3xl sm:text-5xl text-teal-500/30 mb-4 animate-pulse"></i>
                   <h3 className="text-lg sm:text-xl font-bold text-gray-300">{t.notFoundTitle}</h3>
-                  <p className="text-xs sm:text-sm text-gray-500 mt-2">{t.notFoundDesc}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mt-2">{t.notFoundDesc}</p>
                 </div>
               ) : (
                 filteredProducts.map((prod) => {
@@ -978,25 +1004,23 @@ export default function App() {
 
                   return (
                   <div key={prod.id} style={{ perspective: '1000px' }} className="h-full">
-                    {/* flex flex-col h-full لضمان أن الكرت يمتد للأسفل ليتساوى مع غيره */}
                     <div 
                       onMouseMove={(e) => handleCardMove(e, e.currentTarget)} 
                       onMouseLeave={(e) => { handleCardLeave(e.currentTarget); handleMouseLeaveInteractive(); }} 
                       onMouseEnter={handleMouseEnterInteractive} 
-                      className={`h-full flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-6 relative group transform-style-preserve-3d transition-all duration-300 border bg-neutral-900/40 ${isOutOfStock ? 'border-red-500/20 hover:border-red-400/60' : 'border-teal-500/20 hover:border-teal-400/60'}`}
+                      className={`h-full flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-6 relative group transform-style-preserve-3d transition-all duration-300 border bg-slate-800/60 ${isOutOfStock ? 'border-red-500/20 hover:border-red-400/60' : 'border-teal-500/20 hover:border-teal-400/60'}`}
                     >
                       <div className="gloss-effect"></div>
                       
-                      {/* منطقة الصورة ثابتة (flex-shrink-0) */}
                       <div 
                         onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); playSynthSound(800, 'sine', 0.1); }}
-                        className={`flex-shrink-0 h-32 sm:h-64 rounded-lg sm:rounded-xl overflow-hidden mb-4 sm:mb-6 flex items-center justify-center border transition-all relative cursor-pointer bg-black/40 ${isOutOfStock ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-teal-500/10 group-hover:border-teal-500/30'}`}
+                        className={`flex-shrink-0 h-32 sm:h-64 rounded-lg sm:rounded-xl overflow-hidden mb-4 sm:mb-6 flex items-center justify-center border transition-all relative cursor-pointer bg-slate-900/60 ${isOutOfStock ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-teal-500/10 group-hover:border-teal-500/30'}`}
                         title={t.viewDetails}
                       >
                         <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} alt={prod.name} className={`object-contain h-24 sm:h-48 w-full transition-all duration-500 ${isOutOfStock ? 'opacity-50 grayscale' : 'group-hover:scale-110 group-hover:rotate-6'}`} />
                         
                         {prod.images && prod.images.length > 1 && (
-                           <div className={`absolute bottom-2 ${lang === 'en' ? 'left-2' : 'right-2'} px-1 py-0.5 sm:px-2 sm:py-1 bg-black/80 text-white rounded text-[8px] sm:text-xs font-mono shadow-md backdrop-blur-sm`}>
+                           <div className={`absolute bottom-2 ${lang === 'en' ? 'left-2' : 'right-2'} px-1 py-0.5 sm:px-2 sm:py-1 bg-slate-900/80 text-white rounded text-[8px] sm:text-xs font-mono shadow-md backdrop-blur-sm`}>
                               <i className="fas fa-images"></i> +{prod.images.length - 1}
                            </div>
                         )}
@@ -1004,7 +1028,7 @@ export default function App() {
                         <div className={`absolute top-2 ${lang === 'en' ? 'right-2' : 'left-2'} px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-xs font-mono font-bold bg-teal-500/20 text-teal-400 border border-teal-500/30`}>{prod.chip || 'NEW MCU'}</div>
                         
                         {isOutOfStock && (
-                           <div className="absolute inset-0 bg-black/60 z-10 flex flex-col items-center justify-center backdrop-blur-[2px]">
+                           <div className="absolute inset-0 bg-slate-900/60 z-10 flex flex-col items-center justify-center backdrop-blur-[2px]">
                               <span className="bg-red-600 text-white font-bold px-2 py-1 sm:px-6 sm:py-2 rounded border border-red-400 shadow-[0_0_15px_rgba(220,38,38,0.5)] transform -rotate-12 text-[10px] sm:text-lg uppercase tracking-widest">
                                 نافذ
                               </span>
@@ -1012,11 +1036,10 @@ export default function App() {
                         )}
 
                         <div className="absolute inset-0 bg-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[1px]">
-                            <span className="bg-black/70 text-white font-bold text-[10px] sm:text-xs px-2 py-1 sm:px-4 sm:py-2 rounded-full tracking-widest"><i className="fas fa-eye"></i> {t.viewDetails}</span>
+                            <span className="bg-slate-900/80 text-white font-bold text-[10px] sm:text-xs px-2 py-1 sm:px-4 sm:py-2 rounded-full tracking-widest"><i className="fas fa-eye"></i> {t.viewDetails}</span>
                         </div>
                       </div>
 
-                      {/* الوسوم */}
                       <div className="flex justify-between items-center mb-2 sm:mb-3 flex-shrink-0">
                         <span className={`font-mono text-[8px] sm:text-[10px] tracking-widest font-bold text-teal-500`}>// {prod.code || 'GENERIC'}</span>
                         {prod.category && (
@@ -1024,25 +1047,22 @@ export default function App() {
                         )}
                       </div>
 
-                      {/* العنوان */}
-                      <h3 className={`text-xs sm:text-xl font-bold mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer text-white hover:text-teal-500 transition-colors`} onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); playSynthSound(800, 'sine', 0.1); }}>{prod.name}</h3>
+                      <h3 className={`text-xs sm:text-xl font-bold mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer text-white hover:text-teal-400 transition-colors`} onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); playSynthSound(800, 'sine', 0.1); }}>{prod.name}</h3>
                       
-                      {/* الوصف يتمدد (flex-grow) ليدفع ما تحته للأسفل */}
-                      <p className={`text-[10px] sm:text-sm mb-3 sm:mb-6 leading-relaxed line-clamp-2 text-gray-400 flex-grow`}>{prod.desc || t.noDesc}</p>
+                      <p className={`text-[10px] sm:text-sm mb-3 sm:mb-6 leading-relaxed line-clamp-2 text-gray-300 flex-grow`}>{prod.desc || t.noDesc}</p>
                       
-                      {/* السعر وزر الإضافة بالأسفل دائماً (mt-auto) */}
                       <div className={`mt-auto flex flex-col sm:flex-row justify-between items-center sm:items-end pt-2 sm:pt-4 border-t gap-2 sm:gap-0 flex-shrink-0 ${isOutOfStock ? 'border-red-500/10' : 'border-teal-500/10'}`}>
                         <div className="w-full sm:w-auto text-center sm:text-right">
-                           <span className="block text-[8px] sm:text-[10px] text-gray-500 font-mono font-bold">{t.price}</span>
+                           <span className="block text-[8px] sm:text-[10px] text-gray-400 font-mono font-bold">{t.price}</span>
                            <span className={`text-sm sm:text-2xl font-bold font-mono ${isOutOfStock ? 'text-red-400 opacity-60' : 'text-teal-400'}`}>{prod.price?.toLocaleString() || 0}</span>
                         </div>
                         <button 
                           type="button" 
                           disabled={isOutOfStock}
                           onClick={() => addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock)} 
-                          className={`w-full flex items-center justify-center gap-1 sm:w-auto p-1.5 px-2 sm:p-3 sm:px-5 rounded-full font-bold text-[10px] sm:text-xs transition-all relative z-10 shadow-md ${isOutOfStock ? 'bg-neutral-800 text-gray-500 cursor-not-allowed border border-neutral-700' : 'bg-teal-500 text-black hover:bg-teal-400'}`}
+                          className={`w-full flex items-center justify-center gap-1 sm:w-auto p-1.5 px-2 sm:p-3 sm:px-5 rounded-full font-bold text-[10px] sm:text-xs transition-all relative z-10 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-slate-900 hover:bg-teal-400'}`}
                         >
-                          <i className="fas fa-cart-plus"></i> {isOutOfStock ? 'نافذ' : t.addToCart}
+                          <i className="fas fa-cart-arrow-down"></i> {isOutOfStock ? 'نافذ' : t.addToCart}
                         </button>
                       </div>
                       
@@ -1055,31 +1075,30 @@ export default function App() {
         </>
       )}
 
-      {/* نافذة سلة المشتريات (معدلة للهاتف لتظهر المنتجات وتظهر الفورمة مع إمكانية التمرير) */}
-      <div className={`fixed inset-y-0 ${lang === 'en' ? 'right-0' : 'left-0'} w-full md:w-[850px] border-${lang === 'en' ? 'l' : 'r'} shadow-2xl z-50 transform transition-transform duration-500 flex flex-col ${isCartOpen ? 'translate-x-0' : (lang === 'en' ? 'translate-x-full' : '-translate-x-full')} bg-[#0c0c11] border-teal-500/20`}>
-        <div className={`p-5 border-b flex justify-between items-center bg-black/40 border-teal-500/20`}>
+      {/* نافذة سلة المشتريات */}
+      <div className={`fixed inset-y-0 ${lang === 'en' ? 'right-0' : 'left-0'} w-full md:w-[850px] border-${lang === 'en' ? 'l' : 'r'} shadow-2xl z-50 transform transition-transform duration-500 flex flex-col ${isCartOpen ? 'translate-x-0' : (lang === 'en' ? 'translate-x-full' : '-translate-x-full')} bg-[#0f172a] border-teal-500/20`}>
+        <div className={`p-5 border-b flex justify-between items-center bg-slate-900/60 border-teal-500/20`}>
           <div className="flex items-center gap-5">
             <i className={`fas fa-shopping-cart text-xl text-teal-400`}></i>
             <div><h3 className={`text-lg font-bold text-white`}>{t.cartTitle}</h3></div>
           </div>
-          <button type="button" onClick={() => { setIsCartOpen(false); playSynthSound(400, 'sine', 0.1); }} className={`w-10 h-10 rounded-full border flex items-center justify-center transition-colors border-teal-500/20 hover:bg-neutral-800`}>
+          <button type="button" onClick={() => { setIsCartOpen(false); playSynthSound(400, 'sine', 0.1); }} className={`w-10 h-10 rounded-full border flex items-center justify-center transition-colors border-teal-500/20 hover:bg-slate-800`}>
             <i className={`fas fa-times text-teal-400 text-lg`}></i>
           </button>
         </div>
 
-        {/* الحاوية الرئيسية تم جعلها قابلة للتمرير في الموبايل ومقسومة في الديسكتوب. و(flex-col-reverse) لرفع المنتجات للأعلى بالهاتف */}
         <div className="flex flex-col-reverse md:flex-row flex-grow overflow-y-auto overflow-x-hidden md:overflow-hidden custom-scrollbar">
           
-          <div className={`w-full md:w-2/5 flex flex-col flex-shrink-0 h-auto md:h-full md:border-${lang === 'en' ? 'l' : 'r'} border-teal-500/10 bg-black/20`}>
+          <div className={`w-full md:w-2/5 flex flex-col flex-shrink-0 h-auto md:h-full md:border-${lang === 'en' ? 'l' : 'r'} border-teal-500/10 bg-slate-800/30`}>
             <div className="p-6 space-y-6 flex-grow overflow-y-auto custom-scrollbar">
-              <h4 className="font-bold text-teal-500 text-sm mb-4"><i className="fas fa-user-astronaut"></i> {t.cartInfo}</h4>
-              <input type="text" placeholder={t.cartName} value={customerName} onChange={(e) => setCustomerName(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-black/80 border-teal-500/20 text-white focus:border-teal-400`} />
-              <input type="tel" placeholder={t.cartPhone} value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-black/80 border-teal-500/20 text-white focus:border-teal-400`} />
+              <h4 className="font-bold text-teal-400 text-sm mb-4"><i className="fas fa-user-astronaut"></i> {t.cartInfo}</h4>
+              <input type="text" placeholder={t.cartName} value={customerName} onChange={(e) => setCustomerName(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400`} />
+              <input type="tel" placeholder={t.cartPhone} value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400`} />
               
               <select 
                  value={selectedGovId} 
                  onChange={e => setSelectedGovId(e.target.value)} 
-                 className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-black/80 border-teal-500/20 text-white focus:border-teal-400`}
+                 className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400`}
               >
                  <option value="" disabled>اختر المحافظة</option>
                  {deliveryLocations.map(gov => (
@@ -1087,15 +1106,15 @@ export default function App() {
                  ))}
               </select>
 
-              <textarea placeholder={t.cartAddress} value={detailedAddress} onChange={(e) => setDetailedAddress(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-black/80 border-teal-500/20 text-white focus:border-teal-400 min-h-[80px] resize-none`}></textarea>
+              <textarea placeholder={t.cartAddress} value={detailedAddress} onChange={(e) => setDetailedAddress(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400 min-h-[80px] resize-none`}></textarea>
             </div>
 
-            <div className={`p-4 border-t space-y-4 bg-black/10 border-teal-500/20`}>
-              <div className={`flex justify-between font-mono text-sm font-bold text-gray-400`}><span>{t.cartSub}</span><span>{subtotal.toLocaleString()} {t.currency}</span></div>
-              <div className={`flex justify-between font-mono text-sm font-bold text-gray-400`}><span>{t.cartDelivery}</span><span>{currentDeliveryFee.toLocaleString()} {t.currency}</span></div>
+            <div className={`p-4 border-t space-y-4 bg-slate-800/40 border-teal-500/20`}>
+              <div className={`flex justify-between font-mono text-sm font-bold text-gray-300`}><span>{t.cartSub}</span><span>{subtotal.toLocaleString()} {t.currency}</span></div>
+              <div className={`flex justify-between font-mono text-sm font-bold text-gray-300`}><span>{t.cartDelivery}</span><span>{currentDeliveryFee.toLocaleString()} {t.currency}</span></div>
               
               {selectedGovId && (
-                 <div className={`flex justify-between font-mono text-xs text-teal-200`}>
+                 <div className={`flex justify-between font-mono text-xs text-teal-300`}>
                     <span>{t.cartTime}</span><span>{activeGov.time}</span>
                  </div>
               )}
@@ -1105,28 +1124,27 @@ export default function App() {
                  <span className={`font-mono text-teal-400`}>{(subtotal + currentDeliveryFee).toLocaleString()} {t.currency}</span>
               </div>
               
-              <button type="button" onClick={handleCheckout} className="w-full py-4 mt-2 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 text-black hover:from-teal-400 hover:to-emerald-400 font-extrabold tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 text-sm">
+              <button type="button" onClick={handleCheckout} className="w-full py-4 mt-2 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 text-slate-900 hover:from-teal-400 hover:to-emerald-400 font-extrabold tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 text-sm">
                 <i className="fas fa-check-double text-lg"></i> {t.cartCheckout}
               </button>
             </div>
           </div>
 
           <div className="w-full md:w-3/5 flex flex-col flex-shrink-0 h-auto md:h-full bg-transparent border-b md:border-b-0 border-teal-500/20">
-            <div className="p-4 border-b border-teal-500/10 flex justify-between items-center bg-black/10">
+            <div className="p-4 border-b border-teal-500/10 flex justify-between items-center bg-slate-800/40">
               <span className="font-bold text-teal-400 text-sm"><i className="fas fa-box-open"></i> {t.cartItems}</span>
               <span className="font-mono text-xs bg-teal-500/20 text-teal-400 px-2 py-1 rounded border border-teal-500/30">{cart.length} {t.itemCount}</span>
             </div>
             
-            {/* في الهاتف تم تحديد أقصى ارتفاع بـ 45vh لضمان عدم اختفاء الفورمة في الأسفل */}
             <div className="flex-grow overflow-y-auto p-4 sm:p-6 space-y-4 custom-scrollbar max-h-[45vh] md:max-h-none">
               {cart.length === 0 ? (
-                <div className={`h-full flex flex-col justify-center items-center text-center font-mono text-gray-500`}>
+                <div className={`h-full flex flex-col justify-center items-center text-center font-mono text-gray-400`}>
                   <i className="fas fa-ghost text-4xl mb-4 text-teal-500/20 animate-bounce"></i>
                   <p>{t.cartEmpty}</p>
                 </div>
               ) : (
                 cart.map((item, i) => (
-                  <div key={item.id || i} className={`border rounded-xl p-3 sm:p-4 flex gap-3 sm:gap-4 items-center shadow-sm hover:border-teal-500/40 transition-colors bg-black/40 border-teal-500/10`}>
+                  <div key={item.id || i} className={`border rounded-xl p-3 sm:p-4 flex gap-3 sm:gap-4 items-center shadow-sm hover:border-teal-500/40 transition-colors bg-slate-800/60 border-teal-500/10`}>
                     <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-lg p-1 flex-shrink-0 border border-slate-100/10 flex items-center justify-center">
                       <img src={item.image} alt="" className="max-w-full max-h-full object-contain" />
                     </div>
@@ -1135,7 +1153,7 @@ export default function App() {
                       <span className={`font-mono text-[10px] sm:text-xs font-bold mt-1 block text-teal-400`}>{Number(item.price).toLocaleString()} {t.currency}</span>
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                      <div className={`flex items-center gap-1 border rounded-lg px-1 py-1 bg-black/60 border-teal-500/30`}>
+                      <div className={`flex items-center gap-1 border rounded-lg px-1 py-1 bg-slate-900/60 border-teal-500/30`}>
                         <button type="button" onClick={() => updateQty(item.id, 1)} className={`w-6 h-6 sm:w-7 sm:h-7 rounded text-xs font-bold transition-colors text-teal-400 hover:bg-teal-500/20`}>+</button>
                         <input 
                           type="number" 
@@ -1156,26 +1174,26 @@ export default function App() {
         </div>
       </div>
 
-      {isCartOpen && <div onClick={() => setIsCartOpen(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity"></div>}
+      {isCartOpen && <div onClick={() => setIsCartOpen(false)} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-40 transition-opacity"></div>}
 
       {/* نافذة عرض تفاصيل المنتج */}
       {selectedProduct && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
           <div 
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
+            className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" 
             onClick={() => { setSelectedProduct(null); playSynthSound(400, 'sine', 0.1); }}
           ></div>
           
-          <div className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl flex flex-col md:flex-row transform transition-transform duration-300 scale-100 bg-[#0c0c11] border border-teal-500/30`}>
+          <div className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl flex flex-col md:flex-row transform transition-transform duration-300 scale-100 bg-[#0f172a] border border-teal-500/30`}>
             <button 
               type="button"
               onClick={() => { setSelectedProduct(null); playSynthSound(400, 'sine', 0.1); }} 
-              className={`absolute top-4 ${lang === 'en' ? 'left-4' : 'right-4'} z-10 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border transition-all bg-black/50 border-teal-500/30 text-teal-400 hover:bg-teal-500 hover:text-black`}
+              className={`absolute top-4 ${lang === 'en' ? 'left-4' : 'right-4'} z-10 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border transition-all bg-slate-900/60 border-teal-500/30 text-teal-400 hover:bg-teal-500 hover:text-slate-900`}
             >
               <i className="fas fa-times text-sm sm:text-lg"></i>
             </button>
 
-            <div className={`w-full md:w-1/2 p-4 sm:p-6 flex flex-col items-center justify-center border-b md:border-b-0 md:border-${lang === 'en' ? 'r' : 'l'} border-teal-500/20 bg-black/40`}>
+            <div className={`w-full md:w-1/2 p-4 sm:p-6 flex flex-col items-center justify-center border-b md:border-b-0 md:border-${lang === 'en' ? 'r' : 'l'} border-teal-500/20 bg-slate-800/30`}>
               <div className="w-full h-48 sm:h-80 bg-white rounded-2xl p-4 flex items-center justify-center shadow-sm relative overflow-hidden">
                 <img 
                   src={(selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[activeImageIndex] : selectedProduct.img} 
@@ -1187,7 +1205,7 @@ export default function App() {
                 </div>
                 
                 {(parseInt(selectedProduct.stock)||0) <= 0 && (
-                   <div className="absolute inset-0 bg-black/60 z-10 flex flex-col items-center justify-center backdrop-blur-[2px]">
+                   <div className="absolute inset-0 bg-slate-900/60 z-10 flex flex-col items-center justify-center backdrop-blur-[2px]">
                       <span className="bg-red-600 text-white font-bold px-4 py-2 sm:px-6 sm:py-2 rounded border border-red-400 shadow-[0_0_15px_rgba(220,38,38,0.5)] transform -rotate-12 text-sm sm:text-lg uppercase tracking-widest">
                         نافذ
                       </span>
@@ -1221,14 +1239,14 @@ export default function App() {
                 <div className="flex gap-1 text-xs sm:text-sm text-yellow-500 mb-4 sm:mb-6">
                   <i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i>
                 </div>
-                <div className={`p-3 sm:p-4 rounded-xl text-xs sm:text-sm leading-relaxed mb-6 sm:mb-8 border bg-neutral-900/50 border-teal-500/10 text-gray-300`}>
+                <div className={`p-3 sm:p-4 rounded-xl text-xs sm:text-sm leading-relaxed mb-6 sm:mb-8 border bg-slate-800/50 border-teal-500/10 text-gray-300`}>
                   {selectedProduct.desc || t.noDesc}
                 </div>
               </div>
 
               <div className={`pt-4 sm:pt-6 border-t mt-auto flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-6 border-teal-500/20`}>
                 <div className="w-full sm:w-auto text-center sm:text-left">
-                  <span className="block text-[10px] sm:text-xs text-gray-500 font-mono font-bold mb-1">{t.price}</span>
+                  <span className="block text-[10px] sm:text-xs text-gray-400 font-mono font-bold mb-1">{t.price}</span>
                   <span className={`text-2xl sm:text-3xl font-bold font-mono ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'text-red-400 opacity-60' : 'text-teal-400'}`}>
                     {selectedProduct.price?.toLocaleString() || 0} {t.currency}
                   </span>
@@ -1241,7 +1259,7 @@ export default function App() {
                     addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock); 
                     setSelectedProduct(null); 
                   }} 
-                  className={`w-full flex justify-center items-center gap-2 sm:w-auto px-6 py-3 sm:px-8 sm:py-4 rounded-full font-bold text-xs sm:text-sm transition-all shadow-lg ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'bg-neutral-800 text-gray-500 border border-neutral-700 cursor-not-allowed' : 'bg-teal-500 text-black hover:bg-teal-400'}`}
+                  className={`w-full flex justify-center items-center gap-2 sm:w-auto px-6 py-3 sm:px-8 sm:py-4 rounded-full font-bold text-xs sm:text-sm transition-all shadow-lg ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'bg-slate-800 text-gray-500 border border-slate-700 cursor-not-allowed' : 'bg-teal-500 text-slate-900 hover:bg-teal-400'}`}
                 >
                   <i className="fas fa-cart-arrow-down"></i> {(parseInt(selectedProduct.stock)||0) <= 0 ? 'نافذ من المخزن' : t.addToCart}
                 </button>
