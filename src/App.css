@@ -1,10 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
 @import "tailwindcss";
+
 body {
     font-family: 'Tajawal', sans-serif;
 }
 
-/* سيقوم هذا الكلاس الآن بإجبار العنوان على استخدام خط تجوال بأقصى سماكة */
 .font-cairo-black {
     font-family: 'Tajawal', sans-serif !important;
     font-weight: 900 !important;
@@ -17,14 +17,7 @@ body {
         linear-gradient(to bottom, rgba(20, 184, 166, 0.04) 1px, transparent 1px);
     background-size: 50px 50px;
 }
-.scanline {
-    background: linear-gradient(
-        rgba(18, 16, 16, 0) 20%, 
-        rgba(0, 0, 0, 0.25) 70%
-    );
-    background-size: 100% 6px;
-    z-index: 10;
-}
+
 .robot-glow-container {
     position: relative;
     display: inline-block;
@@ -46,9 +39,8 @@ body {
     filter: blur(170px);
 }
 
-
 .cyber-stretched-title {
-    font-family: 'Cairo', sans-serif ;
+    font-family: 'Tajawal', sans-serif ;
     transform: scaleX(1.15); 
     transform-origin: center;
     display: inline-block;
@@ -71,21 +63,6 @@ body {
     outline-offset: 2px;
 }
 
-
-/* تحديث كلاس النص الأبيض ليقبل الخطوط التلفزيونية بوضوح */
-.scanline-text {
-    position: relative;
-    display: inline-block;
-    background: 
-        /* الطبقة العلوية: خطوط التلفاز الشفافة الداكنة */
-        linear-gradient(to bottom, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.4) 50%),
-        /* الطبقة السفلية: لون أبيض ساطع */
-        linear-gradient(to right, #ffffff, #ffffff);
-    background-size: 100% 4px, 100% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-}
 .cyber-glow {
     text-shadow: 0 0 10px rgba(255, 255, 255, 0.1), 
                  0 0 20px rgba(20, 184, 166, 0.2);
@@ -106,7 +83,7 @@ body {
     pointer-events: none;
     z-index: 5;
 }
-/* هذا الكود يطمس ويجعل شريط التمرير أنيقاً وشفافاً */
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
@@ -121,48 +98,16 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(20, 184, 166, 0.6);
 }
-/* تأثير وميض مخصص وعميق */
+
 @keyframes deep-pulse {
     0%, 100% {
         opacity: 1;
     }
     50% {
-        opacity: 0.1; /* يمكنك تغيير الرقم إلى 0 ليختفي تماماً */
+        opacity: 0.1;
     }
 }
 
 .animate-deep-pulse {
     animation: deep-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-/* كلاس مخصص لكلمة الروبوتات يدمج بين التدرج اللوني وخطوط التلفاز */
-.robot-gradient-scanline {
-    position: relative;
-    display: inline-block;
-    background: 
-        /* الطبقة العلوية: خطوط التلفاز الشفافة الداكنة */
-        linear-gradient(to bottom, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.35) 50%),
-        /* الطبقة السفلية: التدرج اللوني من التركوازي للأزرق */
-        linear-gradient(to left, #2dd4bf, #3b82f6);
-    background-size: 100% 4px, 100% 100%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-}
-/* زر مع تأثير خطوط تلفزيونية */
-.scanline-button {
-    position: relative;
-    overflow: hidden;
-}
-
-.scanline-button::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-        to bottom,
-        transparent 50%,
-        rgba(0, 0, 0, 0.2) 50%
-    );
-    background-size: 100% 4px;
-    pointer-events: none;
 }
