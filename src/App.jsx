@@ -297,7 +297,7 @@ export default function App() {
 
   const fetchOrders = async () => {
     try {
-      const q = query(collection(db, "orders"), orderBy("timestamp", "desc"), limit(50));
+      const q = query(collection(db, "orders"), orderBy("timestamp", "desc"), limit(10));
       const querySnapshot = await getDocs(q);
       const ordersData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setOrders(ordersData);
