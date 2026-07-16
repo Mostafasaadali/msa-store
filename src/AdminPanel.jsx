@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { doc, setDoc, addDoc, collection, deleteDoc } from 'firebase/firestore'; 
 import { db } from './firebase';
 
-const AdminPanel = ({
+export default function AdminPanel({
   products, setProducts, handleSaveProduct, handleDeleteProduct, handleEditClick,
   newProdName, setNewProdName,
   newProdPrice, setNewProdPrice,
@@ -31,7 +31,7 @@ const AdminPanel = ({
   visitorCount,
   
   deliveryLocations, setDeliveryLocations
-}) => {
+}) {
 
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showOrdersManager, setShowOrdersManager] = useState(false);
@@ -361,7 +361,7 @@ const AdminPanel = ({
                    <tr key={prod.id} className="hover:bg-neutral-900/50 transition-colors">
                      <td className="py-3 sm:py-4 text-center relative">
                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-lg p-1 border border-neutral-700 flex items-center justify-center mx-auto relative overflow-hidden shrink-0">
-                         <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} alt="" loading="lazy" className="object-contain max-h-full max-w-full" />
+                         <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} alt="" className="object-contain max-h-full max-w-full" />
                        </div>
                        {prod.images && prod.images.length > 1 && (
                          <span className="absolute -top-1 -right-1 bg-teal-500 text-black text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-black z-10">
@@ -537,7 +537,7 @@ const AdminPanel = ({
     <div key={idx} className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6 bg-[#12131a] p-2 sm:p-3 rounded-xl sm:rounded-3xl border border-emerald-500/10 hover:border-emerald-500/30 transition-all shadow-[0_4px_20px_rgba(0,0,0,0.3)] min-w-0">
       
       <div className="w-full sm:w-40 h-24 sm:h-28 bg-[#1a1c25] rounded-lg sm:rounded-2xl p-1 border border-neutral-800 flex items-center justify-center flex-shrink-0">
-        <img src={item.image} alt={item.name} loading="lazy" className="object-contain max-h-full max-w-full" />
+        <img src={item.image} alt={item.name} className="object-contain max-h-full max-w-full" />
       </div>
       
       <div className="flex-grow text-center sm:text-right min-w-0 w-full">
@@ -886,6 +886,4 @@ const AdminPanel = ({
 
     </div>
   );
-};
-
-export default React.memo(AdminPanel);
+}
