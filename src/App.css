@@ -111,3 +111,14 @@ body {
 .animate-deep-pulse {
     animation: deep-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* تحسين أداء الماوس والرسوميات */
+.custom-cursor, .custom-cursor-dot {
+  pointer-events: none !important;
+  will-change: transform;
+}
+
+input, button, textarea, select {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
