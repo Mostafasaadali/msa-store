@@ -1,12 +1,11 @@
+import AdminPanel from './AdminPanel'; 
 import './App.css';
+
 import {ADMIN_UID, db, auth, provider } from './firebase';
 import { collection, addDoc, doc, setDoc, getDocs, query, orderBy, limit, deleteDoc, updateDoc, getDoc, onSnapshot, increment } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'; 
-import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
-
-// التحميل المتأخر (Lazy Loading) للوحة الإدارة لتخفيف حجم الصفحة للزبائن
-const AdminPanel = lazy(() => import('./AdminPanel'));
 
 const translations = {
   ar: {
@@ -183,7 +182,7 @@ export default function App() {
 
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [modalTab, setModalTab] = useState('desc'); 
+  const [modalTab, setModalTab] = useState('desc'); // 'desc', 'code', 'links'
 
   const [deferredPrompt, setDeferredPrompt] = useState(null);
 
@@ -897,7 +896,7 @@ export default function App() {
 
             {user ? (
               <div className={`flex items-center gap-1 sm:gap-2 bg-slate-900/80 border border-teal-500/30 rounded-full p-1 sm:px-2 shadow-inner`}>
-                <img src={user.photoURL} alt="pfp" loading="lazy" className="w-8 h-8 rounded-full border border-teal-400" />
+                <img src={user.photoURL} alt="pfp" className="w-8 h-8 rounded-full border border-teal-400" />
                 <span className={`text-gray-200 hidden lg:inline text-xs font-bold`}>{user.name}</span>
                 <button type="button" onClick={handleLogout} className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-500/20 rounded-full transition-colors" title={t.adminLeave}>
                    <i className="fas fa-power-off"></i>
@@ -943,9 +942,9 @@ export default function App() {
             <span className="text-sm">{t.whatsappSupport}</span>
           </a>
 
-          <button onClick={() => { alert('نشكر المعصوم بسبب تعليمنا للعلم'); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className="w-full flex items-center gap-4 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-4 rounded-xl hover:bg-yellow-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
+          <button onClick={() => { alert('من وجهة نظر علمية، الشكر ليس مجرد شعور عاطفي، بل هو "استجابة منطقية للمنفعة". نحن نشكر الائمة المعصومين عليهم السلام لأننا كبشر ندين لهم بجزء كبير من التطور الأخلاقي، والتأسيس المعرفي والعلمي ، والعمق المعرفي الذي نعيشه اليوم. إنهم يمثلون "المُحفّزات الإيجابية" (Positive Catalysts) التي سرعت من نضج الحضارة الإنسانية.'); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className="w-full flex items-center gap-4 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-4 rounded-xl hover:bg-yellow-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
             <i className="fa-solid fa-hands-praying text-2xl"></i>
-            <span className="text-sm">شكر وتقدير</span>
+            <span className="text-sm">شكرا</span>
           </button>
 
           {externalLinks.map(link => (
@@ -962,40 +961,38 @@ export default function App() {
       )}
 
       {isAdminMode && user?.uid === ADMIN_UID ? (
-        <Suspense fallback={<div className="flex-grow flex items-center justify-center min-h-[80vh] text-teal-500"><i className="fas fa-circle-notch fa-spin text-5xl"></i></div>}>
-          <AdminPanel 
-            products={products} setProducts={setProducts}
-            handleSaveProduct={handleSaveProduct} handleDeleteProduct={handleDeleteProduct} handleEditClick={handleEditClick}
-            newProdName={newProdName} setNewProdName={setNewProdName}
-            newProdPrice={newProdPrice} setNewProdPrice={setNewProdPrice}
-            newProdImg={newProdImg} setNewProdImg={setNewProdImg}
-            newProdDesc={newProdDesc} setNewProdDesc={setNewProdDesc} 
-            newProdImages={newProdImages} setNewProdImages={setNewProdImages} 
-            newProdStock={newProdStock} setNewProdStock={setNewProdStock} 
-            newProdCategory={newProdCategory} setNewProdCategory={setNewProdCategory}
-            categories={categories}
-            handleAddCategory={handleAddCategory}
-            handleDeleteCategory={handleDeleteCategory}
-            handleEditCategory={handleEditCategory}
-            newProdChip={newProdChip} setNewProdChip={setNewProdChip}
-            newProdCode={newProdCode} setNewProdCode={setNewProdCode}
-            
-            newProdCompatLink={newProdCompatLink} setNewProdCompatLink={setNewProdCompatLink}
-            newProdLibLink={newProdLibLink} setNewProdLibLink={setNewProdLibLink}
-            newProdCodeSnippet={newProdCodeSnippet} setNewProdCodeSnippet={setNewProdCodeSnippet}
-            
-            projectsList={projectsList} setProjectsList={setProjectsList}
-            
-            externalLinks={externalLinks} setExternalLinks={setExternalLinks}
+        <AdminPanel 
+          products={products} setProducts={setProducts}
+          handleSaveProduct={handleSaveProduct} handleDeleteProduct={handleDeleteProduct} handleEditClick={handleEditClick}
+          newProdName={newProdName} setNewProdName={setNewProdName}
+          newProdPrice={newProdPrice} setNewProdPrice={setNewProdPrice}
+          newProdImg={newProdImg} setNewProdImg={setNewProdImg}
+          newProdDesc={newProdDesc} setNewProdDesc={setNewProdDesc} 
+          newProdImages={newProdImages} setNewProdImages={setNewProdImages} 
+          newProdStock={newProdStock} setNewProdStock={setNewProdStock} 
+          newProdCategory={newProdCategory} setNewProdCategory={setNewProdCategory}
+          categories={categories}
+          handleAddCategory={handleAddCategory}
+          handleDeleteCategory={handleDeleteCategory}
+          handleEditCategory={handleEditCategory}
+          newProdChip={newProdChip} setNewProdChip={setNewProdChip}
+          newProdCode={newProdCode} setNewProdCode={setNewProdCode}
+          
+          newProdCompatLink={newProdCompatLink} setNewProdCompatLink={setNewProdCompatLink}
+          newProdLibLink={newProdLibLink} setNewProdLibLink={setNewProdLibLink}
+          newProdCodeSnippet={newProdCodeSnippet} setNewProdCodeSnippet={setNewProdCodeSnippet}
+          
+          projectsList={projectsList} setProjectsList={setProjectsList}
+          
+          externalLinks={externalLinks} setExternalLinks={setExternalLinks}
 
-            editProdId={editProdId}
-            orders={orders} fetchOrders={fetchOrders}
-            handleDeleteOrder={handleDeleteOrder} 
-            visitorCount={visitorCount}
-            deliveryLocations={deliveryLocations} 
-            setDeliveryLocations={setDeliveryLocations} 
-          />
-        </Suspense>
+          editProdId={editProdId}
+          orders={orders} fetchOrders={fetchOrders}
+          handleDeleteOrder={handleDeleteOrder} 
+          visitorCount={visitorCount}
+          deliveryLocations={deliveryLocations} 
+          setDeliveryLocations={setDeliveryLocations} 
+        />
       ) : (
         <div className="flex-grow flex flex-col w-full">
           <section className="min-h-auto flex flex-col justify-center items-center text-center px-4 sm:px-8 pt-32 pb-10 relative overflow-hidden">
@@ -1063,6 +1060,7 @@ export default function App() {
                ))}
             </div>
 
+            {}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-6 items-stretch pb-12 w-full px-1 sm:px-2">
               {filteredProducts.length === 0 ? (
                 <div className="col-span-2 sm:col-span-3 lg:col-span-4 text-center py-16 border rounded-2xl border-dashed border-teal-500/20 bg-slate-800/40 mx-2">
@@ -1089,7 +1087,7 @@ export default function App() {
                         className={`flex-shrink-0 h-28 sm:h-48 w-full rounded-lg sm:rounded-xl overflow-hidden mb-3 sm:mb-5 flex items-center justify-center border transition-all relative cursor-pointer bg-slate-900/60 ${isOutOfStock ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-teal-500/10 group-hover:border-teal-500/30'}`}
                         title={t.viewDetails}
                       >
-                        <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} alt={prod.name} loading="lazy" className={`object-contain h-full w-full max-h-full max-w-full transition-all duration-500 p-1 ${isOutOfStock ? 'opacity-50 grayscale' : 'group-hover:scale-110'}`} />
+                        <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} alt={prod.name} className={`object-contain h-full w-full max-h-full max-w-full transition-all duration-500 p-1 ${isOutOfStock ? 'opacity-50 grayscale' : 'group-hover:scale-110'}`} />
                         
                         {prod.images && prod.images.length > 1 && (
                            <div className={`absolute bottom-1 sm:bottom-2 ${lang === 'en' ? 'left-1 sm:left-2' : 'right-1 sm:right-2'} px-1 py-0.5 sm:px-2 sm:py-1 bg-slate-900/80 text-white rounded text-[8px] sm:text-xs font-mono shadow-md backdrop-blur-sm`}>
@@ -1225,7 +1223,7 @@ export default function App() {
                 cart.map((item, i) => (
                   <div key={item.id || i} className={`border rounded-xl p-3 sm:p-4 flex gap-3 sm:gap-4 items-center shadow-sm hover:border-teal-500/40 transition-colors bg-slate-800/60 border-teal-500/10`}>
                     <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-lg p-1 flex-shrink-0 border border-slate-100/10 flex items-center justify-center">
-                      <img src={item.image} alt="" loading="lazy" className="max-w-full max-h-full object-contain" />
+                      <img src={item.image} alt="" className="max-w-full max-h-full object-contain" />
                     </div>
                     <div className="flex-grow min-w-0">
                       <h4 className={`font-bold text-xs sm:text-sm line-clamp-1 text-white truncate break-words`}>{item.name}</h4>
@@ -1277,7 +1275,6 @@ export default function App() {
                 <img 
                   src={(selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[activeImageIndex] : selectedProduct.img} 
                   alt={selectedProduct.name} 
-                  loading="lazy"
                   className={`object-contain max-h-full max-w-full ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'opacity-50 grayscale' : ''}`} 
                 />
                 <div className={`absolute top-4 ${lang === 'en' ? 'right-4' : 'left-4'} px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-mono font-bold bg-teal-500/20 text-teal-400 border border-teal-500/30`}>
@@ -1304,7 +1301,7 @@ export default function App() {
                         onClick={() => { setActiveImageIndex(idx); playSynthSound(1000, 'triangle', 0.05); }}
                         className={`flex-shrink-0 w-12 h-12 sm:w-16 sm:h-16 rounded-xl bg-white border-2 p-1 overflow-hidden transition-all ${activeImageIndex === idx ? 'border-teal-500 scale-110 shadow-md' : 'border-transparent opacity-60 hover:opacity-100'}`}
                       >
-                        <img src={img} alt="" loading="lazy" className="object-contain w-full h-full" />
+                        <img src={img} alt="" className="object-contain w-full h-full" />
                       </button>
                     )
                   })}
