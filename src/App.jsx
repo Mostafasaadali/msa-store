@@ -942,9 +942,9 @@ export default function App() {
             <span className="text-sm">{t.whatsappSupport}</span>
           </a>
 
-          <button onClick={() => { alert('من وجهة نظر علمية، الشكر ليس مجرد شعور عاطفي، بل هو "استجابة منطقية للمنفعة". نحن نشكر الائمة المعصومين عليهم السلام لأننا كبشر ندين لهم بجزء كبير من التطور الأخلاقي، والتأسيس المعرفي والعلمي ، والعمق المعرفي الذي نعيشه اليوم. إنهم يمثلون "المُحفّزات الإيجابية" (Positive Catalysts) التي سرعت من نضج الحضارة الإنسانية.'); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className="w-full flex items-center gap-4 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-4 rounded-xl hover:bg-yellow-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
+          <button onClick={() => { alert('نشكر المعصوم بسبب تعليمنا للعلم'); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className="w-full flex items-center gap-4 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-4 rounded-xl hover:bg-yellow-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
             <i className="fa-solid fa-hands-praying text-2xl"></i>
-            <span className="text-sm">شكرا</span>
+            <span className="text-sm">شكر وتقدير</span>
           </button>
 
           {externalLinks.map(link => (
@@ -1060,7 +1060,7 @@ export default function App() {
                ))}
             </div>
 
-            {}
+            {/* تم التعديل لمنع القطع وتقسيم الشاشة لعمودين على الهاتف بشكل سليم */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-6 items-stretch pb-12 w-full px-1 sm:px-2">
               {filteredProducts.length === 0 ? (
                 <div className="col-span-2 sm:col-span-3 lg:col-span-4 text-center py-16 border rounded-2xl border-dashed border-teal-500/20 bg-slate-800/40 mx-2">
@@ -1309,7 +1309,7 @@ export default function App() {
               )}
             </div>
 
-            <div className="w-full md:w-7/12 p-6 sm:p-8 flex flex-col justify-start h-full overflow-y-auto custom-scrollbar">
+            <div className="w-full md:w-7/12 p-6 sm:p-8 flex flex-col justify-start h-full md:h-auto overflow-y-auto custom-scrollbar flex-1">
               <div className="mb-4">
                 <span className={`font-mono text-[10px] sm:text-[11px] tracking-widest font-bold mb-2 block text-teal-500`}>{selectedProduct.code || 'GENERIC'}</span>
                 <h2 className={`text-xl sm:text-3xl font-black mb-3 sm:mb-4 text-white break-words`}>{selectedProduct.name}</h2>
@@ -1332,7 +1332,7 @@ export default function App() {
 
               <div className="flex-grow flex flex-col mb-4 min-h-[150px]">
                   {modalTab === 'desc' && (
-                      <div className={`p-4 sm:p-5 rounded-xl text-xs sm:text-sm leading-relaxed border bg-slate-800/50 border-teal-500/10 text-gray-300 h-full break-words`}>
+                      <div className={`p-4 sm:p-5 rounded-xl text-xs sm:text-sm leading-relaxed border bg-slate-800/50 border-teal-500/10 text-gray-300 h-full break-words whitespace-pre-wrap`}>
                           {selectedProduct.desc || t.noDesc}
                       </div>
                   )}
@@ -1377,7 +1377,7 @@ export default function App() {
                   disabled={(parseInt(selectedProduct.stock)||0) <= 0}
                   onClick={() => { 
                     addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock); 
-                    setSelectedProduct(null); 
+                    // تم إزالة دالة setSelectedProduct(null) لمنع إغلاق النافذة المزعج
                   }} 
                   className={`w-full flex justify-center items-center gap-2 sm:w-auto px-6 py-3 sm:px-8 sm:py-4 rounded-full font-bold text-xs sm:text-sm transition-all shadow-lg ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'bg-slate-800 text-gray-500 border border-slate-700 cursor-not-allowed' : 'bg-teal-500 text-slate-900 hover:bg-teal-400'}`}
                 >
