@@ -7,7 +7,6 @@ import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import React, { useState, useEffect, useRef } from 'react';
 import { gsap } from 'gsap';
 
-// 🌟 قاموس اللغات
 const translations = {
   ar: {
     adminLogin: "الإدارة",
@@ -387,24 +386,23 @@ export default function App() {
     }
   };
 
-  // ✅ تأثير التحديث لعداد الزوار مع خاصية التصفير الأوتوماتيكي اليومي
-  useEffect(() => {
+   useEffect(() => {
     fetchProducts(); 
     fetchCategories();
     fetchDeliveryLocations();
     
     const statsRef = doc(db, "system", "stats");
-    const todayStr = new Date().toDateString(); // يحصل على تاريخ اليوم كنص
+    const todayStr = new Date().toDateString(); 
 
-    // التأكد من التاريخ وتحديث العداد أو تصفيره
+
     getDoc(statsRef).then((docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.lastResetDate !== todayStr) {
-          // يوم جديد = تصفير العداد ليمسح الجلسات المعلقة
+  
           setDoc(statsRef, { visitorCount: 1, lastResetDate: todayStr }, { merge: true });
         } else {
-          // نفس اليوم = زيادة عادية
+  
           setDoc(statsRef, { visitorCount: increment(1) }, { merge: true }).catch(e => console.error(e));
         }
       } else {
@@ -822,7 +820,7 @@ export default function App() {
 
             {user && user.uid === ADMIN_UID && (
               <div className="flex items-center gap-2">
-                 {/* زر تصفير العداد اليدوي الخاص بالمدير */}
+                 {}
                  <button
                     type="button"
                     onClick={() => {
@@ -1075,7 +1073,7 @@ export default function App() {
         </>
       )}
 
-      {/* نافذة سلة المشتريات */}
+      {}
       <div className={`fixed inset-y-0 ${lang === 'en' ? 'right-0' : 'left-0'} w-full md:w-[850px] border-${lang === 'en' ? 'l' : 'r'} shadow-2xl z-50 transform transition-transform duration-500 flex flex-col ${isCartOpen ? 'translate-x-0' : (lang === 'en' ? 'translate-x-full' : '-translate-x-full')} bg-[#0f172a] border-teal-500/20`}>
         <div className={`p-5 border-b flex justify-between items-center bg-slate-900/60 border-teal-500/20`}>
           <div className="flex items-center gap-5">
@@ -1176,7 +1174,7 @@ export default function App() {
 
       {isCartOpen && <div onClick={() => setIsCartOpen(false)} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-40 transition-opacity"></div>}
 
-      {/* نافذة عرض تفاصيل المنتج */}
+      {}
       {selectedProduct && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
           <div 
