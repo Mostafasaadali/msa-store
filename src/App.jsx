@@ -1,11 +1,12 @@
-import AdminPanel from './AdminPanel'; 
 import './App.css';
-
 import {ADMIN_UID, db, auth, provider } from './firebase';
 import { collection, addDoc, doc, setDoc, getDocs, query, orderBy, limit, deleteDoc, updateDoc, getDoc, onSnapshot, increment } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'; 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { gsap } from 'gsap';
+
+// التحميل المتأخر (Lazy Loading) للوحة الإدارة لتخفيف حجم الصفحة للزبائن
+const AdminPanel = lazy(() => import('./AdminPanel'));
 
 const translations = {
   ar: {
@@ -44,6 +45,7 @@ const translations = {
     itemCount: "صنف",
     installApp: "تثبيت التطبيق",
     whatsappSupport: "ارسل رسالة عبر الواتساب",
+    projects: "المشاريع المنجزة",
     menu: "القائمة"
   },
   en: {
@@ -82,6 +84,7 @@ const translations = {
     itemCount: "Items",
     installApp: "Install App",
     whatsappSupport: "Send a message via WhatsApp",
+    projects: "Completed Projects",
     menu: "Menu"
   },
   ku: {
@@ -120,6 +123,7 @@ const translations = {
     itemCount: "پارچە",
     installApp: "دابەزاندنی بەرنامە",
     whatsappSupport: "لە ڕێگەی واتسئەپەوە نامە بنێرە",
+    projects: "پڕۆژەکان",
     menu: "پێڕست"
   }
 };
@@ -140,6 +144,7 @@ export default function App() {
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false); 
+  const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false); 
   
   const [customerName, setCustomerName] = useState(''); 
   const [customerPhone, setCustomerPhone] = useState(''); 
@@ -155,6 +160,8 @@ export default function App() {
   
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [products, setProducts] = useState([]);
+  const [projectsList, setProjectsList] = useState([]);
+  const [externalLinks, setExternalLinks] = useState([]); 
   
   const [categories, setCategories] = useState([]);
   const [newProdCategory, setNewProdCategory] = useState('');
@@ -167,12 +174,16 @@ export default function App() {
   const [newProdStock, setNewProdStock] = useState(''); 
   const [newProdChip, setNewProdChip] = useState('');
   const [newProdCode, setNewProdCode] = useState('');
+  const [newProdCompatLink, setNewProdCompatLink] = useState('');
+  const [newProdLibLink, setNewProdLibLink] = useState('');
+  const [newProdCodeSnippet, setNewProdCodeSnippet] = useState('');
   
   const [editProdId, setEditProdId] = useState(null);
   const [orders, setOrders] = useState([]);
 
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [modalTab, setModalTab] = useState('desc'); 
 
   const [deferredPrompt, setDeferredPrompt] = useState(null);
 
@@ -323,6 +334,31 @@ export default function App() {
       if (localCache) setCategories(JSON.parse(localCache));
     }
   };
+  
+  const fetchProjectsData = async () => {
+      try {
+          const q = query(collection(db, "projects"), limit(50));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+              const projData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+              setProjectsList(projData);
+          }
+      } catch (error) {
+          console.error("خطأ في جلب المشاريع", error);
+      }
+  };
+
+  const fetchExternalLinks = async () => {
+    try {
+      const q = query(collection(db, "external_links"));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        setExternalLinks(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      }
+    } catch (error) {
+      console.error("خطأ في جلب الروابط الخارجية", error);
+    }
+  };
 
   const handleAddCategory = async (catName) => {
     if(!catName.trim()) return;
@@ -390,19 +426,18 @@ export default function App() {
     fetchProducts(); 
     fetchCategories();
     fetchDeliveryLocations();
+    fetchProjectsData();
+    fetchExternalLinks();
     
     const statsRef = doc(db, "system", "stats");
     const todayStr = new Date().toDateString(); 
-
 
     getDoc(statsRef).then((docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         if (data.lastResetDate !== todayStr) {
-  
           setDoc(statsRef, { visitorCount: 1, lastResetDate: todayStr }, { merge: true });
         } else {
-  
           setDoc(statsRef, { visitorCount: increment(1) }, { merge: true }).catch(e => console.error(e));
         }
       } else {
@@ -539,7 +574,7 @@ export default function App() {
     const centerY = rect.height / 2;
     const rotateX = ((centerY - y) / centerY) * 12;
     const rotateY = ((x - centerX) / centerX) * 12;
-    card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`;
+    card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.01)`;
   };
 
   const handleCardLeave = (card) => {
@@ -689,7 +724,10 @@ export default function App() {
           code: newProdCode || 'GENERIC', 
           desc: newProdDesc || 'منتج معدّل.', 
           img: newProdImages.length > 0 ? newProdImages[0] : (newProdImg || products.find(p => p.id === editProdId).img), 
-          images: newProdImages 
+          images: newProdImages,
+          compatLink: newProdCompatLink || '',
+          libLink: newProdLibLink || '',
+          codeSnippet: newProdCodeSnippet || ''
         };
         await updateDoc(productRef, updatedData);
         setProducts(products.map(p => p.id === editProdId ? { ...p, ...updatedData } : p));
@@ -704,7 +742,10 @@ export default function App() {
           code: newProdCode || 'GENERIC', 
           desc: newProdDesc || 'منتج مضاف حديثاً بواسطة لوحة تحكم الإدارة المتقدمة.', 
           img: newProdImages.length > 0 ? newProdImages[0] : (newProdImg || 'http://googleusercontent.com/image_collection/image_retrieval/10232467606554598834_0'),
-          images: newProdImages 
+          images: newProdImages,
+          compatLink: newProdCompatLink || '',
+          libLink: newProdLibLink || '',
+          codeSnippet: newProdCodeSnippet || ''
         };
         const docRef = await addDoc(collection(db, "products"), newP);
         setProducts([...products, { id: docRef.id, ...newP }]);
@@ -720,6 +761,9 @@ export default function App() {
       setNewProdChip(''); 
       setNewProdCode(''); 
       setNewProdImages([]);
+      setNewProdCompatLink('');
+      setNewProdLibLink('');
+      setNewProdCodeSnippet('');
       setEditProdId(null);
     } catch (error) {
       playErrorBuzz();
@@ -738,6 +782,9 @@ export default function App() {
     setNewProdChip(prod.chip || ''); 
     setNewProdCode(prod.code || ''); 
     setNewProdImages(prod.images || (prod.img ? [prod.img] : [])); 
+    setNewProdCompatLink(prod.compatLink || '');
+    setNewProdLibLink(prod.libLink || '');
+    setNewProdCodeSnippet(prod.codeSnippet || '');
     setEditProdId(prod.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -789,7 +836,7 @@ export default function App() {
   });
 
   return (
-    <div className={`tech-grid relative min-h-200 font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 bg-[#0f172a] text-gray-100`} dir={lang === 'en' ? 'ltr' : 'rtl'}>
+    <div className={`tech-grid relative min-h-200 font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 bg-[#0f172a] text-gray-100 flex flex-col w-full`} dir={lang === 'en' ? 'ltr' : 'rtl'}>
       
       <div ref={cursorOuterRef} className={`custom-cursor hidden md:block fixed top-0 left-0 w-[30px] h-[30px] border rounded-full pointer-events-none -translate-x-1/2 -translate-y-1/2 z-[9999] border-teal-500/60`}></div>
       <div ref={cursorInnerRef} className={`custom-cursor-dot hidden md:block fixed top-0 left-0 w-[6px] h-[6px] rounded-full pointer-events-none -translate-x-1/2 -translate-y-1/2 z-[9999] bg-teal-500`}></div>
@@ -820,7 +867,6 @@ export default function App() {
 
             {user && user.uid === ADMIN_UID && (
               <div className="flex items-center gap-2">
-                 {}
                  <button
                     type="button"
                     onClick={() => {
@@ -851,7 +897,7 @@ export default function App() {
 
             {user ? (
               <div className={`flex items-center gap-1 sm:gap-2 bg-slate-900/80 border border-teal-500/30 rounded-full p-1 sm:px-2 shadow-inner`}>
-                <img src={user.photoURL} alt="pfp" className="w-8 h-8 rounded-full border border-teal-400" />
+                <img src={user.photoURL} alt="pfp" loading="lazy" className="w-8 h-8 rounded-full border border-teal-400" />
                 <span className={`text-gray-200 hidden lg:inline text-xs font-bold`}>{user.name}</span>
                 <button type="button" onClick={handleLogout} className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-500/20 rounded-full transition-colors" title={t.adminLeave}>
                    <i className="fas fa-power-off"></i>
@@ -880,7 +926,13 @@ export default function App() {
           </button>
         </div>
         
-        <div className="p-5 flex flex-col gap-4 flex-grow overflow-y-auto">
+        <div className="p-5 flex flex-col gap-4 flex-grow overflow-y-auto custom-scrollbar">
+          
+          <button onClick={() => { setIsProjectsModalOpen(true); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className="w-full flex items-center gap-4 bg-blue-500/10 border border-blue-500/30 text-blue-400 p-4 rounded-xl hover:bg-blue-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
+            <i className="fa-solid fa-diagram-project text-2xl"></i> 
+            <span className="text-sm">{t.projects}</span>
+          </button>
+
           <button onClick={() => { handleInstallApp(); setIsSideMenuOpen(false); }} className="w-full flex items-center gap-4 bg-teal-500/10 border border-teal-500/30 text-teal-400 p-4 rounded-xl hover:bg-teal-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
             <i className="fas fa-download text-2xl"></i> 
             <span className="text-sm">{t.installApp}</span>
@@ -890,6 +942,18 @@ export default function App() {
             <i className="fab fa-whatsapp text-2xl"></i> 
             <span className="text-sm">{t.whatsappSupport}</span>
           </a>
+
+          <button onClick={() => { alert('نشكر المعصوم بسبب تعليمنا للعلم'); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className="w-full flex items-center gap-4 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-4 rounded-xl hover:bg-yellow-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
+            <i className="fa-solid fa-hands-praying text-2xl"></i>
+            <span className="text-sm">شكر وتقدير</span>
+          </button>
+
+          {externalLinks.map(link => (
+            <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className="w-full flex items-center gap-4 bg-purple-500/10 border border-purple-500/30 text-purple-400 p-4 rounded-xl hover:bg-purple-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
+               <i className="fa-solid fa-arrow-up-right-from-square text-2xl"></i>
+               <span className="text-sm">{link.title}</span>
+            </a>
+          ))}
         </div>
       </div>
       
@@ -898,32 +962,43 @@ export default function App() {
       )}
 
       {isAdminMode && user?.uid === ADMIN_UID ? (
-        <AdminPanel 
-          products={products} setProducts={setProducts}
-          handleSaveProduct={handleSaveProduct} handleDeleteProduct={handleDeleteProduct} handleEditClick={handleEditClick}
-          newProdName={newProdName} setNewProdName={setNewProdName}
-          newProdPrice={newProdPrice} setNewProdPrice={setNewProdPrice}
-          newProdImg={newProdImg} setNewProdImg={setNewProdImg}
-          newProdDesc={newProdDesc} setNewProdDesc={setNewProdDesc} 
-          newProdImages={newProdImages} setNewProdImages={setNewProdImages} 
-          newProdStock={newProdStock} setNewProdStock={setNewProdStock} 
-          newProdCategory={newProdCategory} setNewProdCategory={setNewProdCategory}
-          categories={categories}
-          handleAddCategory={handleAddCategory}
-          handleDeleteCategory={handleDeleteCategory}
-          handleEditCategory={handleEditCategory}
-          newProdChip={newProdChip} setNewProdChip={setNewProdChip}
-          newProdCode={newProdCode} setNewProdCode={setNewProdCode}
-          editProdId={editProdId}
-          orders={orders} fetchOrders={fetchOrders}
-          handleDeleteOrder={handleDeleteOrder} 
-          visitorCount={visitorCount}
-          deliveryLocations={deliveryLocations} 
-          setDeliveryLocations={setDeliveryLocations} 
-        />
+        <Suspense fallback={<div className="flex-grow flex items-center justify-center min-h-[80vh] text-teal-500"><i className="fas fa-circle-notch fa-spin text-5xl"></i></div>}>
+          <AdminPanel 
+            products={products} setProducts={setProducts}
+            handleSaveProduct={handleSaveProduct} handleDeleteProduct={handleDeleteProduct} handleEditClick={handleEditClick}
+            newProdName={newProdName} setNewProdName={setNewProdName}
+            newProdPrice={newProdPrice} setNewProdPrice={setNewProdPrice}
+            newProdImg={newProdImg} setNewProdImg={setNewProdImg}
+            newProdDesc={newProdDesc} setNewProdDesc={setNewProdDesc} 
+            newProdImages={newProdImages} setNewProdImages={setNewProdImages} 
+            newProdStock={newProdStock} setNewProdStock={setNewProdStock} 
+            newProdCategory={newProdCategory} setNewProdCategory={setNewProdCategory}
+            categories={categories}
+            handleAddCategory={handleAddCategory}
+            handleDeleteCategory={handleDeleteCategory}
+            handleEditCategory={handleEditCategory}
+            newProdChip={newProdChip} setNewProdChip={setNewProdChip}
+            newProdCode={newProdCode} setNewProdCode={setNewProdCode}
+            
+            newProdCompatLink={newProdCompatLink} setNewProdCompatLink={setNewProdCompatLink}
+            newProdLibLink={newProdLibLink} setNewProdLibLink={setNewProdLibLink}
+            newProdCodeSnippet={newProdCodeSnippet} setNewProdCodeSnippet={setNewProdCodeSnippet}
+            
+            projectsList={projectsList} setProjectsList={setProjectsList}
+            
+            externalLinks={externalLinks} setExternalLinks={setExternalLinks}
+
+            editProdId={editProdId}
+            orders={orders} fetchOrders={fetchOrders}
+            handleDeleteOrder={handleDeleteOrder} 
+            visitorCount={visitorCount}
+            deliveryLocations={deliveryLocations} 
+            setDeliveryLocations={setDeliveryLocations} 
+          />
+        </Suspense>
       ) : (
-        <>
-          <section className="min-h-auto flex flex-col justify-center items-center text-center px-8 pt-32 pb-10 relative overflow-hidden">
+        <div className="flex-grow flex flex-col w-full">
+          <section className="min-h-auto flex flex-col justify-center items-center text-center px-4 sm:px-8 pt-32 pb-10 relative overflow-hidden">
             <span className={`text-6xl sm:text-7xl font-bold tracking-tighter uppercase m-auto p-4 sm:p-7 leading-none text-[#4ef542]`}>M <span className="text-[#ff8800]">S</span> A</span>
             <span className="font-mono text-lg sm:text-2xl tracking-[0.04em] mb-3 text-teal-400 animate-deep-pulse">{t.heroSub}</span>
             
@@ -947,16 +1022,16 @@ export default function App() {
             </div>
           </section>
 
-          <section className={`max-w-7xl mx-auto px-2 py-4 border-t border-teal-500/10`} id="productsSection">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
+          <section className={`max-w-7xl mx-auto px-2 sm:px-4 py-4 border-t border-teal-500/10 flex-grow w-full`} id="productsSection">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4 px-2">
               <div>
                 <h2 className={`text-2xl md:text-5xl font-extrabold tracking-tight mt-2 text-white`}>{t.catTitle}</h2>
               </div>
               <p className={`max-w-sm text-xs sm:text-sm font-mono text-gray-400`}>{t.catDesc}</p>
             </div>
 
-            <div className="mb-8 relative w-full md:w-1/2 lg:w-1/3">
-              <div className={`absolute inset-y-0 ${lang === 'en' ? 'left-0 pl-4' : 'right-0 pr-4'} flex items-center pointer-events-none`}>
+            <div className="mb-6 relative w-full md:w-1/2 lg:w-1/3 px-2">
+              <div className={`absolute inset-y-0 ${lang === 'en' ? 'left-2 pl-4' : 'right-2 pr-4'} flex items-center pointer-events-none`}>
                 <i className="fas fa-search text-teal-600"></i>
               </div>
               <input 
@@ -970,7 +1045,7 @@ export default function App() {
               />
             </div>
 
-            <div className={`flex gap-2 mb-8 overflow-x-auto pb-4 custom-scrollbar hide-scroll ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
+            <div className={`flex gap-2 mb-6 overflow-x-auto pb-4 px-2 custom-scrollbar hide-scroll ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
                <button 
                   onClick={() => setSelectedCatFilter('')} 
                   className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-slate-900 font-bold border-teal-500' : 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400'}`}
@@ -988,9 +1063,9 @@ export default function App() {
                ))}
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-8 items-stretch">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-6 items-stretch pb-12 w-full px-1 sm:px-2">
               {filteredProducts.length === 0 ? (
-                <div className="col-span-2 md:col-span-3 lg:col-span-4 text-center py-16 border rounded-2xl border-dashed border-teal-500/20 bg-slate-800/40">
+                <div className="col-span-2 sm:col-span-3 lg:col-span-4 text-center py-16 border rounded-2xl border-dashed border-teal-500/20 bg-slate-800/40 mx-2">
                   <i className="fas fa-microchip text-3xl sm:text-5xl text-teal-500/30 mb-4 animate-pulse"></i>
                   <h3 className="text-lg sm:text-xl font-bold text-gray-300">{t.notFoundTitle}</h3>
                   <p className="text-xs sm:text-sm text-gray-400 mt-2">{t.notFoundDesc}</p>
@@ -1001,29 +1076,28 @@ export default function App() {
                   const isOutOfStock = stockCount <= 0;
 
                   return (
-                  <div key={prod.id} style={{ perspective: '1000px' }} className="h-full">
+                  <div key={prod.id} className="h-full w-full min-w-0">
                     <div 
-                      onMouseMove={(e) => handleCardMove(e, e.currentTarget)} 
-                      onMouseLeave={(e) => { handleCardLeave(e.currentTarget); handleMouseLeaveInteractive(); }} 
                       onMouseEnter={handleMouseEnterInteractive} 
-                      className={`h-full flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-6 relative group transform-style-preserve-3d transition-all duration-300 border bg-slate-800/60 ${isOutOfStock ? 'border-red-500/20 hover:border-red-400/60' : 'border-teal-500/20 hover:border-teal-400/60'}`}
+                      onMouseLeave={handleMouseLeaveInteractive}
+                      className={`h-full w-full flex flex-col rounded-xl sm:rounded-2xl p-2 sm:p-5 relative group transition-all duration-300 border bg-slate-800/60 overflow-hidden break-words min-w-0 ${isOutOfStock ? 'border-red-500/20 hover:border-red-400/60' : 'border-teal-500/20 hover:border-teal-400/60'}`}
                     >
                       <div className="gloss-effect"></div>
                       
                       <div 
-                        onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); playSynthSound(800, 'sine', 0.1); }}
-                        className={`flex-shrink-0 h-32 sm:h-64 rounded-lg sm:rounded-xl overflow-hidden mb-4 sm:mb-6 flex items-center justify-center border transition-all relative cursor-pointer bg-slate-900/60 ${isOutOfStock ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-teal-500/10 group-hover:border-teal-500/30'}`}
+                        onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); playSynthSound(800, 'sine', 0.1); }}
+                        className={`flex-shrink-0 h-28 sm:h-48 w-full rounded-lg sm:rounded-xl overflow-hidden mb-3 sm:mb-5 flex items-center justify-center border transition-all relative cursor-pointer bg-slate-900/60 ${isOutOfStock ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-teal-500/10 group-hover:border-teal-500/30'}`}
                         title={t.viewDetails}
                       >
-                        <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} alt={prod.name} className={`object-contain h-24 sm:h-48 w-full transition-all duration-500 ${isOutOfStock ? 'opacity-50 grayscale' : 'group-hover:scale-110 group-hover:rotate-6'}`} />
+                        <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} alt={prod.name} loading="lazy" className={`object-contain h-full w-full max-h-full max-w-full transition-all duration-500 p-1 ${isOutOfStock ? 'opacity-50 grayscale' : 'group-hover:scale-110'}`} />
                         
                         {prod.images && prod.images.length > 1 && (
-                           <div className={`absolute bottom-2 ${lang === 'en' ? 'left-2' : 'right-2'} px-1 py-0.5 sm:px-2 sm:py-1 bg-slate-900/80 text-white rounded text-[8px] sm:text-xs font-mono shadow-md backdrop-blur-sm`}>
+                           <div className={`absolute bottom-1 sm:bottom-2 ${lang === 'en' ? 'left-1 sm:left-2' : 'right-1 sm:right-2'} px-1 py-0.5 sm:px-2 sm:py-1 bg-slate-900/80 text-white rounded text-[8px] sm:text-xs font-mono shadow-md backdrop-blur-sm`}>
                               <i className="fas fa-images"></i> +{prod.images.length - 1}
                            </div>
                         )}
 
-                        <div className={`absolute top-2 ${lang === 'en' ? 'right-2' : 'left-2'} px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-xs font-mono font-bold bg-teal-500/20 text-teal-400 border border-teal-500/30`}>{prod.chip || 'NEW MCU'}</div>
+                        <div className={`absolute top-1 sm:top-2 ${lang === 'en' ? 'right-1 sm:right-2' : 'left-1 sm:left-2'} px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-xs font-mono font-bold bg-teal-500/20 text-teal-400 border border-teal-500/30`}>{prod.chip || 'NEW MCU'}</div>
                         
                         {isOutOfStock && (
                            <div className="absolute inset-0 bg-slate-900/60 z-10 flex flex-col items-center justify-center backdrop-blur-[2px]">
@@ -1038,29 +1112,29 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="flex justify-between items-center mb-2 sm:mb-3 flex-shrink-0">
-                        <span className={`font-mono text-[8px] sm:text-[10px] tracking-widest font-bold text-teal-500`}>// {prod.code || 'GENERIC'}</span>
+                      <div className="flex justify-between items-center mb-2 flex-shrink-0 min-w-0 gap-1 w-full overflow-hidden">
+                        <span className={`font-mono text-[9px] sm:text-[10px] tracking-widest font-bold text-teal-500 truncate`}>// {prod.code || 'GENERIC'}</span>
                         {prod.category && (
-                          <span className={`font-mono text-[8px] sm:text-[10px] bg-teal-500/10 text-teal-400 px-1 sm:px-2 py-0.5 rounded-full border border-teal-500/20`}>{prod.category}</span>
+                          <span className={`font-mono text-[9px] sm:text-[10px] bg-teal-500/10 text-teal-400 px-1.5 sm:px-2 py-0.5 rounded-full border border-teal-500/20 truncate`}>{prod.category}</span>
                         )}
                       </div>
 
-                      <h3 className={`text-xs sm:text-xl font-bold mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer text-white hover:text-teal-400 transition-colors`} onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); playSynthSound(800, 'sine', 0.1); }}>{prod.name}</h3>
+                      <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer text-white hover:text-teal-400 transition-colors break-words min-w-0 w-full`} onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); playSynthSound(800, 'sine', 0.1); }}>{prod.name}</h3>
                       
-                      <p className={`text-[10px] sm:text-sm mb-3 sm:mb-6 leading-relaxed line-clamp-2 text-gray-300 flex-grow`}>{prod.desc || t.noDesc}</p>
+                      <p className={`text-[9px] sm:text-sm mb-3 sm:mb-5 leading-relaxed line-clamp-2 text-gray-300 flex-grow break-words min-w-0 w-full`}>{prod.desc || t.noDesc}</p>
                       
-                      <div className={`mt-auto flex flex-col sm:flex-row justify-between items-center sm:items-end pt-2 sm:pt-4 border-t gap-2 sm:gap-0 flex-shrink-0 ${isOutOfStock ? 'border-red-500/10' : 'border-teal-500/10'}`}>
-                        <div className="w-full sm:w-auto text-center sm:text-right">
-                           <span className="block text-[8px] sm:text-[10px] text-gray-400 font-mono font-bold">{t.price}</span>
-                           <span className={`text-sm sm:text-2xl font-bold font-mono ${isOutOfStock ? 'text-red-400 opacity-60' : 'text-teal-400'}`}>{prod.price?.toLocaleString() || 0}</span>
+                      <div className={`mt-auto flex flex-col justify-between items-stretch sm:items-end pt-2 sm:pt-4 border-t gap-2 sm:gap-0 flex-shrink-0 w-full ${isOutOfStock ? 'border-red-500/10' : 'border-teal-500/10'} min-w-0`}>
+                        <div className="w-full text-center sm:text-right min-w-0">
+                           <span className="block text-[8px] sm:text-[10px] text-gray-400 font-mono font-bold truncate">{t.price}</span>
+                           <span className={`text-xs sm:text-xl font-bold font-mono truncate block ${isOutOfStock ? 'text-red-400 opacity-60' : 'text-teal-400'}`}>{prod.price?.toLocaleString() || 0}</span>
                         </div>
                         <button 
                           type="button" 
                           disabled={isOutOfStock}
                           onClick={() => addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock)} 
-                          className={`w-full flex items-center justify-center gap-1 sm:w-auto p-1.5 px-2 sm:p-3 sm:px-5 rounded-full font-bold text-[10px] sm:text-xs transition-all relative z-10 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-slate-900 hover:bg-teal-400'}`}
+                          className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 rounded-full font-bold text-[9px] sm:text-xs transition-all relative z-10 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-slate-900 hover:bg-teal-400'}`}
                         >
-                          <i className="fas fa-cart-arrow-down"></i> {isOutOfStock ? 'نافذ' : t.addToCart}
+                          <i className="fas fa-cart-arrow-down"></i> <span className="truncate">{isOutOfStock ? 'نافذ' : t.addToCart}</span>
                         </button>
                       </div>
                       
@@ -1070,10 +1144,17 @@ export default function App() {
               )}
             </div>
           </section>
-        </>
+        </div>
       )}
 
-      {}
+      {/* التذييل */}
+      <footer className="w-full bg-[#0b1120] border-t border-teal-500/20 py-8 flex flex-col items-center justify-center mt-auto">
+         <div className="text-center">
+            <p className="text-gray-400 font-mono text-sm tracking-wider">جميع الحقوق محفوظة لدى MSA &copy; 2026</p>
+         </div>
+      </footer>
+
+      {/* Cart Sidebar */}
       <div className={`fixed inset-y-0 ${lang === 'en' ? 'right-0' : 'left-0'} w-full md:w-[850px] border-${lang === 'en' ? 'l' : 'r'} shadow-2xl z-50 transform transition-transform duration-500 flex flex-col ${isCartOpen ? 'translate-x-0' : (lang === 'en' ? 'translate-x-full' : '-translate-x-full')} bg-[#0f172a] border-teal-500/20`}>
         <div className={`p-5 border-b flex justify-between items-center bg-slate-900/60 border-teal-500/20`}>
           <div className="flex items-center gap-5">
@@ -1144,10 +1225,10 @@ export default function App() {
                 cart.map((item, i) => (
                   <div key={item.id || i} className={`border rounded-xl p-3 sm:p-4 flex gap-3 sm:gap-4 items-center shadow-sm hover:border-teal-500/40 transition-colors bg-slate-800/60 border-teal-500/10`}>
                     <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-lg p-1 flex-shrink-0 border border-slate-100/10 flex items-center justify-center">
-                      <img src={item.image} alt="" className="max-w-full max-h-full object-contain" />
+                      <img src={item.image} alt="" loading="lazy" className="max-w-full max-h-full object-contain" />
                     </div>
-                    <div className="flex-grow">
-                      <h4 className={`font-bold text-xs sm:text-sm line-clamp-1 text-white`}>{item.name}</h4>
+                    <div className="flex-grow min-w-0">
+                      <h4 className={`font-bold text-xs sm:text-sm line-clamp-1 text-white truncate break-words`}>{item.name}</h4>
                       <span className={`font-mono text-[10px] sm:text-xs font-bold mt-1 block text-teal-400`}>{Number(item.price).toLocaleString()} {t.currency}</span>
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -1174,15 +1255,15 @@ export default function App() {
 
       {isCartOpen && <div onClick={() => setIsCartOpen(false)} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-40 transition-opacity"></div>}
 
-      {}
+      {/* Product Detail Modal */}
       {selectedProduct && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
           <div 
-            className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" 
+            className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm" 
             onClick={() => { setSelectedProduct(null); playSynthSound(400, 'sine', 0.1); }}
           ></div>
           
-          <div className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl flex flex-col md:flex-row transform transition-transform duration-300 scale-100 bg-[#0f172a] border border-teal-500/30`}>
+          <div className={`relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl shadow-2xl flex flex-col md:flex-row transform transition-transform duration-300 scale-100 bg-[#0f172a] border border-teal-500/30`}>
             <button 
               type="button"
               onClick={() => { setSelectedProduct(null); playSynthSound(400, 'sine', 0.1); }} 
@@ -1191,11 +1272,12 @@ export default function App() {
               <i className="fas fa-times text-sm sm:text-lg"></i>
             </button>
 
-            <div className={`w-full md:w-1/2 p-4 sm:p-6 flex flex-col items-center justify-center border-b md:border-b-0 md:border-${lang === 'en' ? 'r' : 'l'} border-teal-500/20 bg-slate-800/30`}>
+            <div className={`w-full md:w-5/12 p-4 sm:p-6 flex flex-col items-center justify-center border-b md:border-b-0 md:border-${lang === 'en' ? 'r' : 'l'} border-teal-500/20 bg-slate-800/30 overflow-y-auto custom-scrollbar`}>
               <div className="w-full h-48 sm:h-80 bg-white rounded-2xl p-4 flex items-center justify-center shadow-sm relative overflow-hidden">
                 <img 
                   src={(selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[activeImageIndex] : selectedProduct.img} 
                   alt={selectedProduct.name} 
+                  loading="lazy"
                   className={`object-contain max-h-full max-w-full ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'opacity-50 grayscale' : ''}`} 
                 />
                 <div className={`absolute top-4 ${lang === 'en' ? 'right-4' : 'left-4'} px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-mono font-bold bg-teal-500/20 text-teal-400 border border-teal-500/30`}>
@@ -1222,7 +1304,7 @@ export default function App() {
                         onClick={() => { setActiveImageIndex(idx); playSynthSound(1000, 'triangle', 0.05); }}
                         className={`flex-shrink-0 w-12 h-12 sm:w-16 sm:h-16 rounded-xl bg-white border-2 p-1 overflow-hidden transition-all ${activeImageIndex === idx ? 'border-teal-500 scale-110 shadow-md' : 'border-transparent opacity-60 hover:opacity-100'}`}
                       >
-                        <img src={img} alt="" className="object-contain w-full h-full" />
+                        <img src={img} alt="" loading="lazy" className="object-contain w-full h-full" />
                       </button>
                     )
                   })}
@@ -1230,20 +1312,63 @@ export default function App() {
               )}
             </div>
 
-            <div className="w-full md:w-1/2 p-6 sm:p-8 flex flex-col justify-center">
-              <div className="mb-4 sm:mb-6">
+            <div className="w-full md:w-7/12 p-6 sm:p-8 flex flex-col justify-start h-full overflow-y-auto custom-scrollbar">
+              <div className="mb-4">
                 <span className={`font-mono text-[10px] sm:text-[11px] tracking-widest font-bold mb-2 block text-teal-500`}>{selectedProduct.code || 'GENERIC'}</span>
-                <h2 className={`text-xl sm:text-3xl font-black mb-3 sm:mb-4 text-white`}>{selectedProduct.name}</h2>
-                <div className="flex gap-1 text-xs sm:text-sm text-yellow-500 mb-4 sm:mb-6">
+                <h2 className={`text-xl sm:text-3xl font-black mb-3 sm:mb-4 text-white break-words`}>{selectedProduct.name}</h2>
+                <div className="flex gap-1 text-xs sm:text-sm text-yellow-500 mb-4">
                   <i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i>
-                </div>
-                <div className={`p-3 sm:p-4 rounded-xl text-xs sm:text-sm leading-relaxed mb-6 sm:mb-8 border bg-slate-800/50 border-teal-500/10 text-gray-300`}>
-                  {selectedProduct.desc || t.noDesc}
                 </div>
               </div>
 
-              <div className={`pt-4 sm:pt-6 border-t mt-auto flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-6 border-teal-500/20`}>
-                <div className="w-full sm:w-auto text-center sm:text-left">
+              <div className="flex gap-3 sm:gap-6 border-b border-teal-500/20 mb-5 overflow-x-auto custom-scrollbar flex-shrink-0">
+                  <button onClick={() => setModalTab('desc')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'desc' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                      <i className="fa-solid fa-circle-info ml-1"></i> الشرح والتفاصيل
+                  </button>
+                  <button onClick={() => setModalTab('code')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'code' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                      <i className="fa-solid fa-code ml-1"></i> الكود البرمجي
+                  </button>
+                  <button onClick={() => setModalTab('links')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'links' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                      <i className="fa-solid fa-link ml-1"></i> الملحقات والمكتبات
+                  </button>
+              </div>
+
+              <div className="flex-grow flex flex-col mb-4 min-h-[150px]">
+                  {modalTab === 'desc' && (
+                      <div className={`p-4 sm:p-5 rounded-xl text-xs sm:text-sm leading-relaxed border bg-slate-800/50 border-teal-500/10 text-gray-300 h-full break-words`}>
+                          {selectedProduct.desc || t.noDesc}
+                      </div>
+                  )}
+                  
+                  {modalTab === 'code' && (
+                      <div className="bg-[#0a0a0f] p-4 rounded-xl border border-teal-500/20 overflow-x-auto text-left h-full shadow-inner" dir="ltr">
+                          <pre className="text-teal-300 font-mono text-xs sm:text-sm">
+                              {selectedProduct.codeSnippet || '// لا يوجد كود برمجي متاح لهذه القطعة حالياً.\n// يمكنك إضافة الكود من لوحة الإدارة.'}
+                          </pre>
+                      </div>
+                  )}
+
+                  {modalTab === 'links' && (
+                      <div className="flex flex-col gap-4 h-full">
+                          {selectedProduct.compatLink ? (
+                              <a href={selectedProduct.compatLink} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm group">
+                                  <span className="font-bold text-sm"><i className="fa-solid fa-microchip ml-2"></i> مادة تتوافق معه (رابط خارجي)</span>
+                                  <i className="fa-solid fa-arrow-up-right-from-square group-hover:scale-110 transition-transform"></i>
+                              </a>
+                          ) : <div className="p-4 border border-dashed border-gray-600/50 rounded-xl text-gray-500 text-sm text-center">لا توجد مواد متوافقة مضافة.</div>}
+                          
+                          {selectedProduct.libLink ? (
+                              <a href={selectedProduct.libLink} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm group">
+                                  <span className="font-bold text-sm"><i className="fa-solid fa-book-bookmark ml-2"></i> تحميل مكتبة الحساس / القطعة</span>
+                                  <i className="fa-solid fa-arrow-up-right-from-square group-hover:scale-110 transition-transform"></i>
+                              </a>
+                          ) : <div className="p-4 border border-dashed border-gray-600/50 rounded-xl text-gray-500 text-sm text-center">لا توجد مكتبة برمجية مضافة.</div>}
+                      </div>
+                  )}
+              </div>
+
+              <div className={`pt-4 sm:pt-6 border-t mt-auto flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-6 border-teal-500/20 flex-shrink-0`}>
+                <div className="w-full sm:w-auto text-center sm:text-right">
                   <span className="block text-[10px] sm:text-xs text-gray-400 font-mono font-bold mb-1">{t.price}</span>
                   <span className={`text-2xl sm:text-3xl font-bold font-mono ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'text-red-400 opacity-60' : 'text-teal-400'}`}>
                     {selectedProduct.price?.toLocaleString() || 0} {t.currency}
@@ -1259,13 +1384,58 @@ export default function App() {
                   }} 
                   className={`w-full flex justify-center items-center gap-2 sm:w-auto px-6 py-3 sm:px-8 sm:py-4 rounded-full font-bold text-xs sm:text-sm transition-all shadow-lg ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'bg-slate-800 text-gray-500 border border-slate-700 cursor-not-allowed' : 'bg-teal-500 text-slate-900 hover:bg-teal-400'}`}
                 >
-                  <i className="fas fa-cart-arrow-down"></i> {(parseInt(selectedProduct.stock)||0) <= 0 ? 'نافذ من المخزن' : t.addToCart}
+                  <i className="fas fa-cart-arrow-down text-lg"></i> {(parseInt(selectedProduct.stock)||0) <= 0 ? 'نافذ من المخزن' : t.addToCart}
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Projects Modal */}
+      {isProjectsModalOpen && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
+           <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm" onClick={() => setIsProjectsModalOpen(false)}></div>
+           <div className="relative w-full max-w-6xl h-[90vh] flex flex-col bg-[#0f172a] border border-teal-500/30 rounded-3xl shadow-2xl overflow-hidden">
+               <div className="flex justify-between items-center p-5 border-b border-teal-500/20 bg-slate-800/50">
+                  <h2 className="text-2xl font-black text-white flex items-center gap-3">
+                     <i className="fa-solid fa-diagram-project text-blue-500"></i> معرض المشاريع المنجزة
+                  </h2>
+                  <button onClick={() => setIsProjectsModalOpen(false)} className="w-10 h-10 rounded-full border border-teal-500/30 bg-slate-900/60 text-teal-400 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all flex justify-center items-center">
+                     <i className="fa-solid fa-xmark text-xl"></i>
+                  </button>
+               </div>
+               
+               <div className="flex-grow p-6 overflow-y-auto custom-scrollbar">
+                  {projectsList.length === 0 ? (
+                     <div className="flex flex-col items-center justify-center h-full text-center">
+                        <i className="fa-solid fa-folder-open text-6xl text-teal-500/20 mb-4"></i>
+                        <h3 className="text-xl font-bold text-gray-300">لا توجد مشاريع مضافة حالياً</h3>
+                        <p className="text-gray-500 mt-2 text-sm">سيتم إضافة المشاريع المنجزة هنا قريباً.</p>
+                     </div>
+                  ) : (
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {projectsList.map((proj) => (
+                           <div key={proj.id} className="bg-slate-800/40 border border-teal-500/20 rounded-2xl p-5 hover:border-teal-500/50 transition-all flex flex-col h-full group">
+                              <div className="mb-4">
+                                 <span className="text-[10px] font-mono font-bold bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full border border-blue-500/20 inline-block mb-3">
+                                    {proj.category || 'عام'}
+                                 </span>
+                                 <h3 className="text-xl font-black text-white mb-2 break-words">{proj.name}</h3>
+                                 <p className="text-sm text-gray-400 leading-relaxed line-clamp-4 break-words">{proj.desc}</p>
+                              </div>
+                              <div className="mt-auto pt-4 border-t border-teal-500/10 flex justify-between items-center opacity-50 group-hover:opacity-100 transition-opacity">
+                                 <span className="text-xs text-teal-500 font-mono"><i className="fa-solid fa-check-circle"></i> مكتمل</span>
+                              </div>
+                           </div>
+                        ))}
+                     </div>
+                  )}
+               </div>
+           </div>
+        </div>
+      )}
+
     </div>
   );
 }
