@@ -29,6 +29,7 @@ export default function AdminPanel({
   orders, fetchOrders,
   handleDeleteOrder,
   visitorCount,
+  handleResetVisitors, 
   
   deliveryLocations, setDeliveryLocations
 }) {
@@ -49,6 +50,8 @@ export default function AdminPanel({
   const [newProjName, setNewProjName] = useState('');
   const [newProjDesc, setNewProjDesc] = useState('');
   const [newProjCat, setNewProjCat] = useState('');
+  const [newProjImg, setNewProjImg] = useState(''); 
+  const [newProjImages, setNewProjImages] = useState([]);
 
   const [showLinksManager, setShowLinksManager] = useState(false);
   const [newLinkTitle, setNewLinkTitle] = useState('');
@@ -112,21 +115,32 @@ export default function AdminPanel({
         alert("يرجى إدخال اسم المشروع ووصفه.");
         return;
     }
+    
+    const filteredExtraImages = newProjImages.filter(url => url && url.trim() !== '');
+
     try {
-        const payload = { name: newProjName, desc: newProjDesc, category: newProjCat };
+        const payload = { 
+            name: newProjName, 
+            desc: newProjDesc, 
+            category: newProjCat, 
+            img: newProjImg,
+            images: filteredExtraImages 
+        };
         const docRef = await addDoc(collection(db, "projects"), payload);
         setProjectsList([...projectsList, { id: docRef.id, ...payload }]);
         setNewProjName('');
         setNewProjDesc('');
         setNewProjCat('');
-        alert("تمت إضافة المشروع بنجاح!");
+        setNewProjImg('');
+        setNewProjImages([]);
+        alert("تمت إضافة المشروع بنجاح إلى المعرض!");
     } catch (err) {
         alert("فشل إضافة المشروع.");
     }
   };
 
   const handleDeleteProject = async (id) => {
-      if(window.confirm("هل أنت متأكد من حذف هذا المشروع؟")) {
+      if(window.confirm("هل أنت متأكد من حذف هذا المشروع بجميع صوره؟")) {
           try {
               await deleteDoc(doc(db, "projects", id));
               setProjectsList(projectsList.filter(p => p.id !== id));
@@ -167,23 +181,17 @@ export default function AdminPanel({
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-32 pb-24 font-sans relative w-full">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 pb-24 font-sans relative w-full">
       
-      {/* الهيدر المصغر */}
-      <div className="mb-6 pb-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-teal-500/20">
+      <div className="mb-6 pb-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <span className="font-mono text-[10px] font-bold text-teal-500 animate-pulse">// SECURE_ADMIN_CORE_v5.0</span>
           <h2 className="text-xl md:text-2xl font-black tracking-tight mt-1 text-transparent bg-clip-text bg-gradient-to-l from-teal-400 to-blue-500">
             لوحة الإدارة
           </h2>
-          <p className="max-w-md text-xs font-mono text-gray-500 mt-1">
-            [ الصلاحيات نشطة: التحكم بالمنتجات، الروابط، المشاريع، والطلبات ]
-          </p>
         </div>
       </div>
 
-      {/* الأزرار العلوية والإحصائيات بحجم صغير وبجوار بعضها */}
-      <div className="flex flex-wrap items-center gap-3 mb-8 w-full">
+      <div className="flex flex-wrap items-center gap-3 mb-8 w-full border-b border-teal-500/20 pb-6">
          <div className="bg-[#030212] border border-teal-500/30 px-3 py-2 rounded-xl flex items-center gap-3 shadow-lg shrink-0">
             <i className="fa-solid fa-chart-pie text-teal-400 text-sm"></i>
             <div className="flex items-center gap-2">
@@ -207,12 +215,19 @@ export default function AdminPanel({
          <button onClick={() => setShowDeliveryManager(true)} className="bg-[#030212] border border-teal-500/30 hover:bg-teal-500/20 text-teal-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
             <i className="fa-solid fa-map-location-dot"></i> التوصيل
          </button>
+
+         <button
+            type="button"
+            onClick={handleResetVisitors}
+            className="bg-[#030212] border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 px-3 py-2 rounded-xl font-bold transition-all flex items-center gap-2 shadow-sm text-[11px] shrink-0 ml-auto"
+            title="تصفير عداد الزوار"
+         >
+            <i className="fas fa-users-slash"></i> تصفير الزوار
+         </button>
       </div>
 
-      {/* القسم الرئيسي: نموذج الإضافة العرضي ثم الكتالوج */}
       <div className="space-y-8 w-full">
          
-         {/* قسم الإضافة بالعرض الأفقي */}
          <div className={`border rounded-2xl p-4 sm:p-6 backdrop-blur-md shadow-xl transition-all w-full ${editProdId ? 'border-orange-500/50 bg-orange-900/10' : 'border-teal-500/20 bg-[#030212]'}`}>
            <h3 className="text-base sm:text-lg font-bold text-gray-200 mb-6 flex items-center gap-2 border-b border-neutral-800 pb-3">
              <i className={`fa-solid ${editProdId ? 'fa-pen-to-square text-orange-500' : 'fa-square-plus text-teal-500'}`}></i> 
@@ -220,7 +235,6 @@ export default function AdminPanel({
            </h3>
            
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-             {/* العمود الأول: المعلومات الأساسية */}
              <div className="space-y-4">
                <div>
                  <label className="text-[10px] sm:text-xs font-mono font-bold text-gray-400 block mb-2">// PROD_NAME</label>
@@ -274,7 +288,6 @@ export default function AdminPanel({
                </div>
              </div>
 
-             {/* العمود الثاني: الوسائط والوصف */}
              <div className="space-y-4">
                <div>
                  <label className="text-[10px] sm:text-xs font-mono font-bold text-gray-400 block mb-2">// DESCRIPTION</label>
@@ -312,7 +325,6 @@ export default function AdminPanel({
                </div>
              </div>
 
-             {/* العمود الثالث: الإضافات البرمجية وزر الحفظ */}
              <div className="space-y-4 flex flex-col justify-between">
                 <div className="bg-teal-900/10 p-3 sm:p-4 border border-teal-500/20 rounded-xl space-y-4 flex-grow">
                    <h4 className="text-teal-400 font-bold text-xs sm:text-sm border-b border-teal-500/20 pb-2"><i className="fa-solid fa-code-branch"></i> المرفقات والبرمجيات</h4>
@@ -340,7 +352,6 @@ export default function AdminPanel({
            </div>
          </div>
 
-         {/* قسم الكتالوج الحالي أسفل الإضافة */}
          <div className="border border-neutral-800 rounded-2xl p-4 sm:p-6 bg-[#030212] shadow-xl overflow-hidden w-full">
            <h3 className="text-base sm:text-lg font-bold text-gray-200 mb-6 flex items-center gap-2 border-b border-neutral-800 pb-3">
              <i className="fa-solid fa-list-check text-teal-500"></i> الكتالوج الحالي ({products.length} قطع)
@@ -361,7 +372,7 @@ export default function AdminPanel({
                    <tr key={prod.id} className="hover:bg-neutral-900/50 transition-colors">
                      <td className="py-3 sm:py-4 text-center relative">
                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-lg p-1 border border-neutral-700 flex items-center justify-center mx-auto relative overflow-hidden shrink-0">
-                         <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} alt="" className="object-contain max-h-full max-w-full" />
+                         <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} loading="lazy" alt="" className="object-contain max-h-full max-w-full mix-blend-multiply" />
                        </div>
                        {prod.images && prod.images.length > 1 && (
                          <span className="absolute -top-1 -right-1 bg-teal-500 text-black text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-black z-10">
@@ -399,10 +410,107 @@ export default function AdminPanel({
              </table>
            </div>
          </div>
-         
       </div>
 
-      {/* نافذة إدارة الطلبات المجمعة المنبثقة */}
+      {/* النوافذ المنبثقة للوحة التحكم */}
+      
+      {/* 1. Category Manager */}
+      {showCatManager && (
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowCatManager(false)}></div>
+          <div className="relative bg-[#0c0c11] border border-teal-500/40 p-6 rounded-3xl w-full max-w-md shadow-2xl">
+            <button type="button" onClick={() => setShowCatManager(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white">
+              <i className="fa-solid fa-xmark text-xl"></i>
+            </button>
+            <h3 className="text-xl font-bold text-teal-400 mb-4"><i className="fa-solid fa-list"></i> إدارة القوائم (الفئات)</h3>
+            <div className="flex gap-2 mb-4">
+               <input type="text" placeholder="اسم الفئة الجديدة" value={newCatInput} onChange={e => setNewCatInput(e.target.value)} className="flex-grow p-2 bg-black/40 border border-teal-500/30 text-white rounded-xl focus:border-teal-500 outline-none" />
+               <button onClick={() => { handleAddCategory(newCatInput); setNewCatInput(''); }} className="bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-xl font-bold">إضافة</button>
+            </div>
+            <div className="space-y-2 max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">
+               {(categories || []).map(cat => (
+                  <div key={cat.id} className="flex justify-between items-center p-3 bg-black/40 border border-teal-500/20 rounded-xl">
+                     {editCatId === cat.id ? (
+                        <div className="flex gap-2 w-full">
+                           <input type="text" value={editCatInput} onChange={e => setEditCatInput(e.target.value)} className="flex-grow p-1 bg-black/60 border border-teal-500/50 text-white rounded outline-none" />
+                           <button onClick={() => { handleEditCategory(cat.id, cat.name, editCatInput); setEditCatId(null); }} className="text-green-400 hover:text-green-300"><i className="fa-solid fa-check"></i></button>
+                        </div>
+                     ) : (
+                        <>
+                           <span className="text-gray-200">{cat.name}</span>
+                           <div className="flex gap-3">
+                              <button onClick={() => { setEditCatId(cat.id); setEditCatInput(cat.name); }} className="text-orange-400 hover:text-orange-300"><i className="fa-solid fa-pen"></i></button>
+                              <button onClick={() => handleDeleteCategory(cat.id, cat.name)} className="text-red-400 hover:text-red-300"><i className="fa-solid fa-trash"></i></button>
+                           </div>
+                        </>
+                     )}
+                  </div>
+               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Delivery Manager */}
+      {showDeliveryManager && (
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowDeliveryManager(false)}></div>
+          <div className="relative bg-[#0c0c11] border border-teal-500/40 p-6 rounded-3xl w-full max-w-lg shadow-2xl">
+             <button type="button" onClick={() => setShowDeliveryManager(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white">
+               <i className="fa-solid fa-xmark text-xl"></i>
+             </button>
+             <h3 className="text-xl font-bold text-teal-400 mb-4"><i className="fa-solid fa-map-location-dot"></i> إدارة مناطق التوصيل</h3>
+             <form onSubmit={handleAddDeliveryLocation} className="space-y-3 mb-6 bg-black/40 p-4 rounded-xl border border-teal-500/20">
+                <input type="text" placeholder="اسم المحافظة/المنطقة" value={newGovName} onChange={e => setNewGovName(e.target.value)} required className="w-full p-2 bg-black/60 border border-teal-500/30 text-white rounded-lg outline-none" />
+                <input type="number" placeholder="سعر التوصيل (د.ع)" value={newGovPrice} onChange={e => setNewGovPrice(e.target.value)} required className="w-full p-2 bg-black/60 border border-teal-500/30 text-white rounded-lg outline-none" />
+                <input type="text" placeholder="وقت التوصيل (مثال: 2-3 أيام)" value={newGovTime} onChange={e => setNewGovTime(e.target.value)} required className="w-full p-2 bg-black/60 border border-teal-500/30 text-white rounded-lg outline-none" />
+                <button type="submit" className="w-full bg-teal-600 hover:bg-teal-500 text-white py-2 rounded-lg font-bold">إضافة المنطقة</button>
+             </form>
+             <div className="space-y-2 max-h-[30vh] overflow-y-auto custom-scrollbar pr-2">
+                {deliveryLocations.map(loc => (
+                   <div key={loc.id} className="flex justify-between items-center p-3 bg-black/40 border border-teal-500/20 rounded-xl">
+                      <div>
+                         <div className="text-white font-bold">{loc.name}</div>
+                         <div className="text-teal-400 text-xs">{Number(loc.price).toLocaleString()} د.ع | {loc.time}</div>
+                      </div>
+                      <button onClick={() => handleDeleteDeliveryLocation(loc.id)} className="text-red-400 hover:text-red-300 p-2"><i className="fa-solid fa-trash"></i></button>
+                   </div>
+                ))}
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Links Manager */}
+      {showLinksManager && (
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowLinksManager(false)}></div>
+          <div className="relative bg-[#0c0c11] border border-purple-500/40 p-6 rounded-3xl w-full max-w-lg shadow-2xl">
+             <button type="button" onClick={() => setShowLinksManager(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white">
+               <i className="fa-solid fa-xmark text-xl"></i>
+             </button>
+             <h3 className="text-xl font-bold text-purple-400 mb-4"><i className="fa-solid fa-link"></i> إدارة الروابط الخارجية</h3>
+             <form onSubmit={handleAddExternalLink} className="space-y-3 mb-6 bg-black/40 p-4 rounded-xl border border-purple-500/20">
+                <input type="text" placeholder="عنوان الرابط" value={newLinkTitle} onChange={e => setNewLinkTitle(e.target.value)} required className="w-full p-2 bg-black/60 border border-purple-500/30 text-white rounded-lg outline-none" />
+                <input type="text" placeholder="رابط URL" value={newLinkUrl} onChange={e => setNewLinkUrl(e.target.value)} required className="w-full p-2 bg-black/60 border border-purple-500/30 text-white rounded-lg outline-none" dir="ltr" />
+                <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white py-2 rounded-lg font-bold">حفظ الرابط</button>
+             </form>
+             <div className="space-y-2 max-h-[30vh] overflow-y-auto custom-scrollbar pr-2">
+                {externalLinks.map(link => (
+                   <div key={link.id} className="flex justify-between items-center p-3 bg-black/40 border border-purple-500/20 rounded-xl">
+                      <div>
+                         <div className="text-white font-bold">{link.title}</div>
+                         <a href={link.url} target="_blank" rel="noreferrer" className="text-purple-400 text-xs underline">{link.url}</a>
+                       </div>
+                      <button onClick={() => handleDeleteExternalLink(link.id)} className="text-red-400 hover:text-red-300 p-2"><i className="fa-solid fa-trash"></i></button>
+                   </div>
+                ))}
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Orders List Window */}
       {showOrdersManager && (
         <div className="fixed inset-0 z-[999999] flex items-center justify-center p-2 sm:p-4 transition-opacity">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowOrdersManager(false)}></div>
@@ -450,6 +558,144 @@ export default function AdminPanel({
           </div>
         </div>
       )}
+
+      {/* 5. Selected Order Detail Viewer */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-[9999999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setSelectedOrder(null)}></div>
+          <div className="relative bg-[#0c0c11] border border-emerald-500/40 p-6 rounded-3xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+             <button type="button" onClick={() => setSelectedOrder(null)} className="absolute top-4 right-4 text-gray-500 hover:text-white">
+               <i className="fa-solid fa-xmark text-xl"></i>
+             </button>
+             <h3 className="text-xl font-bold text-emerald-400 mb-4 flex items-center gap-2">
+                <i className="fa-solid fa-receipt"></i> تفاصيل الطلب #{selectedOrder.id?.slice(-5).toUpperCase()}
+             </h3>
+             
+             <div className="bg-black/40 p-4 rounded-xl border border-emerald-500/20 mb-4 space-y-2 text-sm text-gray-300">
+                <p><span className="text-emerald-400 font-bold">اسم المستلم:</span> {selectedOrder.customerName}</p>
+                <p><span className="text-emerald-400 font-bold">رقم الهاتف:</span> <a href={`tel:${selectedOrder.customerPhone}`} className="text-blue-400 underline" dir="ltr">{selectedOrder.customerPhone}</a></p>
+                <p><span className="text-emerald-400 font-bold">الموقع المختار:</span> {selectedOrder.location}</p>
+                <p><span className="text-emerald-400 font-bold">وقت الطلب:</span> {new Date(selectedOrder.timestamp).toLocaleString('ar-IQ')}</p>
+             </div>
+
+             <h4 className="font-bold text-white mb-2">المنتجات المطلوبة:</h4>
+             <div className="space-y-2 mb-6">
+                {(selectedOrder.items || []).map((item, idx) => (
+                   <div key={idx} className="flex justify-between items-center bg-black/40 p-3 rounded-lg border border-neutral-800">
+                      <div className="flex items-center gap-3">
+                         <img src={item.image} alt="" className="w-10 h-10 object-contain bg-white rounded p-1" />
+                         <div>
+                            <div className="text-white text-sm font-bold">{item.name}</div>
+                            <div className="text-emerald-400 text-xs font-mono">{item.price?.toLocaleString()} د.ع × {item.qty}</div>
+                         </div>
+                      </div>
+                      <div className="text-white font-bold font-mono">
+                         {(item.price * item.qty).toLocaleString()} د.ع
+                      </div>
+                   </div>
+                ))}
+             </div>
+
+             <div className="flex justify-between items-center p-4 bg-emerald-900/20 border border-emerald-500/30 rounded-xl mb-6">
+                <span className="font-bold text-emerald-400">الإجمالي الكلي شامل النقل:</span>
+                <span className="font-bold text-xl text-white font-mono">{selectedOrder.totalAmount?.toLocaleString()} د.ع</span>
+             </div>
+
+             <button onClick={() => confirmAndDeleteOrder(selectedOrder.id)} className="w-full bg-red-600 hover:bg-red-500 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2">
+                <i className="fa-solid fa-check-double"></i> إنهاء وحذف الطلب من السحابة بعد التجهيز
+             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Projects Manager */}
+      {showProjectsManager && (
+          <div className="fixed inset-0 z-[999999] flex items-center justify-center p-2 sm:p-4 transition-opacity">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowProjectsManager(false)}></div>
+            <div className="relative w-full max-w-5xl bg-[#0c0c11] border border-blue-500/40 p-4 sm:p-8 rounded-3xl shadow-2xl overflow-y-auto max-h-[95vh] custom-scrollbar" onClick={(e) => e.stopPropagation()}>
+               <button type="button" onClick={() => setShowProjectsManager(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
+                  <i className="fa-solid fa-xmark text-xl sm:text-2xl"></i>
+               </button>
+               <h3 className="text-lg sm:text-2xl font-bold text-blue-400 flex items-center gap-3 mb-6 border-b border-neutral-800 pb-4">
+                 <i className="fa-solid fa-diagram-project"></i> إدارة معرض المشاريع
+               </h3>
+
+               <form onSubmit={handleAddProject} className="bg-black/40 border border-neutral-800 p-4 sm:p-6 rounded-2xl mb-8 shadow-inner">
+                  <h4 className="font-bold text-white text-sm mb-4">إضافة مشروع جديد</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-4">
+                      <input type="text" placeholder="اسم المشروع" value={newProjName} onChange={(e) => setNewProjName(e.target.value)} className="w-full p-3 bg-neutral-900 border border-neutral-700 text-white rounded-xl text-sm focus:outline-none focus:border-blue-500 transition-colors" required />
+                      <input type="text" placeholder="تصنيف المشروع (مثال: إنترنت الأشياء)" value={newProjCat} onChange={(e) => setNewProjCat(e.target.value)} className="w-full p-3 bg-neutral-900 border border-neutral-700 text-white rounded-xl text-sm focus:outline-none focus:border-blue-500 transition-colors" />
+                      <textarea placeholder="وصف المشروع والتفاصيل الهندسية..." value={newProjDesc} onChange={(e) => setNewProjDesc(e.target.value)} className="w-full p-3 bg-neutral-900 border border-neutral-700 text-white rounded-xl text-sm focus:outline-none focus:border-blue-500 transition-colors min-h-[100px]" required></textarea>
+                    </div>
+                    
+                    <div className="space-y-4 bg-neutral-900/50 p-4 rounded-xl border border-blue-500/20">
+                      <label className="text-xs font-mono font-bold text-blue-400 block">// إدراج صورة الواجهة للمشروع (URL)</label>
+                      <input type="url" dir="ltr" placeholder="https://..." value={newProjImg} onChange={(e) => setNewProjImg(e.target.value)} className="w-full p-3 bg-black/60 border border-neutral-700 text-white rounded-xl text-sm focus:outline-none focus:border-blue-500 transition-colors" />
+                      
+                      <div className="w-full h-32 bg-black border border-neutral-700 rounded-xl overflow-hidden flex items-center justify-center relative">
+                        {newProjImg ? (
+                           <img src={newProjImg} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                           <span className="text-xs text-neutral-600 font-mono flex flex-col items-center gap-2"><i className="fa-solid fa-image text-2xl"></i> معاينة الصورة</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="col-span-1 md:col-span-2 bg-neutral-900/50 p-4 rounded-xl border border-blue-500/20 mt-2">
+                        <label className="text-xs font-mono font-bold text-blue-400 block mb-3">
+                            // معرض صور المشروع المرفقة (الحد الأقصى 30 صورة) | مضافة: {newProjImages.length}
+                        </label>
+                        <div className="max-h-48 overflow-y-auto custom-scrollbar pr-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {newProjImages.map((imgUrl, idx) => (
+                            <div key={idx} className="flex gap-2">
+                                <input 
+                                    type="url" 
+                                    dir="ltr" 
+                                    placeholder={`رابط الصورة الإضافية ${idx + 1}`} 
+                                    value={imgUrl} 
+                                    onChange={(e) => {
+                                        const updated = [...newProjImages];
+                                        updated[idx] = e.target.value;
+                                        setNewProjImages(updated);
+                                    }} 
+                                    className="w-full p-2.5 bg-black/60 border border-neutral-700 text-white rounded-xl text-xs focus:outline-none focus:border-blue-500 transition-colors" 
+                                />
+                                <button type="button" onClick={() => setNewProjImages(newProjImages.filter((_, i) => i !== idx))} className="p-2.5 shrink-0 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-colors border border-red-500/20">
+                                <i className="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                            ))}
+                        </div>
+                        {newProjImages.length < 30 && (
+                            <button type="button" onClick={() => setNewProjImages([...newProjImages, ''])} className="w-full py-2.5 mt-3 border border-dashed border-blue-500/40 text-blue-400 hover:bg-blue-500/10 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2">
+                            <i className="fa-solid fa-images"></i> إدراج مسار صورة أخرى للمشروع
+                            </button>
+                        )}
+                    </div>
+                  </div>
+                  
+                  <button type="submit" className="w-full py-4 mt-6 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
+                    <i className="fa-solid fa-plus text-lg"></i> حفظ المشروع في المعرض
+                  </button>
+               </form>
+
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                 {projectsList.map((proj) => (
+                    <div key={proj.id} className="bg-black/40 border border-neutral-800 rounded-xl p-4 flex flex-col hover:border-blue-500/40 transition-colors">
+                       <h5 className="font-bold text-white text-sm mb-1">{proj.name}</h5>
+                       <span className="text-[10px] text-blue-400 font-mono mb-2">{proj.category}</span>
+                       <div className="text-xs text-gray-500 mb-3"><i className="fa-solid fa-images"></i> {(proj.images?.length || 0) + (proj.img ? 1 : 0)} صورة </div>
+                       <button type="button" onClick={() => handleDeleteProject(proj.id)} className="mt-auto py-2 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-lg text-xs font-bold transition-all w-full">
+                          حذف المشروع
+                       </button>
+                    </div>
+                 ))}
+               </div>
+            </div>
+          </div>
+      )}
+
     </div>
   );
 }
