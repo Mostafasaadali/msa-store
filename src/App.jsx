@@ -566,10 +566,12 @@ export default function App() {
   }, [isAdminMode]);
 
   const handleMouseEnterInteractive = () => {
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
     document.body.classList.add('hover-state');
     playHoverBeep();
   };
   const handleMouseLeaveInteractive = () => {
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
     document.body.classList.remove('hover-state');
   };
 
@@ -850,10 +852,10 @@ export default function App() {
       <div ref={cursorOuterRef} className={`custom-cursor hidden md:block fixed top-0 left-0 w-[30px] h-[30px] border rounded-full pointer-events-none -translate-x-1/2 -translate-y-1/2 z-[9999] border-teal-500/60`}></div>
       <div ref={cursorInnerRef} className={`custom-cursor-dot hidden md:block fixed top-0 left-0 w-[6px] h-[6px] rounded-full pointer-events-none -translate-x-1/2 -translate-y-1/2 z-[9999] bg-teal-500`}></div>
 
-      <header className={`border-b fixed top-0 left-0 right-0 z-50 px-3 sm:px-6 py-3 backdrop-blur-md transition-colors duration-500 border-teal-500/20 bg-slate-900/90 shadow-lg`}>
-        <div className="max-w-7xl mx-auto flex justify-between items-center w-full">
+      <header className={`border-b fixed top-0 left-0 right-0 z-50 px-2 sm:px-6 py-2 sm:py-3 backdrop-blur-md transition-colors duration-500 border-teal-500/20 bg-slate-900/90 shadow-lg`}>
+        <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center w-full gap-y-2">
           
-          <div className="flex flex-row items-center gap-3 flex-shrink-0" style={{ direction: 'ltr' }}>
+          <div className="flex flex-row items-center gap-2 sm:gap-3 flex-shrink-0" style={{ direction: 'ltr' }}>
             <div className="w-10 h-10 rounded-xl border flex items-center justify-center transition-all bg-teal-500/10 border-teal-500/60 shadow-[0_0_15px_rgba(20,184,166,0.3)] animate-deep-pulse">
               <i className="fas fa-microchip text-xl text-teal-400"></i>
             </div>
@@ -866,7 +868,7 @@ export default function App() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-4 flex-wrap justify-end">
             
             <div className={`flex items-center bg-slate-900/80 border border-teal-500/30 rounded-full p-1 backdrop-blur-sm shadow-inner`}>
               <button type="button" onClick={() => setLang('ar')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'ar' ? 'bg-teal-500 text-slate-900 shadow-md' : 'text-gray-400 hover:text-white'}`}>AR</button>
@@ -1074,12 +1076,13 @@ export default function App() {
                       onMouseMove={(e) => handleCardMove(e, e.currentTarget)}
                       onMouseLeave={(e) => handleCardLeave(e.currentTarget)}
                       onMouseEnter={handleMouseEnterInteractive} 
-                      className={`card-tilt h-full w-full flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-5 relative group transition-all duration-300 border bg-neutral-900/40 overflow-hidden break-words min-w-0 ${isOutOfStock ? 'border-red-500/20 hover:border-red-400/60' : 'border-teal-500/20 hover:border-teal-400/60'}`}
+                      onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); playSynthSound(800, 'sine', 0.1); }}
+                      className={`card-tilt cursor-pointer h-full w-full flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-5 relative group transition-all duration-300 border bg-neutral-900/40 overflow-hidden break-words min-w-0 ${isOutOfStock ? 'border-red-500/20 hover:border-red-400/60' : 'border-teal-500/20 hover:border-teal-400/60'}`}
                     >
                       <div className="gloss-effect"></div>
                       
                       <div 
-                        onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); playSynthSound(800, 'sine', 0.1); }}
+                        onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); playSynthSound(800, 'sine', 0.1); }}
                         className={`flex-shrink-0 h-28 sm:h-48 w-full rounded-lg sm:rounded-xl overflow-hidden mb-3 sm:mb-5 flex items-center justify-center border transition-all duration-300 relative cursor-pointer bg-white ${isOutOfStock ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-teal-500/10 group-hover:border-teal-500/30'}`}
                         title={t.viewDetails}
                       >
@@ -1113,7 +1116,7 @@ export default function App() {
                         )}
                       </div>
 
-                      <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer text-white hover:text-teal-400 transition-colors break-words min-w-0 w-full`} onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); playSynthSound(800, 'sine', 0.1); }}>{prod.name}</h3>
+                      <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer text-white hover:text-teal-400 transition-colors break-words min-w-0 w-full`} onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); playSynthSound(800, 'sine', 0.1); }}>{prod.name}</h3>
                       
                       <p className={`text-[9px] sm:text-sm mb-3 sm:mb-5 leading-relaxed line-clamp-2 text-gray-300 flex-grow break-words min-w-0 w-full`}>{prod.desc || t.noDesc}</p>
                       
@@ -1125,7 +1128,7 @@ export default function App() {
                         <button 
                           type="button" 
                           disabled={isOutOfStock}
-                          onClick={() => addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock)} 
+                          onClick={(e) => { e.stopPropagation(); addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock); }} 
                           className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 rounded-full font-bold text-[9px] sm:text-xs transition-all relative z-20 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-slate-900 hover:bg-teal-400'}`}
                         >
                           <i className="fas fa-cart-arrow-down"></i> <span className="truncate">{isOutOfStock ? 'نافذ' : t.addToCart}</span>
@@ -1267,7 +1270,7 @@ export default function App() {
             </button>
 
             {/* الجانب الأيمن للمودال (الصورة) */}
-            <div className={`w-full md:w-5/12 p-4 sm:p-8 flex flex-col items-center justify-start sm:justify-center border-b md:border-b-0 md:border-${lang === 'en' ? 'r' : 'l'} border-teal-500/20 bg-[#0b1120] flex-shrink-0 md:flex-shrink`}>
+            <div className={`w-full md:w-5/12 p-1 sm:p-8 flex flex-col items-center justify-start sm:justify-center border-b md:border-b-0 md:border-${lang === 'en' ? 'r' : 'l'} border-teal-500/20 bg-[#0b1120] flex-shrink-0 md:flex-shrink`}>
               
               <div 
                   className="w-full h-64 sm:h-80 md:h-[26rem] shrink-0 bg-white rounded-3xl p-4 sm:p-8 flex items-center justify-center shadow-[inset_0_0_20px_rgba(0,0,0,0.05)] relative overflow-hidden border-4 border-slate-800 group cursor-pointer"
@@ -1311,7 +1314,7 @@ export default function App() {
                               setActiveImageIndex(prev => prev === selectedProduct.images.length - 1 ? 0 : prev + 1); 
                               playSynthSound(1000, 'triangle', 0.05);
                           }} 
-                          className="absolute right-2 sm:right-4 z-20 w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-slate-900/40 text-slate-800 flex items-center justify-center hover:bg-teal-500 hover:text-white transition-all backdrop-blur-md"
+                          className="absolute right-2 sm:right-4 z-0 w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-slate-900/40 text-slate-800 flex items-center justify-center hover:bg-teal-500 hover:text-white transition-all backdrop-blur-md"
                       >
                           <i className="fas fa-chevron-right text-lg"></i>
                       </button>
@@ -1321,7 +1324,7 @@ export default function App() {
                       <i className="fa-solid fa-expand text-5xl text-teal-600 drop-shadow-xl"></i>
                   </div>
 
-                  <div className={`absolute top-4 ${lang === 'en' ? 'right-4' : 'left-4'} px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-teal-50 text-teal-700 border border-teal-200 z-20 shadow-sm`}>
+                  <div className={`absolute top-2 ${lang === 'en' ? 'right-2' : 'left-4'} px-3 py-1.5 rounded-lg text-xs font-mono font-bold bg-teal-50 text-teal-700 border border-teal-200 z-20 shadow-sm`}>
                       {selectedProduct.chip || 'NEW MCU'}
                   </div>
                   
@@ -1335,7 +1338,7 @@ export default function App() {
               </div>
 
               {selectedProduct.images && selectedProduct.images.length > 1 && (
-                <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6 overflow-x-auto w-full pb-2 custom-scrollbar justify-center shrink-0">
+                <div className="flex gap-2 sm:gap-3 mt-2 sm:mt-6 overflow-x-auto w-full pb-2 custom-scrollbar justify-center shrink-0">
                   {selectedProduct.images.map((img, idx) => {
                     if(!img || img.trim() === '') return null;
                     return (
@@ -1354,16 +1357,15 @@ export default function App() {
             </div>
 
             {/* الجانب الأيسر (أصبح يتمدد تلقائياً بالموبايل) */}
-            <div className="w-full md:w-7/12 p-6 sm:p-8 flex flex-col justify-start h-auto md:h-auto flex-1 bg-slate-900/50">
+            <div className="w-full md:w-7/12 p-2 sm:p-8 flex flex-col justify-start h-auto md:h-auto flex-1 bg-slate-900/50">
               <div className="mb-4">
-                <span className={`font-mono text-[10px] sm:text-[11px] tracking-widest font-bold mb-2 block text-teal-500`}>{selectedProduct.code || 'GENERIC'}</span>
                 <h2 className={`text-xl sm:text-3xl font-black mb-3 sm:mb-4 text-white break-words`}>{selectedProduct.name}</h2>
                 <div className="flex gap-1 text-xs sm:text-sm text-yellow-500 mb-4">
                   <i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i>
                 </div>
-              </div>
 
-              <div className="flex gap-3 sm:gap-6 border-b border-teal-500/20 mb-5 overflow-x-auto custom-scrollbar flex-shrink-0">
+
+              <div className="flex gap-3 sm:gap-6 border-b border-teal-500/20 mb-4 overflow-x-auto custom-scrollbar flex-shrink-0">
                   <button onClick={() => setModalTab('desc')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'desc' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
                       <i className="fa-solid fa-circle-info ml-1"></i> الشرح والتفاصيل
                   </button>
@@ -1374,8 +1376,8 @@ export default function App() {
                       <i className="fa-solid fa-link ml-1"></i> الملحقات والمكتبات
                   </button>
               </div>
-
-              <div className="flex-grow flex flex-col mb-4 min-h-[100px] overflow-y-auto custom-scrollbar max-h-[25vh]">
+              </div>
+              <div className="flex-grow flex flex-col mb-0 min-h-[200px] overflow-y-auto custom-scrollbar overscroll-contain max-h-[45vh] sm:max-h-[55vh]">
                   {modalTab === 'desc' && (
                       <div className={`p-4 sm:p-5 rounded-xl text-xs sm:text-sm leading-relaxed border bg-slate-800/50 border-teal-500/10 text-gray-300 h-full break-words whitespace-pre-wrap`}>
                           {selectedProduct.desc || t.noDesc}
@@ -1402,39 +1404,47 @@ export default function App() {
                           {selectedProduct.libLink ? (
                               <a href={selectedProduct.libLink} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm group">
                                   <span className="font-bold text-sm"><i className="fa-solid fa-book-bookmark ml-2"></i> تحميل مكتبة الحساس / القطعة</span>
-                                  <i className="fa-solid fa-arrow-up-right-from-square group-hover:scale-110 transition-transform"></i>
+                                  <i className="fa-solid fa-arrow-up-right-from-square group-hover:scale-10 transition-transform"></i>
                               </a>
                           ) : <div className="p-4 border border-dashed border-gray-600/50 rounded-xl text-gray-500 text-sm text-center">لا توجد مكتبة برمجية مضافة.</div>}
                       </div>
                   )}
               </div>
 
-              {/* قسم السعر وزر السلة لن يختفي أبداً بعد الآن */}
-              <div className={`mt-auto pt-6 flex flex-col gap-4 z-10 w-full flex-shrink-0 pb-4 md:pb-0`}>
-                  
-                  <div className="flex justify-between items-center bg-[#0a0a0f] p-4 sm:p-6 rounded-2xl border border-teal-500/20 shadow-inner">
-                      <div className="flex flex-col">
-                          <span className="text-gray-500 font-mono font-bold text-[10px] sm:text-xs mb-1 uppercase tracking-widest">{t.price}</span>
-                          <span className={`text-3xl sm:text-4xl font-black font-mono tracking-tight ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'text-red-400 opacity-60' : 'text-teal-400 drop-shadow-[0_0_15px_rgba(20,184,166,0.3)]'}`}>
-                              {selectedProduct.price?.toLocaleString() || 0}
-                          </span>
-                      </div>
-                      <div className="bg-teal-500/10 border border-teal-500/30 px-4 py-2 sm:px-5 sm:py-3 rounded-xl">
-                          <span className="text-teal-400 font-bold text-sm sm:text-lg">{t.currency}</span>
-                      </div>
-                  </div>
-                  
-                  <button 
-                      type="button" 
-                      disabled={(parseInt(selectedProduct.stock)||0) <= 0}
-                      onClick={() => addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock)} 
-                      className={`w-full py-4 sm:py-5 rounded-2xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'bg-slate-800 text-gray-500 border border-slate-700 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-slate-900 hover:from-teal-400 hover:to-emerald-300 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(20,184,166,0.4)] hover:-translate-y-1 shadow-[0_8px_20px_rgba(0,0,0,0.2)]'}`}
-                  >
-                      <i className="fas fa-cart-plus text-2xl"></i> 
-                      {(parseInt(selectedProduct.stock)||0) <= 0 ? 'المنتج نافذ من المخزن' : t.addToCart}
-                  </button>
-              </div>
-
+             {/* قسم السعر وزر السلة لن يختفي أبداً بعد الآن */}
+<div className={`mt-auto pt-5 flex flex-col gap-4 z-10 w-full flex-shrink-0 pb-6 md:pb-0`}>
+    
+    {/* التعديل هنا: استخدام flex-row لترتيب العناصر بجانب بعضها */}
+    <div className="flex flex-row justify-between items-center bg-[#0a0a0f] p-1 sm:p-1 rounded-xl border border-teal-500/20 shadow-inner">
+        
+        {/* كلمة: السعر */}
+        <span className="text-gray-300 font-mono font-bold text-lg sm:text-base uppercase tracking-widest whitespace-nowrap">
+            {t.price}
+        </span>
+        
+        {/* الرقم والعملة متجاورين */}
+        <div className="flex flex-row items-center gap-2 sm:gap-">
+            <span className={`text-3xl sm:text-2xl font-black font-mono tracking-tight leading-none ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'text-red-400 opacity-60' : 'text-teal-400 drop-shadow-[0_0_15px_rgba(20,184,166,0.3)]'}`}>
+                {selectedProduct.price?.toLocaleString() || 0}
+            </span>
+            <span className="bg-teal-500/10 border border-teal-500/30 px-3 py-1.5 rounded-xl text-teal-400 font-bold text-sm sm:text-base whitespace-nowrap">
+                {t.currency}
+            </span>
+        </div>
+        
+    </div>
+    
+    {/* زر إضافة للسلة يبقى كما هو */}
+    <button 
+        type="button" 
+        disabled={(parseInt(selectedProduct.stock)||0) <= 0}
+        onClick={(e) => { e.stopPropagation(); addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock); }} 
+        className={`w-full py-4 sm:py-5 rounded-2xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'bg-slate-800 text-gray-500 border border-slate-700 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-slate-900 hover:from-teal-400 hover:to-emerald-300 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(20,184,166,0.4)] hover:-translate-y-1 shadow-[0_8px_20px_rgba(0,0,0,0.2)]'}`}
+    >
+        <i className="fas fa-cart-plus text-2xl"></i> 
+        {(parseInt(selectedProduct.stock)||0) <= 0 ? 'المنتج نافذ من المخزن' : t.addToCart}
+    </button>
+</div>
             </div>
           </div>
         </div>

@@ -559,51 +559,163 @@ export default function AdminPanel({
         </div>
       )}
 
-      {/* 5. Selected Order Detail Viewer */}
+      {/* 5. Selected Order Detail Viewer (Compact & Elegant Redesign) */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-[9999999] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-sm" onClick={() => setSelectedOrder(null)}></div>
-          <div className="relative bg-[#0c0c11] border border-emerald-500/40 p-6 rounded-3xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
-             <button type="button" onClick={() => setSelectedOrder(null)} className="absolute top-4 right-4 text-gray-500 hover:text-white">
-               <i className="fa-solid fa-xmark text-xl"></i>
-             </button>
-             <h3 className="text-xl font-bold text-emerald-400 mb-4 flex items-center gap-2">
-                <i className="fa-solid fa-receipt"></i> تفاصيل الطلب #{selectedOrder.id?.slice(-5).toUpperCase()}
-             </h3>
+        <div className="fixed inset-0 z-[9999999] flex items-center justify-center p-2 sm:p-4 transition-all">
+          <div className="absolute inset-0 bg-black/95 backdrop-blur-md" onClick={() => setSelectedOrder(null)}></div>
+          
+          {/* Custom Scrollbar specifically for this modal */}
+          <style>{`
+             .order-scrollbar::-webkit-scrollbar { width: 6px; }
+             .order-scrollbar::-webkit-scrollbar-track { background: rgba(16, 185, 129, 0.05); border-radius: 10px; }
+             .order-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.5); border-radius: 10px; }
+             .order-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(16, 185, 129, 0.8); }
+          `}</style>
+          
+          <div className="relative bg-[#0b101a] border border-emerald-500/30 rounded-[1.5rem] w-full max-w-5xl shadow-[0_0_50px_rgba(16,185,129,0.15)] flex flex-col max-h-[95vh] overflow-hidden transform transition-all">
              
-             <div className="bg-black/40 p-4 rounded-xl border border-emerald-500/20 mb-4 space-y-2 text-sm text-gray-300">
-                <p><span className="text-emerald-400 font-bold">اسم المستلم:</span> {selectedOrder.customerName}</p>
-                <p><span className="text-emerald-400 font-bold">رقم الهاتف:</span> <a href={`tel:${selectedOrder.customerPhone}`} className="text-blue-400 underline" dir="ltr">{selectedOrder.customerPhone}</a></p>
-                <p><span className="text-emerald-400 font-bold">الموقع المختار:</span> {selectedOrder.location}</p>
-                <p><span className="text-emerald-400 font-bold">وقت الطلب:</span> {new Date(selectedOrder.timestamp).toLocaleString('ar-IQ')}</p>
+             {/* Header */}
+             <div className="flex justify-between items-center p-3 sm:p-5 border-b border-emerald-500/10 bg-gradient-to-r from-emerald-900/20 to-transparent shrink-0">
+                <div>
+                   <h3 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)] text-sm">
+                         <i className="fa-solid fa-file-invoice-dollar"></i>
+                      </div>
+                      تفاصيل الطلب
+                   </h3>
+                   <span className="text-emerald-400 font-mono text-xs mt-1 block font-bold tracking-widest">
+                      #ORDER-{selectedOrder.id?.slice(-6).toUpperCase()}
+                   </span>
+                </div>
+                <button type="button" onClick={() => setSelectedOrder(null)} className="w-8 h-8 rounded-full bg-black/40 border border-neutral-700 text-gray-400 hover:text-white hover:bg-red-500/20 hover:border-red-500/50 transition-all flex items-center justify-center shrink-0">
+                   <i className="fa-solid fa-xmark text-sm"></i>
+                </button>
              </div>
-
-             <h4 className="font-bold text-white mb-2">المنتجات المطلوبة:</h4>
-             <div className="space-y-2 mb-6">
-                {(selectedOrder.items || []).map((item, idx) => (
-                   <div key={idx} className="flex justify-between items-center bg-black/40 p-3 rounded-lg border border-neutral-800">
-                      <div className="flex items-center gap-3">
-                         <img src={item.image} alt="" className="w-10 h-10 object-contain bg-white rounded p-1" />
-                         <div>
-                            <div className="text-white text-sm font-bold">{item.name}</div>
-                            <div className="text-emerald-400 text-xs font-mono">{item.price?.toLocaleString()} د.ع × {item.qty}</div>
+             
+             {/* Main Content Area: Flex Container for Side-by-Side on Desktop */}
+             <div className="flex flex-col lg:flex-row flex-grow overflow-hidden">
+                
+                {/* Right Column (Arabic RTL): Customer Info & Totals Summary */}
+                <div className="w-full lg:w-2/5 flex flex-col bg-[#0d131f] border-b lg:border-b-0 lg:border-l border-emerald-500/10 p-4 sm:p-5 overflow-y-auto order-scrollbar shrink-0">
+                   
+                   {/* Customer Information Cards */}
+                   <div className="mb-5">
+                      <h4 className="text-emerald-400 font-bold mb-3 flex items-center gap-2 text-xs">
+                         <i className="fa-solid fa-id-card"></i> بيانات الزبون
+                      </h4>
+                      <div className="space-y-2.5">
+                         <div className="bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-center gap-3 hover:border-emerald-500/30 transition-colors">
+                            <div className="bg-blue-500/10 text-blue-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"><i className="fa-solid fa-user"></i></div>
+                            <div className="min-w-0 flex-grow">
+                               <p className="text-gray-500 text-[10px] font-mono mb-0.5">اسم المستلم</p>
+                               <p className="text-white font-bold text-xs truncate">{selectedOrder.customerName}</p>
+                            </div>
+                         </div>
+                         
+                         <div className="bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-center gap-3 hover:border-emerald-500/30 transition-colors">
+                            <div className="bg-green-500/10 text-green-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"><i className="fa-solid fa-phone"></i></div>
+                            <div className="min-w-0 flex-grow">
+                               <p className="text-gray-500 text-[10px] font-mono mb-0.5">رقم الهاتف</p>
+                               <a href={`tel:${selectedOrder.customerPhone}`} className="text-white font-bold text-xs hover:text-emerald-400 transition-colors truncate block" dir="ltr">{selectedOrder.customerPhone}</a>
+                            </div>
+                         </div>
+                         
+                         <div className="bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-start gap-3 hover:border-emerald-500/30 transition-colors">
+                            <div className="bg-orange-500/10 text-orange-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm mt-0.5"><i className="fa-solid fa-map-location-dot"></i></div>
+                            <div className="min-w-0 flex-grow">
+                               <p className="text-gray-500 text-[10px] font-mono mb-0.5">الموقع المختار والتفاصيل</p>
+                               <p className="text-white font-bold text-xs leading-relaxed">{selectedOrder.location}</p>
+                            </div>
+                         </div>
+                         
+                         <div className="bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-center gap-3 hover:border-emerald-500/30 transition-colors">
+                            <div className="bg-purple-500/10 text-purple-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"><i className="fa-solid fa-clock"></i></div>
+                            <div className="min-w-0 flex-grow">
+                               <p className="text-gray-500 text-[10px] font-mono mb-0.5">تاريخ ووقت الطلب</p>
+                               <p className="text-white font-bold text-[11px] truncate">{new Date(selectedOrder.timestamp).toLocaleString('ar-IQ')}</p>
+                            </div>
                          </div>
                       </div>
-                      <div className="text-white font-bold font-mono">
-                         {(item.price * item.qty).toLocaleString()} د.ع
+                   </div>
+
+                   {/* Totals Summary */}
+                   <div className="mt-auto">
+                      <h4 className="text-emerald-400 font-bold mb-3 flex items-center gap-2 text-xs">
+                         <i className="fa-solid fa-calculator"></i> الحساب الختامي
+                      </h4>
+                      <div className="bg-[#0a0f18] p-4 rounded-2xl border border-emerald-500/20 shadow-inner relative overflow-hidden">
+                         <div className="absolute -left-10 -bottom-10 opacity-5 pointer-events-none">
+                            <i className="fa-solid fa-receipt text-[100px]"></i>
+                         </div>
+                         
+                         <div className="relative z-10 space-y-2.5">
+                            {selectedOrder.subtotalAmount !== undefined && (
+                               <div className="flex justify-between items-center text-gray-400 text-xs font-bold">
+                                  <span>المجموع الفرعي:</span>
+                                  <span className="font-mono text-white">{selectedOrder.subtotalAmount?.toLocaleString()} د.ع</span>
+                               </div>
+                            )}
+                            
+                            {selectedOrder.deliveryFee !== undefined && (
+                               <div className="flex justify-between items-center text-gray-400 text-xs font-bold pb-3 border-b border-neutral-800/80">
+                                  <span className="truncate pr-2">نقل ({selectedOrder.governorate || 'محدد'}):</span>
+                                  <span className="font-mono text-white whitespace-nowrap">{selectedOrder.deliveryFee?.toLocaleString()} د.ع</span>
+                               </div>
+                            )}
+
+                            <div className="flex justify-between items-end pt-1">
+                               <span className="text-white font-black text-sm">الإجمالي المكتمل:</span>
+                               <span className="text-emerald-400 font-black text-lg sm:text-2xl font-mono tracking-tight drop-shadow-[0_0_8px_rgba(52,211,153,0.5)] whitespace-nowrap">
+                                  {selectedOrder.totalAmount?.toLocaleString()} <span className="text-[10px] sm:text-xs text-emerald-500">د.ع</span>
+                               </span>
+                            </div>
+                         </div>
                       </div>
                    </div>
-                ))}
+                </div>
+
+                {/* Left Column (Arabic LTR visually): Items List */}
+                <div className="w-full lg:w-3/5 flex flex-col bg-[#0b101a] p-4 sm:p-5 overflow-hidden">
+                   <h4 className="text-emerald-400 font-bold mb-3 flex items-center gap-2 text-xs shrink-0">
+                      <i className="fa-solid fa-box-open"></i> المنتجات المطلوبة ({selectedOrder.items?.length || 0})
+                   </h4>
+                   
+                   {/* Scrollable Items Container */}
+                   <div className="overflow-y-auto order-scrollbar pr-2 space-y-2.5 flex-grow h-full">
+                      {(selectedOrder.items || []).map((item, idx) => (
+                         <div key={idx} className="group flex flex-col sm:flex-row justify-between items-start sm:items-center bg-[#111827] p-2.5 sm:p-3 rounded-xl border border-neutral-800 hover:border-emerald-500/40 transition-all gap-3 shadow-sm">
+                            
+                            <div className="flex items-center gap-3 w-full sm:w-auto min-w-0">
+                               <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-lg p-1 flex items-center justify-center shrink-0 border border-neutral-200 shadow-inner">
+                                  <img src={item.image} alt="" className="max-w-full max-h-full object-contain mix-blend-multiply" />
+                               </div>
+                               <div className="flex-grow min-w-0">
+                                  <div className="text-white text-xs sm:text-sm font-bold line-clamp-2 leading-snug mb-1.5">{item.name}</div>
+                                  <div className="text-gray-400 text-[10px] sm:text-xs font-mono bg-black/40 inline-block px-1.5 py-0.5 rounded border border-neutral-800">
+                                    {item.price?.toLocaleString()} د.ع <span className="text-emerald-500 mx-1">×</span> <span className="text-white">{item.qty}</span>
+                                  </div>
+                               </div>
+                            </div>
+                            
+                            <div className="text-emerald-400 font-bold font-mono text-sm sm:text-base bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20 w-full sm:w-auto text-center shrink-0 shadow-sm flex flex-col">
+                               <span className="text-[9px] text-emerald-600 font-sans mb-0.5 uppercase tracking-widest block sm:hidden">المجموع الفرعي:</span>
+                               {(item.price * item.qty).toLocaleString()} د.ع
+                            </div>
+
+                         </div>
+                      ))}
+                   </div>
+                </div>
+
              </div>
 
-             <div className="flex justify-between items-center p-4 bg-emerald-900/20 border border-emerald-500/30 rounded-xl mb-6">
-                <span className="font-bold text-emerald-400">الإجمالي الكلي شامل النقل:</span>
-                <span className="font-bold text-xl text-white font-mono">{selectedOrder.totalAmount?.toLocaleString()} د.ع</span>
+             {/* Bottom Footer Action (Full Width) */}
+             <div className="p-3 sm:p-4 border-t border-emerald-500/10 bg-[#0c111a] shrink-0">
+                <button onClick={() => confirmAndDeleteOrder(selectedOrder.id)} className="w-full py-3 rounded-xl font-bold flex justify-center items-center gap-2 text-white transition-all bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 shadow-[0_0_15px_rgba(220,38,38,0.2)] hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:-translate-y-0.5 text-xs sm:text-sm">
+                   <i className="fa-solid fa-clipboard-check text-lg"></i> تأكيد إنجاز الطلب وحذفه من السجل
+                </button>
              </div>
 
-             <button onClick={() => confirmAndDeleteOrder(selectedOrder.id)} className="w-full bg-red-600 hover:bg-red-500 text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2">
-                <i className="fa-solid fa-check-double"></i> إنهاء وحذف الطلب من السحابة بعد التجهيز
-             </button>
           </div>
         </div>
       )}

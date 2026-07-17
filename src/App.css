@@ -93,22 +93,26 @@ body {
     pointer-events: none;
     z-index: 5;
 }
-
+/* شريط التمرير المخصص - تم تحسينه */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 10px; /* تم تعريض المؤشر لسهولة الإمساك بالماوس */
 }
+
 .custom-scrollbar::-webkit-scrollbar-track {
   background: rgba(20, 184, 166, 0.05);
   border-radius: 10px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(20, 184, 166, 0.3);
+  background: rgba(20, 184, 166, 0.6); /* جعل اللون أكثر وضوحاً */
   border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(20, 184, 166, 0.6);
+  /* حيلة برمجية لإضافة مساحة (Border) تجعل المؤشر يبدو أنيقاً داخل المسار */
+  border: 2px solid rgba(15, 23, 42, 1); /* نفس لون خلفية المودال الداكنة */
 }
 
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(20, 184, 166, 1); /* لون قوي جداً عند وضع الماوس عليه */
+}
 @keyframes deep-pulse {
     0%, 100% {
         opacity: 1;
