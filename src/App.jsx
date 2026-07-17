@@ -2,7 +2,7 @@ import AdminPanel from './AdminPanel';
 import './App.css';
 
 import {ADMIN_UID, db, auth, provider } from './firebase';
-import { collection, addDoc, doc, setDoc, getDocs, query, orderBy, limit, deleteDoc, updateDoc, getDoc, onSnapshot, increment } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, getDocs, query, orderBy, limit, deleteDoc, updateDoc, getDoc, onSnapshot, increment, where } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'; 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { gsap } from 'gsap';
@@ -361,26 +361,34 @@ export default function App() {
     }
   };
 
-  const fetchMyOrders = async () => {
-    try {
-      let fetched = [];
-      const snap = await getDocs(collection(db, "orders"));
-      const allOrders = snap.docs.map(d => ({id: d.id, ...d.data()}));
+const fetchMyOrders = async () => {
+  try {
+    let fetched = [];
+    
+    if (user && user.uid && user.uid !== "GUEST_USER") {
 
-      if (user && user.uid && user.uid !== "GUEST_USER") {
-          fetched = allOrders.filter(o => o.userId === user.uid);
-      } else {
-          const guestIds = JSON.parse(localStorage.getItem('msa_guest_orders') || '[]');
-          if(guestIds.length > 0) {
-              fetched = allOrders.filter(o => guestIds.includes(o.id));
-          }
-      }
-      fetched.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
-      setMyOrders(fetched);
-    } catch(e) {
-      console.error("Error fetching my orders", e);
+      
+      const q = query(collection(db, "orders"), where("userId", "==", user.uid));
+        const snap = await getDocs(q);
+        fetched = snap.docs.map(d => ({id: d.id, ...d.data()}));
+    } else {
+        const guestIds = JSON.parse(localStorage.getItem('msa_guest_orders') || '[]');
+        if (guestIds.length > 0) {
+            for (const orderId of guestIds) {
+                const orderSnap = await getDoc(doc(db, "orders", String(orderId)));
+                if (orderSnap.exists()) {
+                    fetched.push({id: orderSnap.id, ...orderSnap.data()});
+                }
+            }
+        }
     }
-  };
+    
+    fetched.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+    setMyOrders(fetched);
+  } catch(e) {
+    console.error("Error fetching my orders", e);
+  }
+};
 
   const handleCancelOrder = async (orderToCancel) => {
     if(!window.confirm(lang === 'ar' ? "هل أنت متأكد من إلغاء هذا الطلب؟ سيتم استرجاع المخزون للمنتجات." : "Are you sure you want to cancel this order? Stock will be returned.")) return;
@@ -1085,11 +1093,11 @@ export default function App() {
             </a>
           ))}
 
-          {/* زر الشكر والتقدير في أسفل القائمة */}
+         
           <div className="mt-auto pt-4 border-t border-teal-500/20">
-             <button onClick={() => { alert('نشكر المعصوم بسبب تعليمنا للعلم'); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className="w-full flex items-center gap-4 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-4 rounded-xl hover:bg-yellow-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
+             <button onClick={() => { alert('الحمد لله الذي علّم بالقلم، والشكر موصول لرسوله الأعظم وعترته الطاهرة، ينابيع الحكمة وأصل كل علم، من أشرقت بأنوار معارفهم عقول البشر، وقامت على فيض علومهم حضارات الأمم'); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className="w-full flex items-center gap-4 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-4 rounded-xl hover:bg-yellow-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
                 <i className="fa-solid fa-hands-praying text-2xl"></i>
-                <span className="text-sm">شكر وتقدير</span>
+                <span className="text-sm">شكرا</span>
              </button>
           </div>
         </div>
