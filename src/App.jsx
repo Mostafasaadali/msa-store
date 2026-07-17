@@ -939,7 +939,7 @@ export default function App() {
             <span className="text-sm">{t.whatsappSupport}</span>
           </a>
 
-          <button onClick={() => { alert('نشكر المعصوم بسبب تعليمنا للعلم'); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className="w-full flex items-center gap-4 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-4 rounded-xl hover:bg-yellow-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
+          <button onClick={() => { alert('الحمد لله الذي علم بالقلم، ولرسوله وأهل بيته حُراس المعرفة؛ فلولا غيث علومهم لما نبتت لنا حضارة، ولولا هديهم لما أبصرت عقولنا'); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className="w-full flex items-center gap-4 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-4 rounded-xl hover:bg-yellow-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
             <i className="fa-solid fa-hands-praying text-2xl"></i>
             <span className="text-sm">شكر وتقدير</span>
           </button>
