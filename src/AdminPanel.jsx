@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { doc, setDoc, addDoc, collection, deleteDoc } from 'firebase/firestore'; 
 import { db } from './firebase';
 
@@ -28,6 +28,7 @@ export default function AdminPanel({
   editProdId,
   orders, fetchOrders,
   handleDeleteOrder,
+  handleCancelOrder,
   visitorCount,
   handleResetVisitors, 
   
@@ -57,8 +58,12 @@ export default function AdminPanel({
   const [newLinkTitle, setNewLinkTitle] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
+  // حالات أدوات فلترة المنتجات في صفحة الإدارة
+  const [adminSearch, setAdminSearch] = useState('');
+  const [adminFilter, setAdminFilter] = useState('all');
+
   const confirmAndDeleteOrder = (orderId) => {
-    if(window.confirm("هل أنت متأكد من إنهاء وحذف هذا الطلب بشكل نهائي بعد التجهيز؟")) {
+    if(window.confirm("هل أنت متأكد من إنجاز هذا الطلب وحذفه من السجل بشكل نهائي؟ (هذا الخيار يعني أنك قمت بتسليمه بنجاح ولن يتم إرجاع المخزون)")) {
       handleDeleteOrder(orderId);
       setSelectedOrder(null);
     }
@@ -179,6 +184,26 @@ export default function AdminPanel({
        }
     }
   };
+
+  // استخدام useMemo لتقليل الجهد على المعالج في التصفية المستمرة
+  const filteredAdminProducts = useMemo(() => {
+    return products.filter(p => {
+      const searchLower = adminSearch.toLowerCase();
+      const matchesSearch = adminSearch === '' || 
+                            p.name?.toLowerCase().includes(searchLower) || 
+                            p.code?.toLowerCase().includes(searchLower) ||
+                            p.category?.toLowerCase().includes(searchLower);
+      if (!matchesSearch) return false;
+      
+      if (adminFilter === 'outOfStock') return (parseInt(p.stock) || 0) <= 0;
+      return true;
+    }).sort((a, b) => {
+      if (adminFilter === 'bestSeller') {
+          return (parseInt(b.sales) || 0) - (parseInt(a.sales) || 0);
+      }
+      return 0; // الترتيب الافتراضي
+    });
+  }, [products, adminSearch, adminFilter]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 pb-24 font-sans relative w-full">
@@ -353,9 +378,38 @@ export default function AdminPanel({
          </div>
 
          <div className="border border-neutral-800 rounded-2xl p-4 sm:p-6 bg-[#030212] shadow-xl overflow-hidden w-full">
-           <h3 className="text-base sm:text-lg font-bold text-gray-200 mb-6 flex items-center gap-2 border-b border-neutral-800 pb-3">
-             <i className="fa-solid fa-list-check text-teal-500"></i> الكتالوج الحالي ({products.length} قطع)
-           </h3>
+           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-neutral-800 pb-4">
+             <h3 className="text-base sm:text-lg font-bold text-gray-200 flex items-center gap-2">
+               <i className="fa-solid fa-list-check text-teal-500"></i> الكتالوج ({filteredAdminProducts.length})
+             </h3>
+             
+             {/* أدوات البحث والفلترة الجديدة للإدارة */}
+             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+               <div className="flex flex-wrap gap-2">
+                  <button onClick={() => setAdminFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm border ${adminFilter === 'all' ? 'bg-teal-500 text-slate-900 border-teal-500' : 'bg-[#111827] text-gray-400 border-neutral-700 hover:border-teal-500'}`}>
+                    الكل
+                  </button>
+                  <button onClick={() => setAdminFilter('outOfStock')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm border flex items-center gap-1 ${adminFilter === 'outOfStock' ? 'bg-red-500 text-white border-red-500' : 'bg-[#111827] text-gray-400 border-neutral-700 hover:border-red-500'}`}>
+                    <i className="fa-solid fa-triangle-exclamation"></i> المواد النافذة
+                  </button>
+                  <button onClick={() => setAdminFilter('bestSeller')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm border flex items-center gap-1 ${adminFilter === 'bestSeller' ? 'bg-yellow-500 text-slate-900 border-yellow-500' : 'bg-[#111827] text-gray-400 border-neutral-700 hover:border-yellow-500'}`}>
+                    <i className="fa-solid fa-fire"></i> الأكثر مبيعاً
+                  </button>
+               </div>
+               
+               <div className="relative w-full sm:w-56 shrink-0">
+                  <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
+                  <input 
+                     type="text" 
+                     placeholder="بحث سريع في الكتالوج..." 
+                     value={adminSearch} 
+                     onChange={e => setAdminSearch(e.target.value)} 
+                     className="w-full pl-8 pr-3 py-1.5 bg-[#111827] border border-neutral-700 rounded-lg text-xs text-white focus:border-teal-500 outline-none shadow-inner" 
+                  />
+               </div>
+             </div>
+           </div>
+
            <div className="overflow-x-auto custom-scrollbar">
              <table className="w-full text-right border-collapse min-w-[600px]">
                <thead>
@@ -363,16 +417,21 @@ export default function AdminPanel({
                    <th className="pb-3 text-center w-16">الصورة</th>
                    <th className="pb-3 pr-4">اسم القطعة والتفاصيل</th>
                    <th className="pb-3 text-center">السعر</th>
+                   <th className="pb-3 text-center">المبيعات</th>
                    <th className="pb-3 text-center">المخزون</th>
                    <th className="pb-3 text-center w-32">الإجراءات</th>
                  </tr>
                </thead>
                <tbody className="divide-y divide-neutral-800/60 text-sm">
-                 {products.map((prod) => (
-                   <tr key={prod.id} className="hover:bg-neutral-900/50 transition-colors">
+                 {filteredAdminProducts.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="text-center py-8 text-gray-500 font-mono text-sm">لا توجد منتجات تطابق بحثك حالياً.</td>
+                    </tr>
+                 ) : filteredAdminProducts.map((prod) => (
+                   <tr key={prod.id} className={`transition-colors ${adminFilter === 'outOfStock' ? 'bg-red-900/5 hover:bg-red-900/10' : 'hover:bg-neutral-900/50'}`}>
                      <td className="py-3 sm:py-4 text-center relative">
                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-lg p-1 border border-neutral-700 flex items-center justify-center mx-auto relative overflow-hidden shrink-0">
-                         <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} loading="lazy" alt="" className="object-contain max-h-full max-w-full mix-blend-multiply" />
+                         <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} loading="lazy" decoding="async" alt="" className="object-contain max-h-full max-w-full mix-blend-multiply" />
                        </div>
                        {prod.images && prod.images.length > 1 && (
                          <span className="absolute -top-1 -right-1 bg-teal-500 text-black text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-black z-10">
@@ -391,6 +450,11 @@ export default function AdminPanel({
                        </div>
                      </td>
                      <td className="py-3 sm:py-4 text-center font-mono font-bold text-teal-400 whitespace-nowrap text-xs sm:text-sm">{prod.price.toLocaleString()} د.ع</td>
+                     
+                     <td className="py-3 sm:py-4 text-center font-mono text-yellow-500 whitespace-nowrap text-xs">
+                        <i className="fa-solid fa-fire text-[10px]"></i> {prod.sales || 0}
+                     </td>
+
                      <td className="py-3 sm:py-4 text-center font-mono font-bold whitespace-nowrap text-xs sm:text-sm">
                         {(parseInt(prod.stock)||0) <= 0 ? <span className="text-red-500 bg-red-500/10 px-2 py-1 rounded border border-red-500/30">نافذ (0)</span> : <span className="text-orange-400">{prod.stock}</span>}
                      </td>
@@ -710,9 +774,12 @@ export default function AdminPanel({
              </div>
 
              {/* Bottom Footer Action (Full Width) */}
-             <div className="p-3 sm:p-4 border-t border-emerald-500/10 bg-[#0c111a] shrink-0">
-                <button onClick={() => confirmAndDeleteOrder(selectedOrder.id)} className="w-full py-3 rounded-xl font-bold flex justify-center items-center gap-2 text-white transition-all bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 shadow-[0_0_15px_rgba(220,38,38,0.2)] hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:-translate-y-0.5 text-xs sm:text-sm">
-                   <i className="fa-solid fa-clipboard-check text-lg"></i> تأكيد إنجاز الطلب وحذفه من السجل
+             <div className="p-3 sm:p-4 border-t border-emerald-500/10 bg-[#0c111a] shrink-0 flex flex-col sm:flex-row gap-3">
+                <button onClick={() => confirmAndDeleteOrder(selectedOrder.id)} className="w-full sm:w-1/2 py-3 rounded-xl font-bold flex justify-center items-center gap-2 text-white transition-all bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)] hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:-translate-y-0.5 text-xs sm:text-sm">
+                   <i className="fa-solid fa-clipboard-check text-lg"></i> تأكيد إنجاز الطلب
+                </button>
+                <button onClick={() => { handleCancelOrder(selectedOrder); setSelectedOrder(null); }} className="w-full sm:w-1/2 py-3 rounded-xl font-bold flex justify-center items-center gap-2 text-white transition-all bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 shadow-[0_0_15px_rgba(220,38,38,0.2)] hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:-translate-y-0.5 text-xs sm:text-sm">
+                   <i className="fa-solid fa-ban text-lg"></i> إلغاء الطلب (إرجاع المخزون)
                 </button>
              </div>
 

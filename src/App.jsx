@@ -4,7 +4,7 @@ import './App.css';
 import {ADMIN_UID, db, auth, provider } from './firebase';
 import { collection, addDoc, doc, setDoc, getDocs, query, orderBy, limit, deleteDoc, updateDoc, getDoc, onSnapshot, increment } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'; 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { gsap } from 'gsap';
 
 const translations = {
@@ -13,6 +13,10 @@ const translations = {
     adminLeave: "خروج الإدارة",
     cloudLogin: "دخول سحابي",
     cart: "السلة",
+    myOrders: "طلباتي",
+    noActiveOrders: "لا توجد طلبات نشطة حالياً",
+    cancelOrder: "إلغاء الطلب",
+    processing: "قيد التجهيز",
     heroSub: "قطع ألكترونية مهندسة بدقة عالية",
     heroTitle1: "مستقبلك",
     heroTitle2: "بالروبوت",
@@ -52,6 +56,10 @@ const translations = {
     adminLeave: "Leave Admin",
     cloudLogin: "Login",
     cart: "Cart",
+    myOrders: "My Orders",
+    noActiveOrders: "No active orders currently",
+    cancelOrder: "Cancel Order",
+    processing: "Processing",
     heroSub: "PRECISION ENGINEERED ORIGINAL PARTS",
     heroTitle1: "YOUR FUTURE OF",
     heroTitle2: "ROBOTIC",
@@ -91,6 +99,10 @@ const translations = {
     adminLeave: "دەرچوون",
     cloudLogin: "چوونەژوورەوە",
     cart: "سەبەتە",
+    myOrders: "داواکاریەکانم",
+    noActiveOrders: "هیچ داواکارییەکی چالاک نییە",
+    cancelOrder: "هەڵوەشاندنەوە",
+    processing: "لە جێبەجێکردندایە",
     heroSub: "پارچەی ئەسڵی بە وردی ئەندازیاری کراوە",
     heroTitle1: "داهاتووی",
     heroTitle2: "رۆبۆتەکان",
@@ -136,6 +148,9 @@ const normalizeText = (text) => {
     .replace(/[\u064B-\u065F]/g, ''); 
 };
 
+// Singleton AudioContext لتحسين الأداء على الموبايل
+let globalAudioCtx = null;
+
 export default function App() {
   const [lang, setLang] = useState('ar');
   const t = translations[lang]; 
@@ -145,7 +160,9 @@ export default function App() {
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false); 
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false); 
   
-  // معرض الصور الشامل (يستخدم للمنتجات والمشاريع)
+  const [isMyOrdersOpen, setIsMyOrdersOpen] = useState(false);
+  const [myOrders, setMyOrders] = useState([]);
+  
   const [activeGallery, setActiveGallery] = useState(null); 
   
   const [customerName, setCustomerName] = useState(''); 
@@ -194,30 +211,58 @@ export default function App() {
   const magneticBtnRef = useRef(null);
   const magneticContainerRef = useRef(null);
 
-  const playSynthSound = (freq, type, duration) => {
+  const playSynthSound = useCallback((freq, type, duration) => {
     try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return;
-      const audioCtx = new AudioContext();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      if (!globalAudioCtx) globalAudioCtx = new AudioContextClass();
+      if (globalAudioCtx.state === 'suspended') globalAudioCtx.resume();
+      
+      const osc = globalAudioCtx.createOscillator();
+      const gain = globalAudioCtx.createGain();
       osc.type = type;
-      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      osc.frequency.setValueAtTime(freq, globalAudioCtx.currentTime);
+      gain.gain.setValueAtTime(0.08, globalAudioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, globalAudioCtx.currentTime + duration);
       osc.connect(gain);
-      gain.connect(audioCtx.destination);
+      gain.connect(globalAudioCtx.destination);
       osc.start();
-      osc.stop(audioCtx.currentTime + duration);
+      osc.stop(globalAudioCtx.currentTime + duration);
     } catch (e) {}
-  };
+  }, []);
 
-  const playHoverBeep = () => playSynthSound(1200, 'triangle', 0.05);
-  const playSuccessBeep = () => {
+  const playHoverBeep = useCallback(() => playSynthSound(1200, 'triangle', 0.05), [playSynthSound]);
+  const playSuccessBeep = useCallback(() => {
     playSynthSound(600, 'sine', 0.1);
     setTimeout(() => playSynthSound(900, 'sine', 0.15), 80);
-  };
-  const playErrorBuzz = () => playSynthSound(150, 'sawtooth', 0.4);
+  }, [playSynthSound]);
+  const playErrorBuzz = useCallback(() => playSynthSound(150, 'sawtooth', 0.4), [playSynthSound]);
+
+  // Load and auto-clear cart after 18 hours
+  useEffect(() => {
+    const savedCart = localStorage.getItem('msa_store_cart');
+    const savedTime = localStorage.getItem('msa_store_cart_time');
+    if (savedCart && savedTime) {
+      const timeDiff = Date.now() - parseInt(savedTime);
+      if (timeDiff > 18 * 60 * 60 * 1000) {
+        localStorage.removeItem('msa_store_cart');
+        localStorage.removeItem('msa_store_cart_time');
+      } else {
+        setCart(JSON.parse(savedCart));
+      }
+    }
+  }, []);
+
+  // Save cart changes and time
+  useEffect(() => {
+    if (cart.length > 0) {
+      localStorage.setItem('msa_store_cart', JSON.stringify(cart));
+      localStorage.setItem('msa_store_cart_time', Date.now().toString());
+    } else {
+      localStorage.removeItem('msa_store_cart');
+      localStorage.removeItem('msa_store_cart_time');
+    }
+  }, [cart]);
 
   const handleInstallApp = async () => {
     if (deferredPrompt) {
@@ -313,6 +358,62 @@ export default function App() {
       setOrders(ordersData);
     } catch (error) {
       console.error("خطأ في جلب الطلبات:", error);
+    }
+  };
+
+  const fetchMyOrders = async () => {
+    try {
+      let fetched = [];
+      const snap = await getDocs(collection(db, "orders"));
+      const allOrders = snap.docs.map(d => ({id: d.id, ...d.data()}));
+
+      if (user && user.uid && user.uid !== "GUEST_USER") {
+          fetched = allOrders.filter(o => o.userId === user.uid);
+      } else {
+          const guestIds = JSON.parse(localStorage.getItem('msa_guest_orders') || '[]');
+          if(guestIds.length > 0) {
+              fetched = allOrders.filter(o => guestIds.includes(o.id));
+          }
+      }
+      fetched.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+      setMyOrders(fetched);
+    } catch(e) {
+      console.error("Error fetching my orders", e);
+    }
+  };
+
+  const handleCancelOrder = async (orderToCancel) => {
+    if(!window.confirm(lang === 'ar' ? "هل أنت متأكد من إلغاء هذا الطلب؟ سيتم استرجاع المخزون للمنتجات." : "Are you sure you want to cancel this order? Stock will be returned.")) return;
+
+    try {
+      playSynthSound(400, 'sawtooth', 0.2);
+      
+      if (orderToCancel.items && Array.isArray(orderToCancel.items)) {
+         for (const item of orderToCancel.items) {
+             try {
+                 const prodRef = doc(db, "products", String(item.id));
+                 await updateDoc(prodRef, { 
+                     stock: increment(item.qty),
+                     sales: increment(-item.qty)
+                 });
+             } catch(e) {}
+         }
+      }
+      
+      await deleteDoc(doc(db, "orders", String(orderToCancel.id)));
+      
+      setOrders(prev => prev.filter(o => o.id !== orderToCancel.id));
+      setMyOrders(prev => prev.filter(o => o.id !== orderToCancel.id));
+      
+      const guestOrders = JSON.parse(localStorage.getItem('msa_guest_orders') || '[]');
+      const updatedGuestOrders = guestOrders.filter(id => id !== orderToCancel.id);
+      localStorage.setItem('msa_guest_orders', JSON.stringify(updatedGuestOrders));
+
+      fetchProducts(); 
+      alert(lang === 'ar' ? "تم إلغاء الطلب واسترجاع المخزون بنجاح." : "Order cancelled and stock returned successfully.");
+    } catch (err) {
+      console.error("Cancel order error:", err);
+      alert(lang === 'ar' ? "حدث خطأ أثناء إلغاء الطلب." : "Error cancelling order.");
     }
   };
 
@@ -506,42 +607,55 @@ export default function App() {
       }
     });
 
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    
     let mouseX = 0, mouseY = 0;
     let outerX = 0, outerY = 0;
-    
     let throttleTimer = null;
-    const handleMouseMove = (e) => {
-      if(throttleTimer) return;
-      throttleTimer = setTimeout(() => {
-        mouseX = e.clientX;
-        mouseY = e.clientY;
-        if (cursorInnerRef.current) {
-          cursorInnerRef.current.style.left = `${mouseX}px`;
-          cursorInnerRef.current.style.top = `${mouseY}px`;
-        }
-        throttleTimer = null;
-      }, 16); 
-    };
-    window.addEventListener('mousemove', handleMouseMove);
+    let cursorAnimFrame = null;
 
-    const updateCursor = () => {
-      outerX += (mouseX - outerX) * 0.15;
-      outerY += (mouseY - outerY) * 0.15;
-      if (cursorOuterRef.current) {
-        cursorOuterRef.current.style.left = `${outerX}px`;
-        cursorOuterRef.current.style.top = `${outerY}px`;
-      }
-      requestAnimationFrame(updateCursor);
-    };
-    requestAnimationFrame(updateCursor);
+    if (!isTouchDevice) {
+      const handleMouseMove = (e) => {
+        if(throttleTimer) return;
+        throttleTimer = setTimeout(() => {
+          mouseX = e.clientX;
+          mouseY = e.clientY;
+          if (cursorInnerRef.current) {
+            cursorInnerRef.current.style.left = `${mouseX}px`;
+            cursorInnerRef.current.style.top = `${mouseY}px`;
+          }
+          throttleTimer = null;
+        }, 16); 
+      };
+      window.addEventListener('mousemove', handleMouseMove);
+
+      const updateCursor = () => {
+        outerX += (mouseX - outerX) * 0.15;
+        outerY += (mouseY - outerY) * 0.15;
+        if (cursorOuterRef.current) {
+          cursorOuterRef.current.style.left = `${outerX}px`;
+          cursorOuterRef.current.style.top = `${outerY}px`;
+        }
+        cursorAnimFrame = requestAnimationFrame(updateCursor);
+      };
+      cursorAnimFrame = requestAnimationFrame(updateCursor);
+
+      return () => {
+        unsubscribe();
+        window.removeEventListener('mousemove', handleMouseMove);
+        if(cursorAnimFrame) cancelAnimationFrame(cursorAnimFrame);
+      };
+    }
 
     return () => {
       unsubscribe();
-      window.removeEventListener('mousemove', handleMouseMove);
     };
   }, []);
 
   useEffect(() => {
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (isTouchDevice) return;
+
     const mContainer = magneticContainerRef.current;
     const mBtn = magneticBtnRef.current;
     if (!mContainer || !mBtn) return;
@@ -565,17 +679,19 @@ export default function App() {
     };
   }, [isAdminMode]);
 
-  const handleMouseEnterInteractive = () => {
+  const handleMouseEnterInteractive = useCallback(() => {
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
     document.body.classList.add('hover-state');
     playHoverBeep();
-  };
-  const handleMouseLeaveInteractive = () => {
+  }, [playHoverBeep]);
+
+  const handleMouseLeaveInteractive = useCallback(() => {
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
     document.body.classList.remove('hover-state');
-  };
+  }, []);
 
-  const handleCardMove = (e, card) => {
+  const handleCardMove = useCallback((e, card) => {
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
     const rect = card.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -586,11 +702,12 @@ export default function App() {
     const rotateX = ((centerY - y) / centerY) * 12;
     const rotateY = ((x - centerX) / centerX) * 12;
     card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`;
-  };
+  }, []);
 
-  const handleCardLeave = (card) => {
+  const handleCardLeave = useCallback((card) => {
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
     card.style.transform = `rotateX(0deg) rotateY(0deg) scale(1)`;
-  };
+  }, []);
 
   const addToCart = (id, name, price, image, stock) => {
     const stockVal = parseInt(stock) || 0;
@@ -637,10 +754,11 @@ export default function App() {
     }
   };
 
-  const subtotal = cart.reduce((acc, item) => acc + (Number(item.price) || 0) * (parseInt(item.qty) || 0), 0);
-  const totalQty = cart.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0);
+  // استخدمنا useMemo لتحسين الأداء على الموبايل ومنع إعادة الحساب بلا داعي
+  const subtotal = useMemo(() => cart.reduce((acc, item) => acc + (Number(item.price) || 0) * (parseInt(item.qty) || 0), 0), [cart]);
+  const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0), [cart]);
   
-  const activeGov = deliveryLocations.find(g => g.id === selectedGovId) || { price: 0, time: '', name: '' };
+  const activeGov = useMemo(() => deliveryLocations.find(g => g.id === selectedGovId) || { price: 0, time: '', name: '' }, [deliveryLocations, selectedGovId]);
   const currentDeliveryFee = Number(activeGov.price) || 0;
 
   const handleCheckout = async () => {
@@ -678,8 +796,14 @@ export default function App() {
     };
 
     try {
-      await addDoc(collection(db, "orders"), payloadData);
+      const docRef = await addDoc(collection(db, "orders"), payloadData);
       
+      if (!user || user.uid === "GUEST_USER") {
+          const guestOrders = JSON.parse(localStorage.getItem('msa_guest_orders') || '[]');
+          guestOrders.push(docRef.id);
+          localStorage.setItem('msa_guest_orders', JSON.stringify(guestOrders));
+      }
+
       try {
         if (user && user.uid && user.uid !== "GUEST_USER") {
           const userDataRef = doc(db, "users", user.uid);
@@ -697,7 +821,10 @@ export default function App() {
               const currentStock = parseInt(productInState.stock) || 0;
               const newStock = Math.max(0, currentStock - item.qty); 
               const prodRef = doc(db, "products", String(item.id));
-              await updateDoc(prodRef, { stock: newStock });
+              await updateDoc(prodRef, { 
+                  stock: newStock,
+                  sales: increment(item.qty)
+              });
             }
         }
       } catch (errStock) {}
@@ -748,6 +875,7 @@ export default function App() {
           name: newProdName,
           price: parseInt(newProdPrice),
           stock: parseInt(newProdStock) || 0, 
+          sales: 0,
           category: newProdCategory || '', 
           chip: newProdChip || 'NEW MCU', 
           code: newProdCode || 'GENERIC', 
@@ -824,30 +952,33 @@ export default function App() {
     }
   };
 
-  const normalizedQuery = normalizeText(searchQuery);
-  const filteredProducts = products.filter(prod => {
-    const normName = normalizeText(prod.name);
-    const normDesc = normalizeText(prod.desc);
-    const normCat = normalizeText(prod.category);
-    const normChip = normalizeText(prod.chip);
-    const normCode = normalizeText(prod.code);
-    const priceStr = prod.price ? prod.price.toString() : '';
+  // استخدام useMemo لتسريع التصفح على الموبايل ومنع الـ Re-render البطيء مع كل حرف
+  const filteredProducts = useMemo(() => {
+    const normalizedQuery = normalizeText(searchQuery);
+    return products.filter(prod => {
+      const normName = normalizeText(prod.name);
+      const normDesc = normalizeText(prod.desc);
+      const normCat = normalizeText(prod.category);
+      const normChip = normalizeText(prod.chip);
+      const normCode = normalizeText(prod.code);
+      const priceStr = prod.price ? prod.price.toString() : '';
 
-    const matchSearch = normalizedQuery === '' ||
-      normName.includes(normalizedQuery) ||
-      normDesc.includes(normalizedQuery) ||
-      normCat.includes(normalizedQuery) ||
-      normChip.includes(normalizedQuery) ||
-      normCode.includes(normalizedQuery) ||
-      priceStr.includes(normalizedQuery);
+      const matchSearch = normalizedQuery === '' ||
+        normName.includes(normalizedQuery) ||
+        normDesc.includes(normalizedQuery) ||
+        normCat.includes(normalizedQuery) ||
+        normChip.includes(normalizedQuery) ||
+        normCode.includes(normalizedQuery) ||
+        priceStr.includes(normalizedQuery);
 
-    const matchCat = normalizedQuery !== '' ? true : (selectedCatFilter === '' || prod.category === selectedCatFilter);
+      const matchCat = normalizedQuery !== '' ? true : (selectedCatFilter === '' || prod.category === selectedCatFilter);
 
-    return matchSearch && matchCat;
-  });
+      return matchSearch && matchCat;
+    });
+  }, [products, searchQuery, selectedCatFilter]);
 
   return (
-    <div className={`tech-grid relative min-h-200 font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 bg-[#0f172a] text-gray-100 flex flex-col w-full`} dir={lang === 'en' ? 'ltr' : 'rtl'}>
+    <div className={`tech-grid relative min-h-screen font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 bg-[#0f172a] text-gray-100 flex flex-col w-full`} dir={lang === 'en' ? 'ltr' : 'rtl'}>
       
       <div ref={cursorOuterRef} className={`custom-cursor hidden md:block fixed top-0 left-0 w-[30px] h-[30px] border rounded-full pointer-events-none -translate-x-1/2 -translate-y-1/2 z-[9999] border-teal-500/60`}></div>
       <div ref={cursorInnerRef} className={`custom-cursor-dot hidden md:block fixed top-0 left-0 w-[6px] h-[6px] rounded-full pointer-events-none -translate-x-1/2 -translate-y-1/2 z-[9999] bg-teal-500`}></div>
@@ -872,8 +1003,9 @@ export default function App() {
             
             <div className={`flex items-center bg-slate-900/80 border border-teal-500/30 rounded-full p-1 backdrop-blur-sm shadow-inner`}>
               <button type="button" onClick={() => setLang('ar')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'ar' ? 'bg-teal-500 text-slate-900 shadow-md' : 'text-gray-400 hover:text-white'}`}>AR</button>
-              <button type="button" onClick={() => setLang('en')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'en' ? 'bg-teal-500 text-slate-900 shadow-md' : 'text-gray-400 hover:text-white'}`}>EN</button>
               <button type="button" onClick={() => setLang('ku')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'ku' ? 'bg-teal-500 text-slate-900 shadow-md' : 'text-gray-400 hover:text-white'}`}>KU</button>
+              <button type="button" onClick={() => setLang('en')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'en' ? 'bg-teal-500 text-slate-900 shadow-md' : 'text-gray-400 hover:text-white'}`}>EN</button>
+
             </div>
 
             {user && user.uid === ADMIN_UID && (
@@ -905,6 +1037,13 @@ export default function App() {
               </button>
             )}
 
+            {/* My Orders Button */}
+            <button type="button" onClick={() => { setIsMyOrdersOpen(true); fetchMyOrders(); playSynthSound(800, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`relative flex items-center justify-center w-10 h-10 sm:w-auto sm:px-4 sm:py-2 rounded-full transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500 hover:text-slate-900 flex-shrink-0`}>
+               <i className={`fas fa-receipt text-lg`}></i>
+               <span className="font-mono text-xs hidden sm:inline font-bold mx-2">{t.myOrders}</span>
+            </button>
+
+            {/* Cart Button */}
             <button type="button" onClick={() => { setIsCartOpen(true); playSynthSound(800, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`relative flex items-center justify-center w-10 h-10 sm:w-auto sm:px-5 sm:py-2 rounded-full transition-all shadow-[0_0_15px_rgba(20,184,166,0.5)] bg-teal-500 text-slate-900 hover:bg-teal-400 hover:scale-105 flex-shrink-0`}>
               <i className={`fas fa-shopping-cart text-lg`}></i>
               <span className="font-mono text-sm hidden sm:inline font-bold ml-2 mr-2">{totalQty.toString().padStart(2, '0')}</span>
@@ -939,17 +1078,20 @@ export default function App() {
             <span className="text-sm">{t.whatsappSupport}</span>
           </a>
 
-          <button onClick={() => { alert('الحمد لله الذي علم بالقلم، ولرسوله وأهل بيته حُراس المعرفة؛ فلولا غيث علومهم لما نبتت لنا حضارة، ولولا هديهم لما أبصرت عقولنا'); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className="w-full flex items-center gap-4 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-4 rounded-xl hover:bg-yellow-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
-            <i className="fa-solid fa-hands-praying text-2xl"></i>
-            <span className="text-sm">شكر وتقدير</span>
-          </button>
-
           {externalLinks.map(link => (
             <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className="w-full flex items-center gap-4 bg-purple-500/10 border border-purple-500/30 text-purple-400 p-4 rounded-xl hover:bg-purple-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
                <i className="fa-solid fa-arrow-up-right-from-square text-2xl"></i>
                <span className="text-sm">{link.title}</span>
             </a>
           ))}
+
+          {/* زر الشكر والتقدير في أسفل القائمة */}
+          <div className="mt-auto pt-4 border-t border-teal-500/20">
+             <button onClick={() => { alert('نشكر المعصوم بسبب تعليمنا للعلم'); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className="w-full flex items-center gap-4 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-4 rounded-xl hover:bg-yellow-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
+                <i className="fa-solid fa-hands-praying text-2xl"></i>
+                <span className="text-sm">شكر وتقدير</span>
+             </button>
+          </div>
         </div>
       </div>
       
@@ -986,6 +1128,7 @@ export default function App() {
           editProdId={editProdId}
           orders={orders} fetchOrders={fetchOrders}
           handleDeleteOrder={handleDeleteOrder} 
+          handleCancelOrder={handleCancelOrder}
           visitorCount={visitorCount}
           handleResetVisitors={handleResetVisitors} 
           deliveryLocations={deliveryLocations} 
@@ -1086,7 +1229,7 @@ export default function App() {
                         className={`flex-shrink-0 h-28 sm:h-48 w-full rounded-lg sm:rounded-xl overflow-hidden mb-3 sm:mb-5 flex items-center justify-center border transition-all duration-300 relative cursor-pointer bg-white ${isOutOfStock ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-teal-500/10 group-hover:border-teal-500/30'}`}
                         title={t.viewDetails}
                       >
-                        <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} loading="lazy" alt={prod.name} className={`object-contain h-full w-full max-h-full max-w-full mix-blend-multiply transition-all duration-500 p-2 ${isOutOfStock ? 'opacity-50 grayscale' : 'group-hover:scale-110 group-hover:rotate-3'}`} />
+                        <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} loading="lazy" decoding="async" alt={prod.name} className={`object-contain h-full w-full max-h-full max-w-full mix-blend-multiply transition-all duration-500 p-2 ${isOutOfStock ? 'opacity-50 grayscale' : 'group-hover:scale-110 group-hover:rotate-3'}`} />
                         
                         {prod.images && prod.images.length > 1 && (
                            <div className={`absolute bottom-1 sm:bottom-2 ${lang === 'en' ? 'left-1 sm:left-2' : 'right-1 sm:right-2'} px-1 py-0.5 sm:px-2 sm:py-1 bg-slate-900/80 text-white rounded text-[8px] sm:text-xs font-mono shadow-md backdrop-blur-sm`}>
@@ -1221,7 +1364,7 @@ export default function App() {
                 cart.map((item, i) => (
                   <div key={item.id || i} className={`border rounded-xl p-3 sm:p-4 flex gap-3 sm:gap-4 items-center shadow-sm hover:border-teal-500/40 transition-colors bg-slate-800/60 border-teal-500/10`}>
                     <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-lg p-1 flex-shrink-0 border border-teal-500/20 flex items-center justify-center overflow-hidden">
-                      <img src={item.image} loading="lazy" alt="" className="max-w-full max-h-full object-contain mix-blend-multiply" />
+                      <img src={item.image} loading="lazy" decoding="async" alt="" className="max-w-full max-h-full object-contain mix-blend-multiply" />
                     </div>
                     <div className="flex-grow min-w-0">
                       <h4 className={`font-bold text-xs sm:text-sm line-clamp-1 text-white truncate break-words`}>{item.name}</h4>
@@ -1251,6 +1394,64 @@ export default function App() {
 
       {isCartOpen && <div onClick={() => setIsCartOpen(false)} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-40 transition-opacity"></div>}
 
+      {/* My Orders Modal للزبون */}
+      {isMyOrdersOpen && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
+           <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm" onClick={() => setIsMyOrdersOpen(false)}></div>
+           <div className="relative w-full max-w-4xl h-[85vh] flex flex-col bg-[#0f172a] border border-teal-500/30 rounded-3xl shadow-2xl overflow-hidden">
+               <div className="flex justify-between items-center p-5 border-b border-teal-500/20 bg-slate-800/50">
+                  <h2 className="text-xl font-black text-white flex items-center gap-3">
+                     <i className="fa-solid fa-receipt text-teal-400"></i> {t.myOrders}
+                  </h2>
+                  <button onClick={() => setIsMyOrdersOpen(false)} className="w-10 h-10 rounded-full border border-teal-500/30 bg-slate-900/60 text-teal-400 hover:bg-red-500 hover:text-white transition-all flex justify-center items-center">
+                     <i className="fa-solid fa-xmark text-xl"></i>
+                  </button>
+               </div>
+               <div className="flex-grow p-4 sm:p-6 overflow-y-auto custom-scrollbar bg-[#0b1120]">
+                  {myOrders.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-center">
+                        <i className="fa-solid fa-box-open text-6xl text-teal-500/20 mb-4"></i>
+                        <h3 className="text-lg font-bold text-gray-300">{t.noActiveOrders}</h3>
+                      </div>
+                  ) : (
+                      <div className="space-y-4">
+                         {myOrders.map(order => (
+                             <div key={order.id} className="bg-slate-800/40 border border-teal-500/20 rounded-2xl p-4 sm:p-5 flex flex-col gap-4 shadow-sm hover:border-teal-500/40 transition-colors">
+                                <div className="flex justify-between items-start border-b border-teal-500/10 pb-3">
+                                   <div>
+                                      <span className="text-teal-400 font-mono text-xs font-bold block mb-1">#{order.id.slice(-6).toUpperCase()}</span>
+                                      <span className="text-gray-400 text-[10px]">{new Date(order.timestamp).toLocaleString(lang === 'en' ? 'en-US' : 'ar-IQ')}</span>
+                                   </div>
+                                   <div className="text-left">
+                                      <span className="text-white font-bold block">{order.totalAmount?.toLocaleString()} {t.currency}</span>
+                                      <span className="text-yellow-500 text-[10px] bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/20">{t.processing}</span>
+                                   </div>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                   {order.items?.map((item, idx) => (
+                                       <div key={idx} className="flex items-center gap-3 text-sm">
+                                          <div className="w-10 h-10 bg-white rounded border border-teal-500/20 p-0.5 shrink-0 flex items-center justify-center overflow-hidden">
+                                            <img src={item.image} decoding="async" className="max-w-full max-h-full object-contain mix-blend-multiply" alt=""/>
+                                          </div>
+                                          <span className="text-gray-300 line-clamp-1 flex-grow font-bold text-xs sm:text-sm">{item.name}</span>
+                                          <span className="text-teal-400 font-mono text-xs shrink-0 whitespace-nowrap bg-teal-500/10 px-2 py-1 rounded border border-teal-500/20">{item.qty} × {item.price?.toLocaleString()}</span>
+                                       </div>
+                                   ))}
+                                </div>
+                                <div className="pt-3 border-t border-teal-500/10">
+                                    <button onClick={() => handleCancelOrder(order)} className="w-full sm:w-auto px-4 py-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/30 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm">
+                                        <i className="fa-solid fa-ban"></i> {t.cancelOrder}
+                                    </button>
+                                </div>
+                             </div>
+                         ))}
+                      </div>
+                  )}
+               </div>
+           </div>
+        </div>
+      )}
+
       {/* Product Detail Modal */}
       {selectedProduct && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
@@ -1259,7 +1460,6 @@ export default function App() {
             onClick={() => { setSelectedProduct(null); playSynthSound(400, 'sine', 0.1); }}
           ></div>
           
-          {/* التعديل لتمكين التمرير الحر داخل الموبايل */}
           <div className={`relative w-full max-w-5xl max-h-[95vh] overflow-y-auto md:overflow-hidden rounded-3xl shadow-2xl flex flex-col md:flex-row transform transition-transform duration-300 scale-100 bg-[#0f172a] border border-teal-500/30`}>
             <button 
               type="button"
@@ -1303,6 +1503,7 @@ export default function App() {
                   <img 
                       src={(selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[activeImageIndex] : selectedProduct.img} 
                       loading="lazy"
+                      decoding="async"
                       alt={selectedProduct.name} 
                       className={`object-contain h-full w-full mix-blend-multiply transition-transform duration-500 group-hover:scale-110 ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'opacity-50 grayscale' : ''}`} 
                   />
@@ -1348,7 +1549,7 @@ export default function App() {
                         onClick={() => { setActiveImageIndex(idx); playSynthSound(1000, 'triangle', 0.05); }}
                         className={`flex-shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-white border-2 p-1 overflow-hidden transition-all duration-300 ${activeImageIndex === idx ? 'border-teal-500 scale-110 shadow-lg' : 'border-transparent opacity-60 hover:opacity-100 hover:border-teal-300'}`}
                       >
-                        <img src={img} loading="lazy" alt="" className="object-contain w-full h-full mix-blend-multiply" />
+                        <img src={img} loading="lazy" decoding="async" alt="" className="object-contain w-full h-full mix-blend-multiply" />
                       </button>
                     )
                   })}
@@ -1356,28 +1557,63 @@ export default function App() {
               )}
             </div>
 
-            {/* الجانب الأيسر (أصبح يتمدد تلقائياً بالموبايل) */}
+            {/* الجانب الأيسر (تفاصيل المنتج) */}
             <div className="w-full md:w-7/12 p-2 sm:p-8 flex flex-col justify-start h-auto md:h-auto flex-1 bg-slate-900/50">
-              <div className="mb-4">
-                <h2 className={`text-xl sm:text-3xl font-black mb-3 sm:mb-4 text-white break-words`}>{selectedProduct.name}</h2>
-                <div className="flex gap-1 text-xs sm:text-sm text-yellow-500 mb-4">
-                  <i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i>
+              
+              {/* === القسم العلوي المعدل: العنوان، السعر وزر الإضافة === */}
+              <div className="mb-4 flex flex-col gap-4">
+                
+                {/* صف العنوان والسعر */}
+                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h2 className={`text-xl sm:text-3xl font-black mb-2 text-white break-words`}>{selectedProduct.name}</h2>
+                    <div className="flex gap-1 text-xs sm:text-sm text-yellow-500">
+                      <i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-row items-center bg-[#0a0a0f] p-2 sm:p-3 rounded-xl border border-teal-500/20 shadow-inner shrink-0 gap-3">
+                      <span className="text-gray-300 font-mono font-bold text-sm uppercase tracking-widest whitespace-nowrap">
+                          {t.price}
+                      </span>
+                      <div className="flex flex-row items-center gap-2">
+                          <span className={`text-2xl sm:text-3xl font-black font-mono tracking-tight leading-none ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'text-red-400 opacity-60' : 'text-teal-400 drop-shadow-[0_0_15px_rgba(20,184,166,0.3)]'}`}>
+                              {selectedProduct.price?.toLocaleString() || 0}
+                          </span>
+                          <span className="bg-teal-500/10 border border-teal-500/30 px-2 py-1 rounded-lg text-teal-400 font-bold text-xs sm:text-sm whitespace-nowrap">
+                              {t.currency}
+                          </span>
+                      </div>
+                  </div>
                 </div>
 
+                {/* زر إضافة للسلة تم نقله هنا */}
+                <button 
+                    type="button" 
+                    disabled={(parseInt(selectedProduct.stock)||0) <= 0}
+                    onClick={(e) => { e.stopPropagation(); addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock); }} 
+                    className={`w-full py-3 sm:py-4 rounded-xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'bg-slate-800 text-gray-500 border border-slate-700 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-slate-900 hover:from-teal-400 hover:to-emerald-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(20,184,166,0.4)] hover:-translate-y-1 shadow-[0_4px_15px_rgba(0,0,0,0.2)]'}`}
+                >
+                    <i className="fas fa-cart-plus text-2xl"></i> 
+                    {(parseInt(selectedProduct.stock)||0) <= 0 ? 'المنتج نافذ من المخزن' : t.addToCart}
+                </button>
 
-              <div className="flex gap-3 sm:gap-6 border-b border-teal-500/20 mb-4 overflow-x-auto custom-scrollbar flex-shrink-0">
-                  <button onClick={() => setModalTab('desc')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'desc' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
-                      <i className="fa-solid fa-circle-info ml-1"></i> الشرح والتفاصيل
-                  </button>
-                  <button onClick={() => setModalTab('code')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'code' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
-                      <i className="fa-solid fa-code ml-1"></i> الكود البرمجي
-                  </button>
-                  <button onClick={() => setModalTab('links')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'links' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
-                      <i className="fa-solid fa-link ml-1"></i> الملحقات والمكتبات
-                  </button>
+                {/* التبويبات */}
+                <div className="flex gap-3 sm:gap-6 border-b border-teal-500/20 mt-2 overflow-x-auto custom-scrollbar flex-shrink-0">
+                    <button onClick={() => setModalTab('desc')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'desc' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                        <i className="fa-solid fa-circle-info ml-1"></i> الشرح والتفاصيل
+                    </button>
+                    <button onClick={() => setModalTab('code')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'code' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                        <i className="fa-solid fa-code ml-1"></i> الكود البرمجي
+                    </button>
+                    <button onClick={() => setModalTab('links')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'links' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                        <i className="fa-solid fa-link ml-1"></i> الملحقات والمكتبات
+                    </button>
+                </div>
               </div>
-              </div>
-              <div className="flex-grow flex flex-col mb-0 min-h-[200px] overflow-y-auto custom-scrollbar overscroll-contain max-h-[45vh] sm:max-h-[55vh]">
+              
+              {/* === محتوى التبويبات === */}
+              <div className="flex-grow flex flex-col mb-0 pb-4 min-h-[200px] overflow-y-auto custom-scrollbar overscroll-contain max-h-[45vh] sm:max-h-[55vh]">
                   {modalTab === 'desc' && (
                       <div className={`p-4 sm:p-5 rounded-xl text-xs sm:text-sm leading-relaxed border bg-slate-800/50 border-teal-500/10 text-gray-300 h-full break-words whitespace-pre-wrap`}>
                           {selectedProduct.desc || t.noDesc}
@@ -1411,40 +1647,6 @@ export default function App() {
                   )}
               </div>
 
-             {/* قسم السعر وزر السلة لن يختفي أبداً بعد الآن */}
-<div className={`mt-auto pt-5 flex flex-col gap-4 z-10 w-full flex-shrink-0 pb-6 md:pb-0`}>
-    
-    {/* التعديل هنا: استخدام flex-row لترتيب العناصر بجانب بعضها */}
-    <div className="flex flex-row justify-between items-center bg-[#0a0a0f] p-1 sm:p-1 rounded-xl border border-teal-500/20 shadow-inner">
-        
-        {/* كلمة: السعر */}
-        <span className="text-gray-300 font-mono font-bold text-lg sm:text-base uppercase tracking-widest whitespace-nowrap">
-            {t.price}
-        </span>
-        
-        {/* الرقم والعملة متجاورين */}
-        <div className="flex flex-row items-center gap-2 sm:gap-">
-            <span className={`text-3xl sm:text-2xl font-black font-mono tracking-tight leading-none ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'text-red-400 opacity-60' : 'text-teal-400 drop-shadow-[0_0_15px_rgba(20,184,166,0.3)]'}`}>
-                {selectedProduct.price?.toLocaleString() || 0}
-            </span>
-            <span className="bg-teal-500/10 border border-teal-500/30 px-3 py-1.5 rounded-xl text-teal-400 font-bold text-sm sm:text-base whitespace-nowrap">
-                {t.currency}
-            </span>
-        </div>
-        
-    </div>
-    
-    {/* زر إضافة للسلة يبقى كما هو */}
-    <button 
-        type="button" 
-        disabled={(parseInt(selectedProduct.stock)||0) <= 0}
-        onClick={(e) => { e.stopPropagation(); addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock); }} 
-        className={`w-full py-4 sm:py-5 rounded-2xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'bg-slate-800 text-gray-500 border border-slate-700 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-slate-900 hover:from-teal-400 hover:to-emerald-300 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(20,184,166,0.4)] hover:-translate-y-1 shadow-[0_8px_20px_rgba(0,0,0,0.2)]'}`}
-    >
-        <i className="fas fa-cart-plus text-2xl"></i> 
-        {(parseInt(selectedProduct.stock)||0) <= 0 ? 'المنتج نافذ من المخزن' : t.addToCart}
-    </button>
-</div>
             </div>
           </div>
         </div>
@@ -1490,7 +1692,7 @@ export default function App() {
                                         }
                                     }}
                                 >
-                                  <img src={proj.img} loading="lazy" alt={proj.name} className="w-full h-full object-contain mix-blend-multiply group-hover/img:scale-110 transition-transform duration-700 p-2" />
+                                  <img src={proj.img} loading="lazy" decoding="async" alt={proj.name} className="w-full h-full object-contain mix-blend-multiply group-hover/img:scale-110 transition-transform duration-700 p-2" />
                                   <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-transparent to-transparent opacity-60 pointer-events-none"></div>
                                   
                                   {proj.images && proj.images.length > 0 && (
