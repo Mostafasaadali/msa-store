@@ -529,7 +529,7 @@ const fetchMyOrders = async () => {
 
   const fetchProducts = async () => {
     try {
-      const q = query(collection(db, "products"), limit(100));
+      const q = query(collection(db, "products"), limit(1000));
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {
         const productsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
