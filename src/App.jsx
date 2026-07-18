@@ -318,7 +318,7 @@ export default function App() {
       if(loggedInUser.uid === ADMIN_UID) {
         alert(`مرحباً بك سيادة المدير MSA STORE! تم تفعيل صلاحيات الإدارة حالياً.`);
       } else {
-        alert(`مرحباً بك : ${loggedInUser.displayName} تم مزامنة بياناتك سحابياً.`);
+        alert(`مرحباً بك : ${loggedInUser.displayName} `);
       }
     } catch (error) {
       playErrorBuzz();
@@ -337,7 +337,7 @@ export default function App() {
       setDetailedAddress('');
       setSelectedGovId('');
       setIsAdminMode(false);
-      alert("تم قطع الاتصال بالجلسة السحابية بنجاح.");
+      alert("تم قطع الاتصال بنجاح.");
     } catch (error) {
       console.error(error);
     }
