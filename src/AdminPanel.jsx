@@ -10,6 +10,7 @@ export default function AdminPanel({
   newProdDesc, setNewProdDesc,
   newProdImages, setNewProdImages,
   newProdStock, setNewProdStock, 
+  newProdOrderIndex, setNewProdOrderIndex,
   
   newProdCategory, setNewProdCategory,
   categories, handleAddCategory, handleDeleteCategory, handleEditCategory,
@@ -201,6 +202,12 @@ export default function AdminPanel({
       if (adminFilter === 'bestSeller') {
           return (parseInt(b.sales) || 0) - (parseInt(a.sales) || 0);
       }
+      // الفرز اليدوي الافتراضي للمسؤولين أيضا
+      const indexA = a.orderIndex !== undefined && a.orderIndex !== null && a.orderIndex !== '' ? parseInt(a.orderIndex) : 999;
+      const indexB = b.orderIndex !== undefined && b.orderIndex !== null && b.orderIndex !== '' ? parseInt(b.orderIndex) : 999;
+      if (indexA !== indexB) {
+          return indexA - indexB;
+      }
       return 0; // الترتيب الافتراضي
     });
   }, [products, adminSearch, adminFilter]);
@@ -217,6 +224,24 @@ export default function AdminPanel({
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-8 w-full border-b border-teal-500/20 pb-6">
+         {/* زر طلبات الزبائن تم وضعه جانباً بصورة مميزة وملفتة (mr-auto لدفعه في الاتجاه المعاكس) */}
+         <button
+            onClick={() => { setShowOrdersManager(true); fetchOrders(); }}
+            className={`mr-auto transition-all shrink-0 font-bold flex items-center shadow-sm relative ${
+               orders.length > 0
+               ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white px-6 py-3 rounded-2xl text-sm border-2 border-red-400 shadow-[0_0_20px_rgba(220,38,38,0.6)] scale-110 hover:scale-110 animate-pulse cursor-pointer z-50'
+               : 'bg-[#030212] border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-xl text-xs cursor-pointer'
+            }`}
+         >
+            <i className={`fa-solid fa-boxes-packing ${orders.length > 0 ? 'text-xl ml-2 animate-bounce' : 'ml-2'}`}></i>
+            <span>طلبات الزبائن</span>
+            {orders.length > 0 && (
+               <span className="absolute -top-3 -right-3 bg-white text-red-600 font-black w-7 h-7 rounded-full flex items-center justify-center text-sm shadow-lg border-2 border-red-500">
+                  {orders.length}
+               </span>
+            )}
+         </button>
+
          <div className="bg-[#030212] border border-teal-500/30 px-3 py-2 rounded-xl flex items-center gap-3 shadow-lg shrink-0">
             <i className="fa-solid fa-chart-pie text-teal-400 text-sm"></i>
             <div className="flex items-center gap-2">
@@ -225,10 +250,6 @@ export default function AdminPanel({
             </div>
          </div>
          
-         <button onClick={() => { setShowOrdersManager(true); fetchOrders(); }} className="bg-[#030212] border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
-            <i className="fa-solid fa-boxes-packing"></i> طلبات الزبائن
-         </button>
-
          <button onClick={() => setShowLinksManager(true)} className="bg-[#030212] border border-purple-500/30 hover:bg-purple-500/20 text-purple-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
             <i className="fa-solid fa-link"></i> إدارة الروابط
          </button>
@@ -244,7 +265,7 @@ export default function AdminPanel({
          <button
             type="button"
             onClick={handleResetVisitors}
-            className="bg-[#030212] border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 px-3 py-2 rounded-xl font-bold transition-all flex items-center gap-2 shadow-sm text-[11px] shrink-0 ml-auto"
+            className="bg-[#030212] border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 px-3 py-2 rounded-xl font-bold transition-all flex items-center gap-2 shadow-sm text-[11px] shrink-0"
             title="تصفير عداد الزوار"
          >
             <i className="fas fa-users-slash"></i> تصفير الزوار
@@ -298,6 +319,11 @@ export default function AdminPanel({
                  <div className="flex-1 min-w-0">
                    <label className="text-[10px] sm:text-xs font-mono font-bold text-teal-400 block mb-2">// STOCK</label>
                    <input type="number" placeholder="المخزون" value={newProdStock} onChange={(e) => setNewProdStock(e.target.value)} className="w-full p-2.5 sm:p-3 bg-black/40 border border-teal-500/30 text-teal-400 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-teal-500 transition-colors shadow-inner" />
+                 </div>
+                 {/* حقل ترتيب العرض الجديد */}
+                 <div className="flex-1 min-w-0">
+                   <label className="text-[10px] sm:text-xs font-mono font-bold text-purple-400 block mb-2">// ORDER_INDEX</label>
+                   <input type="number" placeholder="ترتيب العرض (1)" value={newProdOrderIndex} onChange={(e) => setNewProdOrderIndex(e.target.value)} className="w-full p-2.5 sm:p-3 bg-black/40 border border-purple-500/30 text-purple-400 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
                  </div>
                </div>
 
@@ -419,13 +445,14 @@ export default function AdminPanel({
                    <th className="pb-3 text-center">السعر</th>
                    <th className="pb-3 text-center">المبيعات</th>
                    <th className="pb-3 text-center">المخزون</th>
+                   <th className="pb-3 text-center text-purple-400">الترتيب</th>
                    <th className="pb-3 text-center w-32">الإجراءات</th>
                  </tr>
                </thead>
                <tbody className="divide-y divide-neutral-800/60 text-sm">
                  {filteredAdminProducts.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="text-center py-8 text-gray-500 font-mono text-sm">لا توجد منتجات تطابق بحثك حالياً.</td>
+                      <td colSpan="7" className="text-center py-8 text-gray-500 font-mono text-sm">لا توجد منتجات تطابق بحثك حالياً.</td>
                     </tr>
                  ) : filteredAdminProducts.map((prod) => (
                    <tr key={prod.id} className={`transition-colors ${adminFilter === 'outOfStock' ? 'bg-red-900/5 hover:bg-red-900/10' : 'hover:bg-neutral-900/50'}`}>
@@ -458,6 +485,12 @@ export default function AdminPanel({
                      <td className="py-3 sm:py-4 text-center font-mono font-bold whitespace-nowrap text-xs sm:text-sm">
                         {(parseInt(prod.stock)||0) <= 0 ? <span className="text-red-500 bg-red-500/10 px-2 py-1 rounded border border-red-500/30">نافذ (0)</span> : <span className="text-orange-400">{prod.stock}</span>}
                      </td>
+                     
+                     {/* عرض ترتيب العرض في الجدول */}
+                     <td className="py-3 sm:py-4 text-center font-mono font-bold text-purple-400 whitespace-nowrap text-xs sm:text-sm">
+                        {prod.orderIndex !== undefined && prod.orderIndex !== null ? prod.orderIndex : '999'}
+                     </td>
+
                      <td className="py-3 sm:py-4 text-center">
                        <div className="flex justify-center gap-2 mt-1 sm:mt-2">
                            <button type="button" onClick={(e) => { e.preventDefault(); handleEditClick(prod); }} className="w-7 h-7 sm:w-8 sm:h-8 flex justify-center items-center bg-orange-600/10 border border-orange-500/30 hover:bg-orange-600 hover:text-white text-orange-400 rounded-lg text-xs transition-all shadow-sm">
@@ -679,8 +712,12 @@ export default function AdminPanel({
                          <div className="bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-center gap-3 hover:border-emerald-500/30 transition-colors">
                             <div className="bg-green-500/10 text-green-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"><i className="fa-solid fa-phone"></i></div>
                             <div className="min-w-0 flex-grow">
-                               <p className="text-gray-500 text-[10px] font-mono mb-0.5">رقم الهاتف</p>
+                               <p className="text-gray-500 text-[10px] font-mono mb-0.5">أرقام الهواتف</p>
                                <a href={`tel:${selectedOrder.customerPhone}`} className="text-white font-bold text-xs hover:text-emerald-400 transition-colors truncate block" dir="ltr">{selectedOrder.customerPhone}</a>
+                               {/* عرض رقم الهاتف الإضافي في حال وجوده */}
+                               {selectedOrder.customerPhone2 && (
+                                  <a href={`tel:${selectedOrder.customerPhone2}`} className="text-gray-300 font-bold text-[11px] hover:text-emerald-400 transition-colors truncate block mt-1" dir="ltr">{selectedOrder.customerPhone2} (إضافي)</a>
+                               )}
                             </div>
                          </div>
                          

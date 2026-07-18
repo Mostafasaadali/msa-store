@@ -35,6 +35,7 @@ const translations = {
     cartInfo: "بيانات المستلم والتوصيل",
     cartName: "اسم المستلم",
     cartPhone: "رقم الهاتف النشط",
+    cartPhone2: "رقم هاتف إضافي (اختياري)",
     cartAddress: "العنوان الدقيق (المنطقة، الشارع، أقرب دالة)",
     cartSub: "المجموع الفرعي:",
     cartDelivery: "أجور النقل:",
@@ -78,6 +79,7 @@ const translations = {
     cartInfo: "Recipient Info",
     cartName: "Recipient Name",
     cartPhone: "Active Phone Number",
+    cartPhone2: "Extra Phone (Optional)",
     cartAddress: "Exact Delivery Address",
     cartSub: "Subtotal:",
     cartDelivery: "Delivery:",
@@ -121,6 +123,7 @@ const translations = {
     cartInfo: "زانیاری وەرگر",
     cartName: "ناوی وەرگر",
     cartPhone: "ژمارەی تەلەفۆن",
+    cartPhone2: "مۆبایلی جێگرەوە (ئارەزوومەندانە)",
     cartAddress: "ناونیشانی گەیاندن",
     cartSub: "کۆی لاوەکی:",
     cartDelivery: "گەیاندن:",
@@ -167,6 +170,7 @@ export default function App() {
   
   const [customerName, setCustomerName] = useState(''); 
   const [customerPhone, setCustomerPhone] = useState(''); 
+  const [customerPhone2, setCustomerPhone2] = useState(''); 
   const [detailedAddress, setDetailedAddress] = useState(''); 
   const [selectedGovId, setSelectedGovId] = useState(''); 
   const [deliveryLocations, setDeliveryLocations] = useState([]);
@@ -191,6 +195,7 @@ export default function App() {
   const [newProdDesc, setNewProdDesc] = useState('');
   const [newProdImages, setNewProdImages] = useState([]); 
   const [newProdStock, setNewProdStock] = useState(''); 
+  const [newProdOrderIndex, setNewProdOrderIndex] = useState('');
   const [newProdChip, setNewProdChip] = useState('');
   const [newProdCode, setNewProdCode] = useState('');
   const [newProdCompatLink, setNewProdCompatLink] = useState('');
@@ -285,10 +290,12 @@ export default function App() {
       const userDocRef = doc(db, "users", loggedInUser.uid);
       const userDoc = await getDoc(userDocRef);
       let phone = '';
+      let phone2 = '';
       let address = '';
       let govId = '';
       if (userDoc.exists()) {
         phone = userDoc.data().phone || '';
+        phone2 = userDoc.data().phone2 || '';
         address = userDoc.data().address || '';
         govId = userDoc.data().govId || '';
       }
@@ -299,6 +306,7 @@ export default function App() {
         email: loggedInUser.email,
         photoURL: loggedInUser.photoURL,
         phone: phone,
+        phone2: phone2,
         address: address,
         govId: govId,
         lastLogin: new Date().toISOString()
@@ -310,6 +318,7 @@ export default function App() {
       
       if (loggedInUser.displayName) setCustomerName(loggedInUser.displayName);
       setCustomerPhone(phone);
+      setCustomerPhone2(phone2);
       setDetailedAddress(address);
       if(govId) setSelectedGovId(govId);
       
@@ -334,6 +343,7 @@ export default function App() {
       setUser(null);
       setCustomerName('');
       setCustomerPhone('');
+      setCustomerPhone2('');
       setDetailedAddress('');
       setSelectedGovId('');
       setIsAdminMode(false);
@@ -352,7 +362,8 @@ export default function App() {
 
   const fetchOrders = async () => {
     try {
-      const q = query(collection(db, "orders"), orderBy("timestamp", "desc"), limit(4));
+      // تم زيادة العدد المعروض ليتناسب مع الإشعار الدقيق
+      const q = query(collection(db, "orders"), orderBy("timestamp", "desc"), limit(50));
       const querySnapshot = await getDocs(q);
       const ordersData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setOrders(ordersData);
@@ -603,6 +614,7 @@ const fetchMyOrders = async () => {
           setUser(parsed);
           setCustomerName(parsed.name || '');
           setCustomerPhone(parsed.phone || '');
+          setCustomerPhone2(parsed.phone2 || '');
           setDetailedAddress(parsed.address || '');
           if(parsed.govId) setSelectedGovId(parsed.govId);
         } else {
@@ -764,7 +776,7 @@ const fetchMyOrders = async () => {
 
   // استخدمنا useMemo لتحسين الأداء على الموبايل ومنع إعادة الحساب بلا داعي
   const subtotal = useMemo(() => cart.reduce((acc, item) => acc + (Number(item.price) || 0) * (parseInt(item.qty) || 0), 0), [cart]);
-  const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0), [cart]);
+const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0), [cart]);
   
   const activeGov = useMemo(() => deliveryLocations.find(g => g.id === selectedGovId) || { price: 0, time: '', name: '' }, [deliveryLocations, selectedGovId]);
   const currentDeliveryFee = Number(activeGov.price) || 0;
@@ -777,7 +789,7 @@ const fetchMyOrders = async () => {
       return;
     }
     if(!customerName || !customerPhone || !selectedGovId || !detailedAddress) {
-        alert(lang === 'ar' ? 'الرجاء إكمال جميع بيانات المستلم (الاسم، الهاتف، المحافظة، العنوان الدقيق)!' : 'Please fill all recipient info!');
+        alert(lang === 'ar' ? 'الرجاء إكمال جميع بيانات المستلم الأساسية (الاسم، الهاتف، المحافظة، العنوان الدقيق)!' : 'Please fill all required recipient info!');
         return;
     }
     
@@ -787,6 +799,7 @@ const fetchMyOrders = async () => {
       userId: user && user.uid ? String(user.uid) : "GUEST_USER",
       customerName: String(customerName || "غير محدد"),
       customerPhone: String(customerPhone || "غير محدد"),
+      customerPhone2: String(customerPhone2 || ""),
       location: String(`${activeGov.name || ''} - ${detailedAddress || ''}`),
       governorate: String(activeGov.name || ''),
       expectedTime: String(activeGov.time || ''),
@@ -815,8 +828,8 @@ const fetchMyOrders = async () => {
       try {
         if (user && user.uid && user.uid !== "GUEST_USER") {
           const userDataRef = doc(db, "users", user.uid);
-          await setDoc(userDataRef, { phone: customerPhone, address: detailedAddress, govId: selectedGovId }, { merge: true });
-          const updatedUser = { ...user, phone: customerPhone, address: detailedAddress, govId: selectedGovId };
+          await setDoc(userDataRef, { phone: customerPhone, phone2: customerPhone2, address: detailedAddress, govId: selectedGovId }, { merge: true });
+          const updatedUser = { ...user, phone: customerPhone, phone2: customerPhone2, address: detailedAddress, govId: selectedGovId };
           localStorage.setItem("msa_store_customer", JSON.stringify(updatedUser));
           setUser(updatedUser);
         }
@@ -865,6 +878,7 @@ const fetchMyOrders = async () => {
           name: newProdName,
           price: parseInt(newProdPrice),
           stock: parseInt(newProdStock) || 0, 
+          orderIndex: newProdOrderIndex !== '' ? parseInt(newProdOrderIndex) : 999,
           category: newProdCategory || '', 
           chip: newProdChip || 'NEW MCU', 
           code: newProdCode || 'GENERIC', 
@@ -884,6 +898,7 @@ const fetchMyOrders = async () => {
           price: parseInt(newProdPrice),
           stock: parseInt(newProdStock) || 0, 
           sales: 0,
+          orderIndex: newProdOrderIndex !== '' ? parseInt(newProdOrderIndex) : 999,
           category: newProdCategory || '', 
           chip: newProdChip || 'NEW MCU', 
           code: newProdCode || 'GENERIC', 
@@ -904,6 +919,7 @@ const fetchMyOrders = async () => {
       setNewProdImg('');
       setNewProdDesc('');
       setNewProdStock('');
+      setNewProdOrderIndex('');
       setNewProdCategory(''); 
       setNewProdChip(''); 
       setNewProdCode(''); 
@@ -925,6 +941,7 @@ const fetchMyOrders = async () => {
     setNewProdImg(prod.img);
     setNewProdDesc(prod.desc || ''); 
     setNewProdStock(prod.stock || ''); 
+    setNewProdOrderIndex(prod.orderIndex !== undefined ? prod.orderIndex : '');
     setNewProdCategory(prod.category || ''); 
     setNewProdChip(prod.chip || ''); 
     setNewProdCode(prod.code || ''); 
@@ -960,7 +977,7 @@ const fetchMyOrders = async () => {
     }
   };
 
-  // استخدام useMemo لتسريع التصفح على الموبايل ومنع الـ Re-render البطيء مع كل حرف
+  // استخدام useMemo لتسريع التصفح على الموبايل مع دمج الترتيب اليدوي orderIndex
   const filteredProducts = useMemo(() => {
     const normalizedQuery = normalizeText(searchQuery);
     return products.filter(prod => {
@@ -982,6 +999,10 @@ const fetchMyOrders = async () => {
       const matchCat = normalizedQuery !== '' ? true : (selectedCatFilter === '' || prod.category === selectedCatFilter);
 
       return matchSearch && matchCat;
+    }).sort((a, b) => {
+       const indexA = a.orderIndex !== undefined && a.orderIndex !== null && a.orderIndex !== '' ? parseInt(a.orderIndex) : 999;
+       const indexB = b.orderIndex !== undefined && b.orderIndex !== null && b.orderIndex !== '' ? parseInt(b.orderIndex) : 999;
+       return indexA - indexB;
     });
   }, [products, searchQuery, selectedCatFilter]);
 
@@ -1117,6 +1138,7 @@ const fetchMyOrders = async () => {
           newProdDesc={newProdDesc} setNewProdDesc={setNewProdDesc} 
           newProdImages={newProdImages} setNewProdImages={setNewProdImages} 
           newProdStock={newProdStock} setNewProdStock={setNewProdStock} 
+          newProdOrderIndex={newProdOrderIndex} setNewProdOrderIndex={setNewProdOrderIndex}
           newProdCategory={newProdCategory} setNewProdCategory={setNewProdCategory}
           categories={categories}
           handleAddCategory={handleAddCategory}
@@ -1320,6 +1342,7 @@ const fetchMyOrders = async () => {
               <h4 className="font-bold text-teal-400 text-sm mb-4"><i className="fas fa-user-astronaut"></i> {t.cartInfo}</h4>
               <input type="text" placeholder={t.cartName} value={customerName} onChange={(e) => setCustomerName(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400`} />
               <input type="tel" placeholder={t.cartPhone} value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400`} />
+              <input type="tel" placeholder={t.cartPhone2} value={customerPhone2} onChange={(e) => setCustomerPhone2(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400`} />
               
               <select 
                  value={selectedGovId} 
