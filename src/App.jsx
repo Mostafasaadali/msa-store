@@ -402,7 +402,7 @@ const fetchMyOrders = async () => {
 };
 
   const handleCancelOrder = async (orderToCancel) => {
-    if(!window.confirm(lang === 'ar' ? "هل أنت متأكد من إلغاء هذا الطلب؟ سيتم استرجاع المخزون للمنتجات." : "Are you sure you want to cancel this order? Stock will be returned.")) return;
+    if(!window.confirm(lang === 'ar' ? "هل أنت متأكد من إلغاء هذا الطلب؟ " : "Are you sure you want to cancel this order? Stock will be returned.")) return;
 
     try {
       playSynthSound(400, 'sawtooth', 0.2);
@@ -429,7 +429,7 @@ const fetchMyOrders = async () => {
       localStorage.setItem('msa_guest_orders', JSON.stringify(updatedGuestOrders));
 
       fetchProducts(); 
-      alert(lang === 'ar' ? "تم إلغاء الطلب واسترجاع المخزون بنجاح." : "Order cancelled and stock returned successfully.");
+      alert(lang === 'ar' ? "تم إلغاء الطلب  بنجاح." : "Order cancelled and stock returned successfully.");
     } catch (err) {
       console.error("Cancel order error:", err);
       alert(lang === 'ar' ? "حدث خطأ أثناء إلغاء الطلب." : "Error cancelling order.");
@@ -1242,6 +1242,7 @@ const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.q
                 filteredProducts.map((prod) => {
                   const stockCount = parseInt(prod.stock) || 0;
                   const isOutOfStock = stockCount <= 0;
+                  const prodInCartQty = cart.find(item => item.id === prod.id)?.qty || 0;
 
                   return (
                   <div key={prod.id} className="card-perspective h-full w-full min-w-0">
@@ -1302,9 +1303,16 @@ const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.q
                           type="button" 
                           disabled={isOutOfStock}
                           onClick={(e) => { e.stopPropagation(); addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock); }} 
-                          className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 rounded-full font-bold text-[9px] sm:text-xs transition-all relative z-20 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-slate-900 hover:bg-teal-400'}`}
+                          className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 rounded-full font-bold text-[9px] sm:text-xs transition-all relative overflow-hidden z-20 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-slate-900 hover:bg-teal-400'}`}
                         >
                           <i className="fas fa-cart-arrow-down"></i> <span className="truncate">{isOutOfStock ? 'نافذ' : t.addToCart}</span>
+                          
+                          {/* إشعار مصغر للكمية يظهر داخل زر البطاقة */}
+                          {prodInCartQty > 0 && (
+                              <span className="absolute left-1 bg-slate-900 text-teal-400 text-[10px] font-mono px-2 py-0.5 rounded-full shadow-md animate-pulse">
+                                  {prodInCartQty}
+                              </span>
+                          )}
                         </button>
                       </div>
                       
@@ -1623,10 +1631,17 @@ const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.q
                     type="button" 
                     disabled={(parseInt(selectedProduct.stock)||0) <= 0}
                     onClick={(e) => { e.stopPropagation(); addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock); }} 
-                    className={`w-full py-3 sm:py-4 rounded-xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'bg-slate-800 text-gray-500 border border-slate-700 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-slate-900 hover:from-teal-400 hover:to-emerald-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(20,184,166,0.4)] hover:-translate-y-1 shadow-[0_4px_15px_rgba(0,0,0,0.2)]'}`}
+                    className={`relative overflow-hidden w-full py-3 sm:py-4 rounded-xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'bg-slate-800 text-gray-500 border border-slate-700 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-slate-900 hover:from-teal-400 hover:to-emerald-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(20,184,166,0.4)] hover:-translate-y-1 shadow-[0_4px_15px_rgba(0,0,0,0.2)]'}`}
                 >
                     <i className="fas fa-cart-plus text-2xl"></i> 
                     {(parseInt(selectedProduct.stock)||0) <= 0 ? 'المنتج نافذ من المخزن' : t.addToCart}
+
+                    {/* إشعار العدد المطلوب الذي سيظهر بعد الضغط */}
+                    {cart.find(item => item.id === selectedProduct.id)?.qty > 0 && (
+                        <span className="absolute left-4 bg-slate-900/90 text-teal-400 text-xs sm:text-sm font-mono px-3 py-1.5 rounded-lg border border-teal-500/50 shadow-lg flex items-center gap-1 animate-pulse">
+                            <i className="fas fa-check-circle"></i> الكمية: {cart.find(item => item.id === selectedProduct.id).qty}
+                        </span>
+                    )}
                 </button>
 
                 {/* التبويبات */}
