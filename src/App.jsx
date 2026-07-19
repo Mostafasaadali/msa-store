@@ -13,8 +13,6 @@ const translations = {
     adminLeave: "خروج الإدارة",
     cloudLogin: "دخول سحابي",
     cart: "السلة",
-    myOrders: "طلباتي",
-    noActiveOrders: "لا توجد طلبات نشطة حالياً",
     cancelOrder: "إلغاء الطلب",
     processing: "قيد التجهيز",
     heroSub: "قطع ألكترونية مهندسة بدقة عالية",
@@ -57,8 +55,6 @@ const translations = {
     adminLeave: "Leave Admin",
     cloudLogin: "Login",
     cart: "Cart",
-    myOrders: "My Orders",
-    noActiveOrders: "No active orders currently",
     cancelOrder: "Cancel Order",
     processing: "Processing",
     heroSub: "PRECISION ENGINEERED ORIGINAL PARTS",
@@ -101,8 +97,6 @@ const translations = {
     adminLeave: "دەرچوون",
     cloudLogin: "چوونەژوورەوە",
     cart: "سەبەتە",
-    myOrders: "داواکاریەکانم",
-    noActiveOrders: "هیچ داواکارییەکی چالاک نییە",
     cancelOrder: "هەڵوەشاندنەوە",
     processing: "لە جێبەجێکردندایە",
     heroSub: "پارچەی ئەسڵی بە وردی ئەندازیاری کراوە",
@@ -162,9 +156,6 @@ export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false); 
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false); 
-  
-  const [isMyOrdersOpen, setIsMyOrdersOpen] = useState(false);
-  const [myOrders, setMyOrders] = useState([]);
   
   const [activeGallery, setActiveGallery] = useState(null); 
   
@@ -362,7 +353,6 @@ export default function App() {
 
   const fetchOrders = async () => {
     try {
-      // تم زيادة العدد المعروض ليتناسب مع الإشعار الدقيق
       const q = query(collection(db, "orders"), orderBy("timestamp", "desc"), limit(50));
       const querySnapshot = await getDocs(q);
       const ordersData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -372,37 +362,8 @@ export default function App() {
     }
   };
 
-const fetchMyOrders = async () => {
-  try {
-    let fetched = [];
-    
-    if (user && user.uid && user.uid !== "GUEST_USER") {
-
-      
-      const q = query(collection(db, "orders"), where("userId", "==", user.uid));
-        const snap = await getDocs(q);
-        fetched = snap.docs.map(d => ({id: d.id, ...d.data()}));
-    } else {
-        const guestIds = JSON.parse(localStorage.getItem('msa_guest_orders') || '[]');
-        if (guestIds.length > 0) {
-            for (const orderId of guestIds) {
-                const orderSnap = await getDoc(doc(db, "orders", String(orderId)));
-                if (orderSnap.exists()) {
-                    fetched.push({id: orderSnap.id, ...orderSnap.data()});
-                }
-            }
-        }
-    }
-    
-    fetched.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
-    setMyOrders(fetched);
-  } catch(e) {
-    console.error("Error fetching my orders", e);
-  }
-};
-
   const handleCancelOrder = async (orderToCancel) => {
-    if(!window.confirm(lang === 'ar' ? "هل أنت متأكد من إلغاء هذا الطلب؟ " : "Are you sure you want to cancel this order? Stock will be returned.")) return;
+    if(!window.confirm(lang === 'ar' ? "هل أنت متأكد من إلغاء هذا الطلب؟ سيتم استرجاع المخزون للمنتجات." : "Are you sure you want to cancel this order? Stock will be returned.")) return;
 
     try {
       playSynthSound(400, 'sawtooth', 0.2);
@@ -422,14 +383,13 @@ const fetchMyOrders = async () => {
       await deleteDoc(doc(db, "orders", String(orderToCancel.id)));
       
       setOrders(prev => prev.filter(o => o.id !== orderToCancel.id));
-      setMyOrders(prev => prev.filter(o => o.id !== orderToCancel.id));
       
       const guestOrders = JSON.parse(localStorage.getItem('msa_guest_orders') || '[]');
       const updatedGuestOrders = guestOrders.filter(id => id !== orderToCancel.id);
       localStorage.setItem('msa_guest_orders', JSON.stringify(updatedGuestOrders));
 
       fetchProducts(); 
-      alert(lang === 'ar' ? "تم إلغاء الطلب  بنجاح." : "Order cancelled and stock returned successfully.");
+      alert(lang === 'ar' ? "تم إلغاء الطلب واسترجاع المخزون بنجاح." : "Order cancelled and stock returned successfully.");
     } catch (err) {
       console.error("Cancel order error:", err);
       alert(lang === 'ar' ? "حدث خطأ أثناء إلغاء الطلب." : "Error cancelling order.");
@@ -1066,12 +1026,6 @@ const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.q
               </button>
             )}
 
-            {/* My Orders Button */}
-            <button type="button" onClick={() => { setIsMyOrdersOpen(true); fetchMyOrders(); playSynthSound(800, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`relative flex items-center justify-center w-10 h-10 sm:w-auto sm:px-4 sm:py-2 rounded-full transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] bg-blue-500/20 text-blue-400 border border-blue-500/30 hover:bg-blue-500 hover:text-slate-900 flex-shrink-0`}>
-               <i className={`fas fa-receipt text-lg`}></i>
-               <span className="font-mono text-xs hidden sm:inline font-bold mx-2">{t.myOrders}</span>
-            </button>
-
             {/* Cart Button */}
             <button type="button" onClick={() => { setIsCartOpen(true); playSynthSound(800, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`relative flex items-center justify-center w-10 h-10 sm:w-auto sm:px-5 sm:py-2 rounded-full transition-all shadow-[0_0_15px_rgba(20,184,166,0.5)] bg-teal-500 text-slate-900 hover:bg-teal-400 hover:scale-105 flex-shrink-0`}>
               <i className={`fas fa-shopping-cart text-lg`}></i>
@@ -1381,9 +1335,20 @@ const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.q
                  <span className={`font-mono text-teal-400`}>{(subtotal + currentDeliveryFee).toLocaleString()} {t.currency}</span>
               </div>
               
-              <button type="button" onClick={handleCheckout} className="w-full py-4 mt-2 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 text-slate-900 hover:from-teal-400 hover:to-emerald-400 font-extrabold tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 text-sm">
-                <i className="fas fa-check-double text-lg"></i> {t.cartCheckout}
-              </button>
+              <div className="flex gap-2 mt-2 w-full">
+                <button type="button" onClick={handleCheckout} className="flex-grow py-3 sm:py-4 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 text-slate-900 hover:from-teal-400 hover:to-emerald-400 font-extrabold tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 text-xs sm:text-sm">
+                  <i className="fas fa-check-double text-base sm:text-lg"></i> {t.cartCheckout}
+                </button>
+                <button type="button" onClick={() => { 
+                    if(window.confirm(lang === 'ar' ? 'هل أنت متأكد من إلغاء الطلب وإفراغ السلة؟' : 'Are you sure you want to clear the cart?')) {
+                        setCart([]); 
+                        setIsCartOpen(false); 
+                        playSynthSound(400, 'sawtooth', 0.2); 
+                    }
+                }} className="shrink-0 px-4 sm:px-6 py-3 sm:py-4 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/30 font-extrabold tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 text-xs sm:text-sm">
+                  <i className="fa-solid fa-trash-can text-base sm:text-lg"></i> {t.cancelOrder}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1432,64 +1397,6 @@ const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.q
       </div>
 
       {isCartOpen && <div onClick={() => setIsCartOpen(false)} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-40 transition-opacity"></div>}
-
-      {/* My Orders Modal للزبون */}
-      {isMyOrdersOpen && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
-           <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm" onClick={() => setIsMyOrdersOpen(false)}></div>
-           <div className="relative w-full max-w-4xl h-[85vh] flex flex-col bg-[#0f172a] border border-teal-500/30 rounded-3xl shadow-2xl overflow-hidden">
-               <div className="flex justify-between items-center p-5 border-b border-teal-500/20 bg-slate-800/50">
-                  <h2 className="text-xl font-black text-white flex items-center gap-3">
-                     <i className="fa-solid fa-receipt text-teal-400"></i> {t.myOrders}
-                  </h2>
-                  <button onClick={() => setIsMyOrdersOpen(false)} className="w-10 h-10 rounded-full border border-teal-500/30 bg-slate-900/60 text-teal-400 hover:bg-red-500 hover:text-white transition-all flex justify-center items-center">
-                     <i className="fa-solid fa-xmark text-xl"></i>
-                  </button>
-               </div>
-               <div className="flex-grow p-4 sm:p-6 overflow-y-auto custom-scrollbar bg-[#0b1120]">
-                  {myOrders.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center h-full text-center">
-                        <i className="fa-solid fa-box-open text-6xl text-teal-500/20 mb-4"></i>
-                        <h3 className="text-lg font-bold text-gray-300">{t.noActiveOrders}</h3>
-                      </div>
-                  ) : (
-                      <div className="space-y-4">
-                         {myOrders.map(order => (
-                             <div key={order.id} className="bg-slate-800/40 border border-teal-500/20 rounded-2xl p-4 sm:p-5 flex flex-col gap-4 shadow-sm hover:border-teal-500/40 transition-colors">
-                                <div className="flex justify-between items-start border-b border-teal-500/10 pb-3">
-                                   <div>
-                                      <span className="text-teal-400 font-mono text-xs font-bold block mb-1">#{order.id.slice(-6).toUpperCase()}</span>
-                                      <span className="text-gray-400 text-[10px]">{new Date(order.timestamp).toLocaleString(lang === 'en' ? 'en-US' : 'ar-IQ')}</span>
-                                   </div>
-                                   <div className="text-left">
-                                      <span className="text-white font-bold block">{order.totalAmount?.toLocaleString()} {t.currency}</span>
-                                      <span className="text-yellow-500 text-[10px] bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/20">{t.processing}</span>
-                                   </div>
-                                </div>
-                                <div className="flex flex-col gap-2">
-                                   {order.items?.map((item, idx) => (
-                                       <div key={idx} className="flex items-center gap-3 text-sm">
-                                          <div className="w-10 h-10 bg-white rounded border border-teal-500/20 p-0.5 shrink-0 flex items-center justify-center overflow-hidden">
-                                            <img src={item.image} decoding="async" className="max-w-full max-h-full object-contain mix-blend-multiply" alt=""/>
-                                          </div>
-                                          <span className="text-gray-300 line-clamp-1 flex-grow font-bold text-xs sm:text-sm">{item.name}</span>
-                                          <span className="text-teal-400 font-mono text-xs shrink-0 whitespace-nowrap bg-teal-500/10 px-2 py-1 rounded border border-teal-500/20">{item.qty} × {item.price?.toLocaleString()}</span>
-                                       </div>
-                                   ))}
-                                </div>
-                                <div className="pt-3 border-t border-teal-500/10">
-                                    <button onClick={() => handleCancelOrder(order)} className="w-full sm:w-auto px-4 py-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/30 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm">
-                                        <i className="fa-solid fa-ban"></i> {t.cancelOrder}
-                                    </button>
-                                </div>
-                             </div>
-                         ))}
-                      </div>
-                  )}
-               </div>
-           </div>
-        </div>
-      )}
 
       {/* Product Detail Modal */}
       {selectedProduct && (
