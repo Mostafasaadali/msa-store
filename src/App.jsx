@@ -1655,7 +1655,7 @@ export default function App() {
                 </div>
               </div>
               
-              {/* === محتوى التبويبات (تم تعديل كلاسات الارتفاع هنا) === */}
+              {/* === محتوى التبويبات === */}
               <div className="flex-grow flex flex-col mb-0 pb-4 min-h-[200px] overflow-y-auto custom-scrollbar overscroll-contain max-h-[45vh] sm:max-h-[55vh]">
                   {modalTab === 'desc' && (
                       <div className={`p-4 sm:p-5 rounded-xl text-xs sm:text-sm leading-relaxed border bg-slate-800/50 border-teal-500/10 text-gray-300 h-fit min-h-full break-words whitespace-pre-wrap`}>
@@ -1832,6 +1832,14 @@ export default function App() {
                     </div>
                 </div>
             )}
+            
+            {/* الزر الجديد: إغلاق أسفل اليسار */}
+            <button
+                onClick={() => { setActiveGallery(null); playSynthSound(400, 'sine', 0.1); }}
+                className="absolute bottom-6 left-6 z-[999] bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/30 px-5 py-2.5 rounded-xl font-bold font-mono transition-all shadow-lg backdrop-blur-md flex items-center gap-2 hover:scale-105"
+            >
+                <i className="fas fa-times text-lg"></i> إغلاق
+            </button>
         </div>
       )}
 
