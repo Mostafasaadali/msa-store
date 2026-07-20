@@ -30,6 +30,7 @@ export default function AdminPanel({
   orders, fetchOrders,
   handleDeleteOrder,
   handleCancelOrder,
+  handleCompleteOrder,
   visitorCount,
   handleResetVisitors, 
   
@@ -38,6 +39,7 @@ export default function AdminPanel({
 
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showOrdersManager, setShowOrdersManager] = useState(false);
+  const [showCompletedOrdersManager, setShowCompletedOrdersManager] = useState(false);
   const [showCatManager, setShowCatManager] = useState(false);
   const [newCatInput, setNewCatInput] = useState('');
   const [editCatId, setEditCatId] = useState(null);
@@ -59,13 +61,15 @@ export default function AdminPanel({
   const [newLinkTitle, setNewLinkTitle] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
-  // حالات أدوات فلترة المنتجات في صفحة الإدارة
   const [adminSearch, setAdminSearch] = useState('');
   const [adminFilter, setAdminFilter] = useState('all');
 
-  const confirmAndDeleteOrder = (orderId) => {
-    if(window.confirm("هل أنت متأكد من إنجاز هذا الطلب وحذفه من السجل بشكل نهائي؟ (هذا الخيار يعني أنك قمت بتسليمه بنجاح ولن يتم إرجاع المخزون)")) {
-      handleDeleteOrder(orderId);
+  const activeOrders = orders.filter(o => o.status !== 'completed');
+  const completedOrders = orders.filter(o => o.status === 'completed');
+
+  const confirmAndCompleteOrder = (order) => {
+    if(window.confirm("هل أنت متأكد من إنجاز هذا الطلب؟ (هذا الخيار يعني أنك قمت بتسليمه بنجاح ولن يتم إرجاع المخزون وسينقل للمكتملة)")) {
+      handleCompleteOrder(order);
       setSelectedOrder(null);
     }
   };
@@ -186,7 +190,6 @@ export default function AdminPanel({
     }
   };
 
-  // استخدام useMemo لتقليل الجهد على المعالج في التصفية المستمرة
   const filteredAdminProducts = useMemo(() => {
     return products.filter(p => {
       const searchLower = adminSearch.toLowerCase();
@@ -202,13 +205,12 @@ export default function AdminPanel({
       if (adminFilter === 'bestSeller') {
           return (parseInt(b.sales) || 0) - (parseInt(a.sales) || 0);
       }
-      // الفرز اليدوي الافتراضي للمسؤولين أيضا
       const indexA = a.orderIndex !== undefined && a.orderIndex !== null && a.orderIndex !== '' ? parseInt(a.orderIndex) : 999;
       const indexB = b.orderIndex !== undefined && b.orderIndex !== null && b.orderIndex !== '' ? parseInt(b.orderIndex) : 999;
       if (indexA !== indexB) {
           return indexA - indexB;
       }
-      return 0; // الترتيب الافتراضي
+      return 0; 
     });
   }, [products, adminSearch, adminFilter]);
 
@@ -224,21 +226,31 @@ export default function AdminPanel({
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-8 w-full border-b border-teal-500/20 pb-6">
-         {/* زر طلبات الزبائن تم وضعه جانباً بصورة مميزة وملفتة (mr-auto لدفعه في الاتجاه المعاكس) */}
          <button
             onClick={() => { setShowOrdersManager(true); fetchOrders(); }}
             className={`mr-auto transition-all shrink-0 font-bold flex items-center shadow-sm relative ${
-               orders.length > 0
+               activeOrders.length > 0
                ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white px-6 py-3 rounded-2xl text-sm border-2 border-red-400 shadow-[0_0_20px_rgba(220,38,38,0.6)] scale-110 hover:scale-110 animate-pulse cursor-pointer z-50'
                : 'bg-[#030212] border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-xl text-xs cursor-pointer'
             }`}
          >
-            <i className={`fa-solid fa-boxes-packing ${orders.length > 0 ? 'text-xl ml-2 animate-bounce' : 'ml-2'}`}></i>
-            <span>طلبات الزبائن</span>
-            {orders.length > 0 && (
+            <i className={`fa-solid fa-boxes-packing ${activeOrders.length > 0 ? 'text-xl ml-2 animate-bounce' : 'ml-2'}`}></i>
+            <span>الطلبات الجديدة</span>
+            {activeOrders.length > 0 && (
                <span className="absolute -top-3 -right-3 bg-white text-red-600 font-black w-7 h-7 rounded-full flex items-center justify-center text-sm shadow-lg border-2 border-red-500">
-                  {orders.length}
+                  {activeOrders.length}
                </span>
+            )}
+         </button>
+
+         <button
+            onClick={() => { setShowCompletedOrdersManager(true); fetchOrders(); }}
+            className="bg-[#030212] border border-blue-500/30 hover:bg-blue-500/20 text-blue-400 px-4 py-2 rounded-xl text-xs font-bold cursor-pointer shrink-0 shadow-sm flex items-center gap-2"
+         >
+            <i className="fa-solid fa-check-double text-sm"></i>
+            <span>الطلبات المكتملة</span>
+            {completedOrders.length > 0 && (
+               <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full text-[10px] ml-1">{completedOrders.length}</span>
             )}
          </button>
 
@@ -320,7 +332,6 @@ export default function AdminPanel({
                    <label className="text-[10px] sm:text-xs font-mono font-bold text-teal-400 block mb-2">// STOCK</label>
                    <input type="number" placeholder="المخزون" value={newProdStock} onChange={(e) => setNewProdStock(e.target.value)} className="w-full p-2.5 sm:p-3 bg-black/40 border border-teal-500/30 text-teal-400 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-teal-500 transition-colors shadow-inner" />
                  </div>
-                 {/* حقل ترتيب العرض الجديد */}
                  <div className="flex-1 min-w-0">
                    <label className="text-[10px] sm:text-xs font-mono font-bold text-purple-400 block mb-2">// ORDER_INDEX</label>
                    <input type="number" placeholder="ترتيب العرض (1)" value={newProdOrderIndex} onChange={(e) => setNewProdOrderIndex(e.target.value)} className="w-full p-2.5 sm:p-3 bg-black/40 border border-purple-500/30 text-purple-400 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
@@ -409,7 +420,6 @@ export default function AdminPanel({
                <i className="fa-solid fa-list-check text-teal-500"></i> الكتالوج ({filteredAdminProducts.length})
              </h3>
              
-             {/* أدوات البحث والفلترة الجديدة للإدارة */}
              <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                <div className="flex flex-wrap gap-2">
                   <button onClick={() => setAdminFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm border ${adminFilter === 'all' ? 'bg-teal-500 text-slate-900 border-teal-500' : 'bg-[#111827] text-gray-400 border-neutral-700 hover:border-teal-500'}`}>
@@ -486,7 +496,6 @@ export default function AdminPanel({
                         {(parseInt(prod.stock)||0) <= 0 ? <span className="text-red-500 bg-red-500/10 px-2 py-1 rounded border border-red-500/30">نافذ (0)</span> : <span className="text-orange-400">{prod.stock}</span>}
                      </td>
                      
-                     {/* عرض ترتيب العرض في الجدول */}
                      <td className="py-3 sm:py-4 text-center font-mono font-bold text-purple-400 whitespace-nowrap text-xs sm:text-sm">
                         {prod.orderIndex !== undefined && prod.orderIndex !== null ? prod.orderIndex : '999'}
                      </td>
@@ -509,9 +518,6 @@ export default function AdminPanel({
          </div>
       </div>
 
-      {/* النوافذ المنبثقة للوحة التحكم */}
-      
-      {/* 1. Category Manager */}
       {showCatManager && (
         <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowCatManager(false)}></div>
@@ -548,7 +554,6 @@ export default function AdminPanel({
         </div>
       )}
 
-      {/* 2. Delivery Manager */}
       {showDeliveryManager && (
         <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowDeliveryManager(false)}></div>
@@ -578,7 +583,6 @@ export default function AdminPanel({
         </div>
       )}
 
-      {/* 3. Links Manager */}
       {showLinksManager && (
         <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowLinksManager(false)}></div>
@@ -607,7 +611,6 @@ export default function AdminPanel({
         </div>
       )}
 
-      {/* 4. Orders List Window */}
       {showOrdersManager && (
         <div className="fixed inset-0 z-[999999] flex items-center justify-center p-2 sm:p-4 transition-opacity">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowOrdersManager(false)}></div>
@@ -622,7 +625,7 @@ export default function AdminPanel({
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-neutral-800 pb-4 gap-4 pr-8 sm:pr-0">
                <h3 className="text-lg sm:text-2xl font-bold text-emerald-400 flex items-center gap-3">
-                 <i className="fa-solid fa-boxes-packing"></i> طلبات الزبائن قيد التجهيز
+                 <i className="fa-solid fa-boxes-packing"></i> طلبات الزبائن (قيد التجهيز)
                </h3>
                <button type="button" onClick={(e) => { e.preventDefault(); fetchOrders(); }} className="bg-emerald-600/20 border border-emerald-500/40 hover:bg-emerald-500 text-emerald-400 hover:text-black px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0">
                  <i className="fa-solid fa-rotate"></i> تحديث
@@ -630,12 +633,12 @@ export default function AdminPanel({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-               {orders.length === 0 ? (
+               {activeOrders.length === 0 ? (
                  <div className="col-span-full text-center py-12 border border-dashed border-neutral-700 rounded-xl bg-black/20">
                     <i className="fa-solid fa-inbox text-4xl text-neutral-600 mb-3"></i>
-                    <p className="text-gray-500 font-mono text-xs sm:text-sm">لا توجد طلبات جديدة مسجلة في قاعدة البيانات حالياً.</p>
+                    <p className="text-gray-500 font-mono text-xs sm:text-sm">لا توجد طلبات قيد التجهيز حالياً.</p>
                  </div>
-               ) : orders.map((order) => (
+               ) : activeOrders.map((order) => (
                  <div 
                    key={order.id} 
                    onClick={() => setSelectedOrder(order)} 
@@ -656,12 +659,58 @@ export default function AdminPanel({
         </div>
       )}
 
-      {/* 5. Selected Order Detail Viewer (Compact & Elegant Redesign) */}
+      {showCompletedOrdersManager && (
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-2 sm:p-4 transition-opacity">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowCompletedOrdersManager(false)}></div>
+
+          <div
+            className="relative w-full max-w-6xl bg-[#0c0c11] border border-blue-500/40 p-4 sm:p-8 rounded-3xl shadow-2xl overflow-y-auto max-h-[95vh] custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button type="button" onClick={() => setShowCompletedOrdersManager(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
+              <i className="fa-solid fa-xmark text-xl sm:text-2xl"></i>
+            </button>
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-neutral-800 pb-4 gap-4 pr-8 sm:pr-0">
+               <h3 className="text-lg sm:text-2xl font-bold text-blue-400 flex items-center gap-3">
+                 <i className="fa-solid fa-check-double"></i> الطلبات المكتملة والمجهزة
+               </h3>
+               <button type="button" onClick={(e) => { e.preventDefault(); fetchOrders(); }} className="bg-blue-600/20 border border-blue-500/40 hover:bg-blue-500 text-blue-400 hover:text-black px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 shrink-0">
+                 <i className="fa-solid fa-rotate"></i> تحديث
+               </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+               {completedOrders.length === 0 ? (
+                 <div className="col-span-full text-center py-12 border border-dashed border-neutral-700 rounded-xl bg-black/20">
+                    <i className="fa-solid fa-box-archive text-4xl text-neutral-600 mb-3"></i>
+                    <p className="text-gray-500 font-mono text-xs sm:text-sm">لم يتم تسجيل أي طلبات مكتملة حتى الآن.</p>
+                 </div>
+               ) : completedOrders.map((order) => (
+                 <div 
+                   key={order.id} 
+                   onClick={() => setSelectedOrder(order)} 
+                   className="border border-neutral-800 bg-black/40 rounded-2xl p-4 sm:p-5 shadow-md hover:border-blue-500/60 hover:bg-[#14151c] cursor-pointer transition-all relative overflow-hidden group min-w-0"
+                 >
+                   <div className="absolute top-0 right-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-purple-600 group-hover:w-2 transition-all"></div>
+                   
+                   <div className="flex justify-between items-start mb-3 min-w-0">
+                     <h4 className="text-blue-400 font-bold text-base sm:text-lg break-words line-clamp-1 min-w-0 pr-2">{order.customerName}</h4>
+                     <span className="shrink-0 bg-blue-500/10 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono font-bold tracking-wider">
+                       #{order.id.slice(-5).toUpperCase()}
+                     </span>
+                   </div>
+                 </div>
+               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedOrder && (
         <div className="fixed inset-0 z-[9999999] flex items-center justify-center p-2 sm:p-4 transition-all">
           <div className="absolute inset-0 bg-black/95 backdrop-blur-md" onClick={() => setSelectedOrder(null)}></div>
           
-          {/* Custom Scrollbar specifically for this modal */}
           <style>{`
              .order-scrollbar::-webkit-scrollbar { width: 6px; }
              .order-scrollbar::-webkit-scrollbar-track { background: rgba(16, 185, 129, 0.05); border-radius: 10px; }
@@ -669,18 +718,18 @@ export default function AdminPanel({
              .order-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(16, 185, 129, 0.8); }
           `}</style>
           
-          <div className="relative bg-[#0b101a] border border-emerald-500/30 rounded-[1.5rem] w-full max-w-5xl shadow-[0_0_50px_rgba(16,185,129,0.15)] flex flex-col max-h-[95vh] overflow-hidden transform transition-all">
+          <div className={`relative bg-[#0b101a] border ${selectedOrder.status === 'completed' ? 'border-blue-500/30 shadow-[0_0_50px_rgba(59,130,246,0.15)]' : 'border-emerald-500/30 shadow-[0_0_50px_rgba(16,185,129,0.15)]'} rounded-[1.5rem] w-full max-w-5xl flex flex-col max-h-[95vh] overflow-hidden transform transition-all`}>
              
              {/* Header */}
-             <div className="flex justify-between items-center p-3 sm:p-5 border-b border-emerald-500/10 bg-gradient-to-r from-emerald-900/20 to-transparent shrink-0">
+             <div className={`flex justify-between items-center p-3 sm:p-5 border-b bg-gradient-to-r shrink-0 ${selectedOrder.status === 'completed' ? 'border-blue-500/10 from-blue-900/20 to-transparent' : 'border-emerald-500/10 from-emerald-900/20 to-transparent'}`}>
                 <div>
                    <h3 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)] text-sm">
-                         <i className="fa-solid fa-file-invoice-dollar"></i>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${selectedOrder.status === 'completed' ? 'bg-blue-500/20 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'bg-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]'}`}>
+                         <i className={`fa-solid ${selectedOrder.status === 'completed' ? 'fa-check-double' : 'fa-file-invoice-dollar'}`}></i>
                       </div>
-                      تفاصيل الطلب
+                      تفاصيل الطلب {selectedOrder.status === 'completed' ? '(مكتمل)' : ''}
                    </h3>
-                   <span className="text-emerald-400 font-mono text-xs mt-1 block font-bold tracking-widest">
+                   <span className={`${selectedOrder.status === 'completed' ? 'text-blue-400' : 'text-emerald-400'} font-mono text-xs mt-1 block font-bold tracking-widest`}>
                       #ORDER-{selectedOrder.id?.slice(-6).toUpperCase()}
                    </span>
                 </div>
@@ -689,19 +738,17 @@ export default function AdminPanel({
                 </button>
              </div>
              
-             {/* Main Content Area: Flex Container for Side-by-Side on Desktop */}
-             <div className="flex flex-col lg:flex-row flex-grow overflow-hidden">
+             {/* تم التعديل هنا: إضافة overflow-y-auto للوضع المعروض على الجوال ليسمح بالنزول للمنتجات المطلوبة */}
+             <div className="flex flex-col lg:flex-row flex-grow overflow-y-auto lg:overflow-hidden order-scrollbar">
                 
-                {/* Right Column (Arabic RTL): Customer Info & Totals Summary */}
-                <div className="w-full lg:w-2/5 flex flex-col bg-[#0d131f] border-b lg:border-b-0 lg:border-l border-emerald-500/10 p-4 sm:p-5 overflow-y-auto order-scrollbar shrink-0">
+                <div className={`w-full lg:w-2/5 flex flex-col bg-[#0d131f] border-b lg:border-b-0 lg:border-l p-4 sm:p-5 lg:overflow-y-auto order-scrollbar shrink-0 ${selectedOrder.status === 'completed' ? 'border-blue-500/10' : 'border-emerald-500/10'}`}>
                    
-                   {/* Customer Information Cards */}
                    <div className="mb-5">
-                      <h4 className="text-emerald-400 font-bold mb-3 flex items-center gap-2 text-xs">
+                      <h4 className={`${selectedOrder.status === 'completed' ? 'text-blue-400' : 'text-emerald-400'} font-bold mb-3 flex items-center gap-2 text-xs`}>
                          <i className="fa-solid fa-id-card"></i> بيانات الزبون
                       </h4>
                       <div className="space-y-2.5">
-                         <div className="bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-center gap-3 hover:border-emerald-500/30 transition-colors">
+                         <div className={`bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-center gap-3 transition-colors ${selectedOrder.status === 'completed' ? 'hover:border-blue-500/30' : 'hover:border-emerald-500/30'}`}>
                             <div className="bg-blue-500/10 text-blue-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"><i className="fa-solid fa-user"></i></div>
                             <div className="min-w-0 flex-grow">
                                <p className="text-gray-500 text-[10px] font-mono mb-0.5">اسم المستلم</p>
@@ -709,19 +756,18 @@ export default function AdminPanel({
                             </div>
                          </div>
                          
-                         <div className="bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-center gap-3 hover:border-emerald-500/30 transition-colors">
+                         <div className={`bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-center gap-3 transition-colors ${selectedOrder.status === 'completed' ? 'hover:border-blue-500/30' : 'hover:border-emerald-500/30'}`}>
                             <div className="bg-green-500/10 text-green-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"><i className="fa-solid fa-phone"></i></div>
                             <div className="min-w-0 flex-grow">
                                <p className="text-gray-500 text-[10px] font-mono mb-0.5">أرقام الهواتف</p>
-                               <a href={`tel:${selectedOrder.customerPhone}`} className="text-white font-bold text-xs hover:text-emerald-400 transition-colors truncate block" dir="ltr">{selectedOrder.customerPhone}</a>
-                               {/* عرض رقم الهاتف الإضافي في حال وجوده */}
+                               <a href={`tel:${selectedOrder.customerPhone}`} className={`text-white font-bold text-xs transition-colors truncate block ${selectedOrder.status === 'completed' ? 'hover:text-blue-400' : 'hover:text-emerald-400'}`} dir="ltr">{selectedOrder.customerPhone}</a>
                                {selectedOrder.customerPhone2 && (
-                                  <a href={`tel:${selectedOrder.customerPhone2}`} className="text-gray-300 font-bold text-[11px] hover:text-emerald-400 transition-colors truncate block mt-1" dir="ltr">{selectedOrder.customerPhone2} (إضافي)</a>
+                                  <a href={`tel:${selectedOrder.customerPhone2}`} className={`text-gray-300 font-bold text-[11px] transition-colors truncate block mt-1 ${selectedOrder.status === 'completed' ? 'hover:text-blue-400' : 'hover:text-emerald-400'}`} dir="ltr">{selectedOrder.customerPhone2} (إضافي)</a>
                                )}
                             </div>
                          </div>
                          
-                         <div className="bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-start gap-3 hover:border-emerald-500/30 transition-colors">
+                         <div className={`bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-start gap-3 transition-colors ${selectedOrder.status === 'completed' ? 'hover:border-blue-500/30' : 'hover:border-emerald-500/30'}`}>
                             <div className="bg-orange-500/10 text-orange-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm mt-0.5"><i className="fa-solid fa-map-location-dot"></i></div>
                             <div className="min-w-0 flex-grow">
                                <p className="text-gray-500 text-[10px] font-mono mb-0.5">الموقع المختار والتفاصيل</p>
@@ -729,7 +775,7 @@ export default function AdminPanel({
                             </div>
                          </div>
                          
-                         <div className="bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-center gap-3 hover:border-emerald-500/30 transition-colors">
+                         <div className={`bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-center gap-3 transition-colors ${selectedOrder.status === 'completed' ? 'hover:border-blue-500/30' : 'hover:border-emerald-500/30'}`}>
                             <div className="bg-purple-500/10 text-purple-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"><i className="fa-solid fa-clock"></i></div>
                             <div className="min-w-0 flex-grow">
                                <p className="text-gray-500 text-[10px] font-mono mb-0.5">تاريخ ووقت الطلب</p>
@@ -739,12 +785,11 @@ export default function AdminPanel({
                       </div>
                    </div>
 
-                   {/* Totals Summary */}
                    <div className="mt-auto">
-                      <h4 className="text-emerald-400 font-bold mb-3 flex items-center gap-2 text-xs">
+                      <h4 className={`${selectedOrder.status === 'completed' ? 'text-blue-400' : 'text-emerald-400'} font-bold mb-3 flex items-center gap-2 text-xs`}>
                          <i className="fa-solid fa-calculator"></i> الحساب الختامي
                       </h4>
-                      <div className="bg-[#0a0f18] p-4 rounded-2xl border border-emerald-500/20 shadow-inner relative overflow-hidden">
+                      <div className={`bg-[#0a0f18] p-4 rounded-2xl border shadow-inner relative overflow-hidden ${selectedOrder.status === 'completed' ? 'border-blue-500/20' : 'border-emerald-500/20'}`}>
                          <div className="absolute -left-10 -bottom-10 opacity-5 pointer-events-none">
                             <i className="fa-solid fa-receipt text-[100px]"></i>
                          </div>
@@ -766,8 +811,8 @@ export default function AdminPanel({
 
                             <div className="flex justify-between items-end pt-1">
                                <span className="text-white font-black text-sm">الإجمالي المكتمل:</span>
-                               <span className="text-emerald-400 font-black text-lg sm:text-2xl font-mono tracking-tight drop-shadow-[0_0_8px_rgba(52,211,153,0.5)] whitespace-nowrap">
-                                  {selectedOrder.totalAmount?.toLocaleString()} <span className="text-[10px] sm:text-xs text-emerald-500">د.ع</span>
+                               <span className={`${selectedOrder.status === 'completed' ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]' : 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]'} font-black text-lg sm:text-2xl font-mono tracking-tight whitespace-nowrap`}>
+                                  {selectedOrder.totalAmount?.toLocaleString()} <span className={`text-[10px] sm:text-xs ${selectedOrder.status === 'completed' ? 'text-blue-500' : 'text-emerald-500'}`}>د.ع</span>
                                </span>
                             </div>
                          </div>
@@ -775,16 +820,14 @@ export default function AdminPanel({
                    </div>
                 </div>
 
-                {/* Left Column (Arabic LTR visually): Items List */}
-                <div className="w-full lg:w-3/5 flex flex-col bg-[#0b101a] p-4 sm:p-5 overflow-hidden">
-                   <h4 className="text-emerald-400 font-bold mb-3 flex items-center gap-2 text-xs shrink-0">
+                <div className="w-full lg:w-3/5 flex flex-col bg-[#0b101a] p-4 sm:p-5 lg:overflow-hidden">
+                   <h4 className={`${selectedOrder.status === 'completed' ? 'text-blue-400' : 'text-emerald-400'} font-bold mb-3 flex items-center gap-2 text-xs shrink-0`}>
                       <i className="fa-solid fa-box-open"></i> المنتجات المطلوبة ({selectedOrder.items?.length || 0})
                    </h4>
                    
-                   {/* Scrollable Items Container */}
-                   <div className="overflow-y-auto order-scrollbar pr-2 space-y-2.5 flex-grow h-full">
+                   <div className="lg:overflow-y-auto order-scrollbar pr-2 space-y-2.5 flex-grow h-auto lg:h-full">
                       {(selectedOrder.items || []).map((item, idx) => (
-                         <div key={idx} className="group flex flex-col sm:flex-row justify-between items-start sm:items-center bg-[#111827] p-2.5 sm:p-3 rounded-xl border border-neutral-800 hover:border-emerald-500/40 transition-all gap-3 shadow-sm">
+                         <div key={idx} className={`group flex flex-col sm:flex-row justify-between items-start sm:items-center bg-[#111827] p-2.5 sm:p-3 rounded-xl border border-neutral-800 transition-all gap-3 shadow-sm ${selectedOrder.status === 'completed' ? 'hover:border-blue-500/40' : 'hover:border-emerald-500/40'}`}>
                             
                             <div className="flex items-center gap-3 w-full sm:w-auto min-w-0">
                                <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-lg p-1 flex items-center justify-center shrink-0 border border-neutral-200 shadow-inner">
@@ -792,14 +835,19 @@ export default function AdminPanel({
                                </div>
                                <div className="flex-grow min-w-0">
                                   <div className="text-white text-xs sm:text-sm font-bold line-clamp-2 leading-snug mb-1.5">{item.name}</div>
-                                  <div className="text-gray-400 text-[10px] sm:text-xs font-mono bg-black/40 inline-block px-1.5 py-0.5 rounded border border-neutral-800">
-                                    {item.price?.toLocaleString()} د.ع <span className="text-emerald-500 mx-1">×</span> <span className="text-white">{item.qty}</span>
+                                  
+                                  <div className="text-gray-400 text-[10px] sm:text-xs font-mono bg-black/40 inline-flex items-center gap-2 px-2 py-1 rounded border border-neutral-800 mt-1">
+                                    <span>{item.price?.toLocaleString()} د.ع</span>
+                                    <span className={selectedOrder.status === 'completed' ? 'text-blue-500' : 'text-emerald-500'}>×</span> 
+                                    <span className={`text-white text-xl sm:text-2xl font-black px-3 py-0.5 rounded-lg border shadow-sm ${selectedOrder.status === 'completed' ? 'bg-blue-500/20 border-blue-500/30' : 'bg-emerald-500/20 border-emerald-500/30'}`}>
+                                       {item.qty}
+                                    </span>
                                   </div>
                                </div>
                             </div>
                             
-                            <div className="text-emerald-400 font-bold font-mono text-sm sm:text-base bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20 w-full sm:w-auto text-center shrink-0 shadow-sm flex flex-col">
-                               <span className="text-[9px] text-emerald-600 font-sans mb-0.5 uppercase tracking-widest block sm:hidden">المجموع الفرعي:</span>
+                            <div className={`${selectedOrder.status === 'completed' ? 'text-blue-400 bg-blue-500/10 border-blue-500/20' : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'} font-bold font-mono text-sm sm:text-base px-3 py-1.5 rounded-lg border w-full sm:w-auto text-center shrink-0 shadow-sm flex flex-col`}>
+                               <span className={`text-[9px] ${selectedOrder.status === 'completed' ? 'text-blue-600' : 'text-emerald-600'} font-sans mb-0.5 uppercase tracking-widest block sm:hidden`}>المجموع الفرعي:</span>
                                {(item.price * item.qty).toLocaleString()} د.ع
                             </div>
 
@@ -810,21 +858,27 @@ export default function AdminPanel({
 
              </div>
 
-             {/* Bottom Footer Action (Full Width) */}
-             <div className="p-3 sm:p-4 border-t border-emerald-500/10 bg-[#0c111a] shrink-0 flex flex-col sm:flex-row gap-3">
-                <button onClick={() => confirmAndDeleteOrder(selectedOrder.id)} className="w-full sm:w-1/2 py-3 rounded-xl font-bold flex justify-center items-center gap-2 text-white transition-all bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)] hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:-translate-y-0.5 text-xs sm:text-sm">
-                   <i className="fa-solid fa-clipboard-check text-lg"></i> تأكيد إنجاز الطلب
-                </button>
-                <button onClick={() => { handleCancelOrder(selectedOrder); setSelectedOrder(null); }} className="w-full sm:w-1/2 py-3 rounded-xl font-bold flex justify-center items-center gap-2 text-white transition-all bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 shadow-[0_0_15px_rgba(220,38,38,0.2)] hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:-translate-y-0.5 text-xs sm:text-sm">
-                   <i className="fa-solid fa-ban text-lg"></i> إلغاء الطلب (إرجاع المخزون)
-                </button>
+             <div className={`p-3 sm:p-4 border-t bg-[#0c111a] shrink-0 flex flex-col sm:flex-row gap-3 ${selectedOrder.status === 'completed' ? 'border-blue-500/10' : 'border-emerald-500/10'}`}>
+                {selectedOrder.status === 'completed' ? (
+                    <button onClick={() => { handleDeleteOrder(selectedOrder.id); setSelectedOrder(null); }} className="w-full py-3 rounded-xl font-bold flex justify-center items-center gap-2 text-white transition-all bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 shadow-[0_0_15px_rgba(220,38,38,0.2)] hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:-translate-y-0.5 text-xs sm:text-sm">
+                       <i className="fa-solid fa-trash-can text-lg"></i> حذف الطلب نهائياً
+                    </button>
+                ) : (
+                    <>
+                    <button onClick={() => confirmAndCompleteOrder(selectedOrder)} className="w-full sm:w-1/2 py-3 rounded-xl font-bold flex justify-center items-center gap-2 text-white transition-all bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)] hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:-translate-y-0.5 text-xs sm:text-sm">
+                       <i className="fa-solid fa-clipboard-check text-lg"></i> تأكيد إنجاز الطلب (حفظ في المكتملة)
+                    </button>
+                    <button onClick={() => { handleCancelOrder(selectedOrder); setSelectedOrder(null); }} className="w-full sm:w-1/2 py-3 rounded-xl font-bold flex justify-center items-center gap-2 text-white transition-all bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 shadow-[0_0_15px_rgba(220,38,38,0.2)] hover:shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:-translate-y-0.5 text-xs sm:text-sm">
+                       <i className="fa-solid fa-ban text-lg"></i> إلغاء الطلب (إرجاع المخزون)
+                    </button>
+                    </>
+                )}
              </div>
 
           </div>
         </div>
       )}
 
-      {/* 6. Projects Manager */}
       {showProjectsManager && (
           <div className="fixed inset-0 z-[999999] flex items-center justify-center p-2 sm:p-4 transition-opacity">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowProjectsManager(false)}></div>

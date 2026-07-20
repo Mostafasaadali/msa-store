@@ -200,6 +200,10 @@ export default function App() {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [modalTab, setModalTab] = useState('desc');
 
+  // حالات كمية المنتج داخل الـ Modal
+  const [modalQty, setModalQty] = useState(1);
+  const [modalQtyWarning, setModalQtyWarning] = useState('');
+
   const [deferredPrompt, setDeferredPrompt] = useState(null);
 
   const cursorOuterRef = useRef(null);
@@ -359,6 +363,20 @@ export default function App() {
       setOrders(ordersData);
     } catch (error) {
       console.error("خطأ في جلب الطلبات:", error);
+    }
+  };
+
+  const handleCompleteOrder = async (orderToComplete) => {
+    try {
+        playSynthSound(400, 'sawtooth', 0.2);
+        const orderRef = doc(db, "orders", String(orderToComplete.id));
+        await updateDoc(orderRef, { status: 'completed' });
+        
+        setOrders(prev => prev.map(o => o.id === orderToComplete.id ? { ...o, status: 'completed' } : o));
+        alert("تم إنجاز الطلب ونقله إلى قسم الطلبات المكتملة.");
+    } catch (err) {
+        console.error("Complete order error:", err);
+        alert("حدث خطأ أثناء إنجاز الطلب.");
     }
   };
 
@@ -689,7 +707,7 @@ export default function App() {
     card.style.transform = `rotateX(0deg) rotateY(0deg) scale(1)`;
   }, []);
 
-  const addToCart = (id, name, price, image, stock) => {
+  const addToCart = (id, name, price, image, stock, qtyToAdd = 1) => {
     const stockVal = parseInt(stock) || 0;
     if (stockVal <= 0) {
        playErrorBuzz();
@@ -697,13 +715,21 @@ export default function App() {
        return;
     }
 
-    playSuccessBeep();
     setCart((prevCart) => {
       const existing = prevCart.find((item) => item.id === id);
-      if (existing) {
-        return prevCart.map((item) => item.id === id ? { ...item, qty: item.qty + 1 } : item);
+      const currentQty = existing ? existing.qty : 0;
+      
+      if (currentQty + qtyToAdd > stockVal) {
+          playErrorBuzz();
+          alert(`عذراً، الكمية المطلوبة تتجاوز المخزون المتاح. المتبقي: ${stockVal - currentQty}`);
+          return prevCart;
       }
-      return [...prevCart, { id, name, price, image, qty: 1 }];
+
+      playSuccessBeep();
+      if (existing) {
+        return prevCart.map((item) => item.id === id ? { ...item, qty: item.qty + qtyToAdd } : item);
+      }
+      return [...prevCart, { id, name, price, image, qty: qtyToAdd }];
     });
   };
 
@@ -734,9 +760,8 @@ export default function App() {
     }
   };
 
-  // استخدمنا useMemo لتحسين الأداء على الموبايل ومنع إعادة الحساب بلا داعي
   const subtotal = useMemo(() => cart.reduce((acc, item) => acc + (Number(item.price) || 0) * (parseInt(item.qty) || 0), 0), [cart]);
-const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0), [cart]);
+  const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0), [cart]);
   
   const activeGov = useMemo(() => deliveryLocations.find(g => g.id === selectedGovId) || { price: 0, time: '', name: '' }, [deliveryLocations, selectedGovId]);
   const currentDeliveryFee = Number(activeGov.price) || 0;
@@ -773,6 +798,7 @@ const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.q
       subtotalAmount: Number(subtotal) || 0,
       deliveryFee: Number(currentDeliveryFee) || 0,
       totalAmount: (Number(subtotal) || 0) + (Number(currentDeliveryFee) || 0),
+      status: 'pending',
       timestamp: new Date().toISOString()
     };
 
@@ -937,7 +963,6 @@ const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.q
     }
   };
 
-  // استخدام useMemo لتسريع التصفح على الموبايل مع دمج الترتيب اليدوي orderIndex
   const filteredProducts = useMemo(() => {
     const normalizedQuery = normalizeText(searchQuery);
     return products.filter(prod => {
@@ -965,6 +990,20 @@ const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.q
        return indexA - indexB;
     });
   }, [products, searchQuery, selectedCatFilter]);
+
+  const handleModalQtyChange = (delta, availableStock) => {
+    const newVal = modalQty + delta;
+    if (newVal > availableStock) {
+        setModalQtyWarning('المنتج نفذ لحد هذه القيمة!');
+        playErrorBuzz();
+        setTimeout(() => setModalQtyWarning(''), 3000);
+        return;
+    }
+    if (newVal >= 1) {
+        setModalQty(newVal);
+        setModalQtyWarning('');
+    }
+  };
 
   return (
     <div className={`tech-grid relative min-h-screen font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 bg-[#0f172a] text-gray-100 flex flex-col w-full`} dir={lang === 'en' ? 'ltr' : 'rtl'}>
@@ -1113,6 +1152,7 @@ const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.q
           orders={orders} fetchOrders={fetchOrders}
           handleDeleteOrder={handleDeleteOrder} 
           handleCancelOrder={handleCancelOrder}
+          handleCompleteOrder={handleCompleteOrder} 
           visitorCount={visitorCount}
           handleResetVisitors={handleResetVisitors} 
           deliveryLocations={deliveryLocations} 
@@ -1204,13 +1244,13 @@ const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.q
                       onMouseMove={(e) => handleCardMove(e, e.currentTarget)}
                       onMouseLeave={(e) => handleCardLeave(e.currentTarget)}
                       onMouseEnter={handleMouseEnterInteractive} 
-                      onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); playSynthSound(800, 'sine', 0.1); }}
+                      onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); }}
                       className={`card-tilt cursor-pointer h-full w-full flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-5 relative group transition-all duration-300 border bg-neutral-900/40 overflow-hidden break-words min-w-0 ${isOutOfStock ? 'border-red-500/20 hover:border-red-400/60' : 'border-teal-500/20 hover:border-teal-400/60'}`}
                     >
                       <div className="gloss-effect"></div>
                       
                       <div 
-                        onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); playSynthSound(800, 'sine', 0.1); }}
+                        onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); }}
                         className={`flex-shrink-0 h-28 sm:h-48 w-full rounded-lg sm:rounded-xl overflow-hidden mb-3 sm:mb-5 flex items-center justify-center border transition-all duration-300 relative cursor-pointer bg-white ${isOutOfStock ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-teal-500/10 group-hover:border-teal-500/30'}`}
                         title={t.viewDetails}
                       >
@@ -1244,7 +1284,7 @@ const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.q
                         )}
                       </div>
 
-                      <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer text-white hover:text-teal-400 transition-colors break-words min-w-0 w-full`} onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); playSynthSound(800, 'sine', 0.1); }}>{prod.name}</h3>
+                      <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer text-white hover:text-teal-400 transition-colors break-words min-w-0 w-full`} onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); }}>{prod.name}</h3>
                       
                       <p className={`text-[9px] sm:text-sm mb-3 sm:mb-5 leading-relaxed line-clamp-2 text-gray-300 flex-grow break-words min-w-0 w-full`}>{prod.desc || t.noDesc}</p>
                       
@@ -1533,17 +1573,67 @@ const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.q
                   </div>
                 </div>
 
-                {/* زر إضافة للسلة تم نقله هنا */}
+                {/* أزرار تحديد العدد قبل الإضافة */}
+                {(() => {
+                    const currentCartQty = cart.find(item => item.id === selectedProduct.id)?.qty || 0;
+                    const availableStock = Math.max(0, (parseInt(selectedProduct.stock)||0) - currentCartQty);
+                    
+                    return (
+                        <div className="bg-[#0b101a] border border-teal-500/20 p-4 rounded-xl shadow-inner flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="flex flex-col gap-1 w-full sm:w-auto">
+                                <span className="text-gray-400 font-bold text-xs sm:text-sm flex items-center gap-2">
+                                    <i className="fas fa-layer-group"></i> الكمية المطلوبة:
+                                </span>
+                                {modalQtyWarning && (
+                                    <span className="text-red-400 text-xs font-bold animate-pulse">
+                                        <i className="fas fa-exclamation-triangle"></i> {modalQtyWarning}
+                                    </span>
+                                )}
+                            </div>
+                            
+                            <div className="flex items-center gap-3">
+                                <div className={`flex items-center gap-2 bg-[#0a0a0f] border rounded-xl px-2 py-1 ${availableStock <= 0 ? 'border-red-500/30 opacity-50' : 'border-teal-500/30'}`}>
+                                    <button 
+                                        type="button" 
+                                        disabled={availableStock <= 0}
+                                        onClick={() => handleModalQtyChange(1, availableStock)} 
+                                        className="w-10 h-10 rounded-lg bg-teal-500/20 text-teal-400 hover:bg-teal-500 hover:text-slate-900 transition-colors font-bold text-xl flex items-center justify-center disabled:cursor-not-allowed"
+                                    >+</button>
+                                    
+                                    <input 
+                                        type="text" 
+                                        value={availableStock <= 0 ? '0' : modalQty} 
+                                        readOnly 
+                                        className="w-14 text-center bg-transparent text-white font-mono font-bold text-xl outline-none pointer-events-none" 
+                                    />
+                                    
+                                    <button 
+                                        type="button" 
+                                        disabled={availableStock <= 0 || modalQty <= 1}
+                                        onClick={() => handleModalQtyChange(-1, availableStock)} 
+                                        className="w-10 h-10 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-slate-900 transition-colors font-bold text-xl flex items-center justify-center disabled:cursor-not-allowed"
+                                    >-</button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
+
+                {/* زر إضافة للسلة تم نقله وتحديثه */}
                 <button 
                     type="button" 
-                    disabled={(parseInt(selectedProduct.stock)||0) <= 0}
-                    onClick={(e) => { e.stopPropagation(); addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock); }} 
-                    className={`relative overflow-hidden w-full py-3 sm:py-4 rounded-xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'bg-slate-800 text-gray-500 border border-slate-700 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-slate-900 hover:from-teal-400 hover:to-emerald-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(20,184,166,0.4)] hover:-translate-y-1 shadow-[0_4px_15px_rgba(0,0,0,0.2)]'}`}
+                    disabled={(parseInt(selectedProduct.stock)||0) <= 0 || ((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0}
+                    onClick={(e) => { 
+                        e.stopPropagation(); 
+                        addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock, modalQty); 
+                        setModalQty(1);
+                    }} 
+                    className={`relative overflow-hidden w-full py-3 sm:py-4 rounded-xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0 ? 'bg-slate-800 text-gray-500 border border-slate-700 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-slate-900 hover:from-teal-400 hover:to-emerald-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(20,184,166,0.4)] hover:-translate-y-1 shadow-[0_4px_15px_rgba(0,0,0,0.2)]'}`}
                 >
                     <i className="fas fa-cart-plus text-2xl"></i> 
-                    {(parseInt(selectedProduct.stock)||0) <= 0 ? 'المنتج نافذ من المخزن' : t.addToCart}
+                    {((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0 ? 'المنتج نافذ من المخزن' : t.addToCart}
 
-                    {/* إشعار العدد المطلوب الذي سيظهر بعد الضغط */}
+                    {/* إشعار العدد الكلي الموجود بالسلة */}
                     {cart.find(item => item.id === selectedProduct.id)?.qty > 0 && (
                         <span className="absolute left-4 bg-slate-900/90 text-teal-400 text-xs sm:text-sm font-mono px-3 py-1.5 rounded-lg border border-teal-500/50 shadow-lg flex items-center gap-1 animate-pulse">
                             <i className="fas fa-check-circle"></i> الكمية: {cart.find(item => item.id === selectedProduct.id).qty}
@@ -1565,16 +1655,16 @@ const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.q
                 </div>
               </div>
               
-              {/* === محتوى التبويبات === */}
+              {/* === محتوى التبويبات (تم تعديل كلاسات الارتفاع هنا) === */}
               <div className="flex-grow flex flex-col mb-0 pb-4 min-h-[200px] overflow-y-auto custom-scrollbar overscroll-contain max-h-[45vh] sm:max-h-[55vh]">
                   {modalTab === 'desc' && (
-                      <div className={`p-4 sm:p-5 rounded-xl text-xs sm:text-sm leading-relaxed border bg-slate-800/50 border-teal-500/10 text-gray-300 h-full break-words whitespace-pre-wrap`}>
+                      <div className={`p-4 sm:p-5 rounded-xl text-xs sm:text-sm leading-relaxed border bg-slate-800/50 border-teal-500/10 text-gray-300 h-fit min-h-full break-words whitespace-pre-wrap`}>
                           {selectedProduct.desc || t.noDesc}
                       </div>
                   )}
                   
                   {modalTab === 'code' && (
-                      <div className="bg-[#0a0a0f] p-4 rounded-xl border border-teal-500/20 overflow-x-auto text-left h-full shadow-inner" dir="ltr">
+                      <div className="bg-[#0a0a0f] p-4 rounded-xl border border-teal-500/20 overflow-x-auto text-left h-fit min-h-full shadow-inner" dir="ltr">
                           <pre className="text-teal-300 font-mono text-xs sm:text-sm">
                               {selectedProduct.codeSnippet || '// لا يوجد كود برمجي متاح لهذه القطعة حالياً.\n// يمكنك إضافة الكود من لوحة الإدارة.'}
                           </pre>
@@ -1582,7 +1672,7 @@ const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.q
                   )}
 
                   {modalTab === 'links' && (
-                      <div className="flex flex-col gap-4 h-full">
+                      <div className="flex flex-col gap-4 h-fit min-h-full">
                           {selectedProduct.compatLink ? (
                               <a href={selectedProduct.compatLink} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm group">
                                   <span className="font-bold text-sm"><i className="fa-solid fa-microchip ml-2"></i> مادة تتوافق معه (رابط خارجي)</span>
