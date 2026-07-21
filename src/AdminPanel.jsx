@@ -13,6 +13,12 @@ export default function AdminPanel({
   newProdOrderIndex, setNewProdOrderIndex,
   
   newProdCategory, setNewProdCategory,
+  
+  // خصائص السعر بالجملة
+  newProdEnableWholesale, setNewProdEnableWholesale,
+  newProdDiscount10, setNewProdDiscount10,
+  newProdDiscount20, setNewProdDiscount20,
+  
   categories, handleAddCategory, handleDeleteCategory, handleEditCategory,
   
   newProdChip, setNewProdChip,
@@ -37,7 +43,6 @@ export default function AdminPanel({
   
   deliveryLocations, setDeliveryLocations,
   
-  // استدعاء خصائص إعلان السلة
   cartAnnouncement, handleSaveCartAnnouncement
 }) {
 
@@ -65,14 +70,13 @@ export default function AdminPanel({
   const [newLinkTitle, setNewLinkTitle] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
-  // حالات خاصة بإعلان السلة
   const [showAnnouncementManager, setShowAnnouncementManager] = useState(false);
   const [announcementInput, setAnnouncementInput] = useState('');
 
   const [adminSearch, setAdminSearch] = useState('');
   const [adminFilter, setAdminFilter] = useState('all');
   
-  const [selectedCompatToAdd, setSelectedCompatToAdd] = useState(''); // State لإضافة المنتجات المتوافقة
+  const [selectedCompatToAdd, setSelectedCompatToAdd] = useState('');
 
   const activeOrders = orders.filter(o => o.status !== 'completed');
   const completedOrders = orders.filter(o => o.status === 'completed');
@@ -272,7 +276,6 @@ export default function AdminPanel({
             </div>
          </div>
 
-         {/* الزر الخاص بإضافة الإعلان للسلة */}
          <button onClick={() => { setAnnouncementInput(cartAnnouncement || ''); setShowAnnouncementManager(true); }} className="bg-[#11192b] border border-yellow-500/30 hover:bg-yellow-500/20 text-yellow-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
             <i className="fa-solid fa-bullhorn"></i> إعلان السلة
          </button>
@@ -363,6 +366,27 @@ export default function AdminPanel({
                    <input type="text" placeholder="ATMEGA" value={newProdCode} onChange={(e) => setNewProdCode(e.target.value)} className="w-full p-2.5 sm:p-3 bg-black/40 border border-neutral-800 text-gray-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-teal-500 transition-colors shadow-inner" />
                  </div>
                </div>
+
+               {/* Wholesale Discount Section (خصم الجملة) */}
+               <div className="bg-neutral-900/40 p-3 rounded-xl border border-yellow-500/20 space-y-3 mt-4">
+                  <div className="flex items-center gap-3">
+                      <input type="checkbox" id="enableWholesale" checked={newProdEnableWholesale} onChange={(e) => setNewProdEnableWholesale(e.target.checked)} className="w-4 h-4 accent-yellow-500 cursor-pointer" />
+                      <label htmlFor="enableWholesale" className="text-[10px] sm:text-xs font-mono font-bold text-yellow-400 cursor-pointer">// تفعيل خصم الجملة التلقائي</label>
+                  </div>
+                  {newProdEnableWholesale && (
+                      <div className="flex gap-4 pt-2 border-t border-yellow-500/10">
+                        <div className="flex-1 min-w-0">
+                          <label className="text-[10px] sm:text-xs font-mono font-bold text-gray-400 block mb-2">مقدار الخصم لأكثر من 10 قطع (د.ع)</label>
+                          <input type="number" placeholder="250" value={newProdDiscount10} onChange={(e) => setNewProdDiscount10(e.target.value)} className="w-full p-2.5 sm:p-3 bg-black/40 border border-yellow-500/30 text-yellow-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-yellow-500 transition-colors shadow-inner" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <label className="text-[10px] sm:text-xs font-mono font-bold text-gray-400 block mb-2">مقدار الخصم لـ 20 قطعة فما فوق (د.ع)</label>
+                          <input type="number" placeholder="500" value={newProdDiscount20} onChange={(e) => setNewProdDiscount20(e.target.value)} className="w-full p-2.5 sm:p-3 bg-black/40 border border-yellow-500/30 text-yellow-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-yellow-500 transition-colors shadow-inner" />
+                        </div>
+                      </div>
+                  )}
+               </div>
+
              </div>
 
              <div className="space-y-4">
@@ -536,6 +560,7 @@ export default function AdminPanel({
                        <div className="mt-1 flex gap-1 flex-wrap">
                           {prod.category && <span className="bg-teal-500/10 border border-teal-500/20 text-teal-400 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono whitespace-nowrap">{prod.category}</span>}
                           {prod.code && <span className="bg-neutral-800 border border-neutral-700 text-gray-400 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono whitespace-nowrap">{prod.code}</span>}
+                          {prod.enableWholesale && <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono whitespace-nowrap"><i className="fa-solid fa-tags"></i> جملة</span>}
                           {(prod.compatLink || prod.libLink || prod.codeSnippet || (prod.compatProdIds && prod.compatProdIds.length > 0)) && (
                              <span className="bg-blue-500/10 border border-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono whitespace-nowrap" title="يحتوي على ملحقات وبرمجيات"><i className="fa-solid fa-paperclip"></i> مدعوم</span>
                           )}
