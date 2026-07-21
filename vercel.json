@@ -1,6 +1,12 @@
 {
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+  "rewrites": [
+    {
+      "source": "/__/auth/(.*)",
+      "destination": "https://msa-store-b125f.firebaseapp.com/__/auth/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
