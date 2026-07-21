@@ -10,6 +10,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'masked-icon.svg'],
+      // إضافة إعدادات workbox لحل مشكلة التوجيه مع Firebase
+      workbox: {
+        navigateFallbackDenylist: [/^\/__/]
+      },
       manifest: {
         name: 'MSA Store',
         short_name: 'MSA',
