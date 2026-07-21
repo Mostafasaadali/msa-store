@@ -1971,14 +1971,7 @@ export default function App() {
                     </div>
                 </div>
             )}
-            
-           
-            <button
-                onClick={() => { setActiveGallery(null); playSynthSound(400, 'sine', 0.1); }}
-                className="absolute bottom-6 left-6 z-[999] bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/30 px-5 py-2.5 rounded-xl font-bold font-mono transition-all shadow-lg backdrop-blur-md flex items-center gap-2 hover:scale-105"
-            >
-                <i className="fas fa-times text-lg"></i> إغلاق
-            </button>
+
         </div>
       )}
 
