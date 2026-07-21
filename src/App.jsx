@@ -600,8 +600,8 @@ export default function App() {
     fetchExternalLinks();
     resetInactivityTimer();
 
-    // تأخير جلب المشاريع ليكون آخر شيء يحمّل في الخلفية (بعد 8 ثوانٍ)
-    projectsFetchTimerRef.current = setTimeout(() => {
+
+     projectsFetchTimerRef.current = setTimeout(() => {
         fetchProjectsData();
     }, 8000); 
     
@@ -621,7 +621,7 @@ export default function App() {
         const data = docSnap.data();
         const count = data.visitorCount || 0;
         setVisitorCount(Math.max(0, count)); 
-        // استدعاء وتحديث الإعلان من نفس الاتصال بسلاسة
+        
         setCartAnnouncement(data.cartAnnouncement || '');
       }
     });
@@ -646,7 +646,7 @@ export default function App() {
     };
   }, [isAdminMode, resetInactivityTimer, fetchProjectsData]);
 
-  // دالة النقر على زر المشاريع لإعطاء الأولوية
+
   const handleProjectsClick = () => {
       if (projectsFetchTimerRef.current) clearTimeout(projectsFetchTimerRef.current); // إلغاء التأخير
       fetchProjectsData(); // الجلب الفوري إذا لم يتم جلبها بعد
@@ -1142,7 +1142,7 @@ export default function App() {
               </button>
             )}
 
-            {/* Cart Button */}
+           
             <button type="button" onClick={() => { setIsCartOpen(true); playSynthSound(800, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`relative flex items-center justify-center w-10 h-10 sm:w-auto sm:px-5 sm:py-2 rounded-full transition-all shadow-[0_0_15px_rgba(20,184,166,0.5)] bg-teal-500 text-slate-900 hover:bg-teal-400 hover:scale-105 flex-shrink-0`}>
               <i className={`fas fa-shopping-cart text-lg`}></i>
               <span className="font-mono text-sm hidden sm:inline font-bold ml-2 mr-2">{totalQty.toString().padStart(2, '0')}</span>
@@ -1236,7 +1236,7 @@ export default function App() {
           deliveryLocations={deliveryLocations} 
           setDeliveryLocations={setDeliveryLocations} 
           
-          // الخصائص الجديدة لإعلان السلة
+
           cartAnnouncement={cartAnnouncement}
           handleSaveCartAnnouncement={handleSaveCartAnnouncement}
         />
@@ -1383,7 +1383,7 @@ export default function App() {
                         >
                           <i className="fas fa-cart-arrow-down"></i> <span className="truncate">{isOutOfStock ? 'نافذ' : t.addToCart}</span>
                           
-                          {/* إشعار مصغر للكمية يظهر داخل زر البطاقة */}
+                  
                           {prodInCartQty > 0 && (
                               <span className="absolute left-1 bg-slate-900 text-teal-400 text-[10px] font-mono px-2 py-0.5 rounded-full shadow-md animate-pulse">
                                   {prodInCartQty}
@@ -1407,7 +1407,7 @@ export default function App() {
          </div>
       </footer>
 
-      {/* Cart Sidebar */}
+ 
       <div className={`fixed inset-y-0 ${lang === 'en' ? 'right-0' : 'left-0'} w-full md:w-[850px] border-${lang === 'en' ? 'l' : 'r'} shadow-2xl z-50 transform transition-transform duration-500 flex flex-col ${isCartOpen ? 'translate-x-0' : (lang === 'en' ? 'translate-x-full' : '-translate-x-full')} bg-[#0f172a] border-teal-500/20`}>
         <div className={`p-5 border-b flex justify-between items-center bg-slate-900/60 border-teal-500/20`}>
           <div className="flex items-center gap-5">
@@ -1532,7 +1532,7 @@ export default function App() {
 
       {isCartOpen && <div onClick={() => setIsCartOpen(false)} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-40 transition-opacity"></div>}
 
-      {/* Product Detail Modal */}
+    
       {selectedProduct && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
           <div 
@@ -1549,7 +1549,7 @@ export default function App() {
               <i className="fas fa-times text-sm sm:text-lg"></i>
             </button>
 
-            {/* الجانب الأيمن للمودال (الصورة) */}
+          
             <div className={`w-full md:w-5/12 p-1 sm:p-8 flex flex-col items-center justify-start sm:justify-center border-b md:border-b-0 md:border-${lang === 'en' ? 'r' : 'l'} border-teal-500/20 bg-[#0b1120] flex-shrink-0 md:flex-shrink`}>
               
               <div 
@@ -1637,13 +1637,13 @@ export default function App() {
               )}
             </div>
 
-            {/* الجانب الأيسر (تفاصيل المنتج) */}
+      
             <div className="w-full md:w-7/12 p-2 sm:p-8 flex flex-col justify-start h-auto md:h-auto flex-1 bg-slate-900/50">
               
-              {/* === القسم العلوي المعدل: العنوان، السعر وزر الإضافة === */}
+           
               <div className="mb-4 flex flex-col gap-4">
                 
-                {/* صف العنوان والسعر */}
+           
                 <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                   <div className="flex-1 min-w-0">
                     <h2 className={`text-xl sm:text-3xl font-black mb-2 text-white break-words`}>{selectedProduct.name}</h2>
@@ -1667,7 +1667,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* أزرار تحديد العدد قبل الإضافة */}
+              
                 {(() => {
                     const currentCartQty = cart.find(item => item.id === selectedProduct.id)?.qty || 0;
                     const availableStock = Math.max(0, (parseInt(selectedProduct.stock)||0) - currentCartQty);
@@ -1713,7 +1713,7 @@ export default function App() {
                     );
                 })()}
 
-                {/* زر إضافة للسلة تم نقله وتحديثه */}
+        
                 <button 
                     type="button" 
                     disabled={(parseInt(selectedProduct.stock)||0) <= 0 || ((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0}
@@ -1728,7 +1728,7 @@ export default function App() {
                     <i className="fas fa-cart-plus text-2xl"></i> 
                     {((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0 ? 'المنتج نافذ من المخزن' : t.addToCart}
 
-                    {/* إشعار العدد الكلي الموجود بالسلة */}
+                
                     {cart.find(item => item.id === selectedProduct.id)?.qty > 0 && (
                         <span className="absolute left-4 bg-slate-900/90 text-teal-400 text-xs sm:text-sm font-mono px-3 py-1.5 rounded-lg border border-teal-500/50 shadow-lg flex items-center gap-1 animate-pulse">
                             <i className="fas fa-check-circle"></i> الكمية: {cart.find(item => item.id === selectedProduct.id).qty}
@@ -1833,7 +1833,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Projects Modal */}
+   
       {isProjectsModalOpen && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
            <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm" onClick={() => setIsProjectsModalOpen(false)}></div>
@@ -1873,7 +1873,7 @@ export default function App() {
                                         }
                                     }}
                                 >
-                                  {/* تم إزالة fetchPriority="low" و loading="lazy" لكي يتم تحميل الصور بشكل فوري بمجرد النقر على الزر */}
+                      
                                   <img src={proj.img} decoding="async" alt={proj.name} className="w-full h-full object-contain mix-blend-multiply group-hover/img:scale-110 transition-transform duration-700 p-2" />
                                   <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-transparent to-transparent opacity-60 pointer-events-none"></div>
                                   
@@ -1907,10 +1907,10 @@ export default function App() {
         </div>
       )}
 
-      {/* Advanced Lightbox Gallery */}
+    
       {activeGallery && (
         <div className="fixed inset-0 z-[9999999] bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-xl transition-opacity duration-300">
-            {/* Header / Title */}
+           
             <div className="absolute top-0 left-0 right-0 p-4 sm:p-6 flex justify-between items-center z-50 bg-gradient-to-b from-black/90 to-transparent">
                 <h3 className="text-white font-bold text-lg sm:text-xl drop-shadow-md truncate max-w-[80%] pr-2">{activeGallery.title}</h3>
                 <button onClick={() => { setActiveGallery(null); playSynthSound(400, 'sine', 0.1); }} className="text-white hover:text-red-500 transition-colors bg-white/10 p-2 sm:p-3 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center backdrop-blur-md hover:bg-red-500/20 flex-shrink-0">
@@ -1918,7 +1918,7 @@ export default function App() {
                 </button>
             </div>
 
-            {/* Main Image Container */}
+           
             <div className="relative w-full max-w-6xl h-[60vh] sm:h-[70vh] flex items-center justify-center mb-4 mt-12 sm:mt-16">
                 {activeGallery.list.length > 1 && (
                     <button onClick={(e) => {
@@ -1949,7 +1949,7 @@ export default function App() {
                 )}
             </div>
 
-            {/* Thumbnails Row */}
+            
             {activeGallery.list.length > 1 && (
                 <div className="w-full max-w-4xl bg-slate-900/80 p-3 sm:p-4 rounded-3xl border border-teal-500/30 backdrop-blur-md flex flex-col items-center shadow-2xl shrink-0">
                     <span className="text-teal-400 font-mono text-[10px] sm:text-xs font-bold mb-2 sm:mb-3 tracking-widest">
@@ -1972,7 +1972,7 @@ export default function App() {
                 </div>
             )}
             
-            {/* الزر الجديد: إغلاق أسفل اليسار */}
+           
             <button
                 onClick={() => { setActiveGallery(null); playSynthSound(400, 'sine', 0.1); }}
                 className="absolute bottom-6 left-6 z-[999] bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/30 px-5 py-2.5 rounded-xl font-bold font-mono transition-all shadow-lg backdrop-blur-md flex items-center gap-2 hover:scale-105"
