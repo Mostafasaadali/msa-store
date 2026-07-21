@@ -46,7 +46,6 @@ body {
     display: inline-block;
 }
 
-/* 3D Interactive Classes imported from target UI */
 .card-perspective {
     perspective: 1000px;
 }
@@ -54,7 +53,7 @@ body {
 .card-tilt {
     transform-style: preserve-3d;
     transition: transform 0.15s ease-out;
-    will-change: transform; /* تفعيل تسريع المعالج الرسومي (GPU) */
+    will-change: transform;
 }
 
 .counter {
@@ -95,9 +94,8 @@ body {
     z-index: 5;
 }
 
-/* شريط التمرير المخصص - تم تحسينه */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 10px; /* تم تعريض المؤشر لسهولة الإمساك بالماوس */
+  width: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -106,14 +104,13 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(20, 184, 166, 0.6); /* جعل اللون أكثر وضوحاً */
+  background: rgba(20, 184, 166, 0.6); 
   border-radius: 10px;
-  /* حيلة برمجية لإضافة مساحة (Border) تجعل المؤشر يبدو أنيقاً داخل المسار */
-  border: 2px solid rgba(15, 23, 42, 1); /* نفس لون خلفية المودال الداكنة */
+  border: 2px solid rgba(15, 23, 42, 1); 
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(20, 184, 166, 1); /* لون قوي جداً عند وضع الماوس عليه */
+  background: rgba(20, 184, 166, 1); 
 }
 
 @keyframes deep-pulse {

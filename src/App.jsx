@@ -171,6 +171,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCatFilter, setSelectedCatFilter] = useState(''); 
   const [visitorCount, setVisitorCount] = useState(0); 
+  const [cartAnnouncement, setCartAnnouncement] = useState(''); // حالة لإعلان السلة
   
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [products, setProducts] = useState([]);
@@ -190,6 +191,7 @@ export default function App() {
   const [newProdChip, setNewProdChip] = useState('');
   const [newProdCode, setNewProdCode] = useState('');
   const [newProdCompatLink, setNewProdCompatLink] = useState('');
+  const [newProdCompatIds, setNewProdCompatIds] = useState([]); 
   const [newProdLibLink, setNewProdLibLink] = useState('');
   const [newProdCodeSnippet, setNewProdCodeSnippet] = useState('');
   
@@ -198,7 +200,7 @@ export default function App() {
 
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [modalTab, setModalTab] = useState('desc');
+  const [modalTab, setModalTab] = useState('compat');
 
   // حالات كمية المنتج داخل الـ Modal
   const [modalQty, setModalQty] = useState(1);
@@ -210,6 +212,14 @@ export default function App() {
   const cursorInnerRef = useRef(null);
   const magneticBtnRef = useRef(null);
   const magneticContainerRef = useRef(null);
+  
+  // Ref الخاص بحساب خمول المستخدم للزيارات
+  const isActiveVisitor = useRef(false);
+  const inactivityTimerRef = useRef(null);
+  
+  // Ref الخاص بالتحميل المتأخر للمشاريع
+  const projectsFetchedRef = useRef(false);
+  const projectsFetchTimerRef = useRef(null);
 
   const playSynthSound = useCallback((freq, type, duration) => {
     try {
@@ -237,6 +247,43 @@ export default function App() {
     setTimeout(() => playSynthSound(900, 'sine', 0.15), 80);
   }, [playSynthSound]);
   const playErrorBuzz = useCallback(() => playSynthSound(150, 'sawtooth', 0.4), [playSynthSound]);
+
+  // إدارة 5 دقائق خمول الزائر
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    
+    if (!isActiveVisitor.current) {
+        isActiveVisitor.current = true;
+        const statsRef = doc(db, "system", "stats");
+        setDoc(statsRef, { visitorCount: increment(1) }, { merge: true }).catch(e => console.error(e));
+    }
+
+    inactivityTimerRef.current = setTimeout(() => {
+        isActiveVisitor.current = false;
+        const statsRef = doc(db, "system", "stats");
+        setDoc(statsRef, { visitorCount: increment(-1) }, { merge: true }).catch(e => console.error(e));
+    }, 5 * 60 * 1000); 
+  }, []);
+
+  // منع زر الرجوع من الخروج من الموقع
+  useEffect(() => {
+    const isAnyModalOpen = activeGallery || selectedProduct || isProjectsModalOpen || isCartOpen || isSideMenuOpen;
+    if (isAnyModalOpen) {
+      window.history.pushState({ modalOpen: true }, '');
+    }
+  }, [activeGallery, selectedProduct, isProjectsModalOpen, isCartOpen, isSideMenuOpen]);
+
+  useEffect(() => {
+    const handlePopState = (e) => {
+        if (activeGallery) { setActiveGallery(null); playSynthSound(400, 'sine', 0.1); }
+        else if (selectedProduct) { setSelectedProduct(null); playSynthSound(400, 'sine', 0.1); }
+        else if (isProjectsModalOpen) { setIsProjectsModalOpen(false); playSynthSound(400, 'sine', 0.1); }
+        else if (isCartOpen) { setIsCartOpen(false); playSynthSound(400, 'sine', 0.1); }
+        else if (isSideMenuOpen) { setIsSideMenuOpen(false); playSynthSound(400, 'sine', 0.1); }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activeGallery, selectedProduct, isProjectsModalOpen, isCartOpen, isSideMenuOpen, playSynthSound]);
 
   // Load and auto-clear cart after 18 hours
   useEffect(() => {
@@ -355,6 +402,19 @@ export default function App() {
     }
   };
 
+  // دالة حفظ الإعلان الخاص بالسلة
+  const handleSaveCartAnnouncement = async (text) => {
+    try {
+      await setDoc(doc(db, "system", "stats"), { cartAnnouncement: text }, { merge: true });
+      playSuccessBeep();
+      alert("تم حفظ إعلان السلة ونشره بنجاح!");
+    } catch(e) {
+      console.error(e);
+      playErrorBuzz();
+      alert("حدث خطأ أثناء حفظ الإعلان.");
+    }
+  };
+
   const fetchOrders = async () => {
     try {
       const q = query(collection(db, "orders"), orderBy("timestamp", "desc"), limit(50));
@@ -442,7 +502,10 @@ export default function App() {
     }
   };
   
-  const fetchProjectsData = async () => {
+  // دالة جلب المشاريع بشكل منفصل للتحكم بها
+  const fetchProjectsData = useCallback(async () => {
+      if (projectsFetchedRef.current) return;
+      projectsFetchedRef.current = true; // منع التكرار
       try {
           const q = query(collection(db, "projects"), limit(50));
           const querySnapshot = await getDocs(q);
@@ -452,8 +515,9 @@ export default function App() {
           }
       } catch (error) {
           console.error("خطأ في جلب المشاريع", error);
+          projectsFetchedRef.current = false;
       }
-  };
+  }, []);
 
   const fetchExternalLinks = async () => {
     try {
@@ -533,35 +597,32 @@ export default function App() {
     fetchProducts(); 
     fetchCategories();
     fetchDeliveryLocations();
-    fetchProjectsData();
     fetchExternalLinks();
+    resetInactivityTimer();
+
+    // تأخير جلب المشاريع ليكون آخر شيء يحمّل في الخلفية (بعد 8 ثوانٍ)
+    projectsFetchTimerRef.current = setTimeout(() => {
+        fetchProjectsData();
+    }, 8000); 
     
     const statsRef = doc(db, "system", "stats");
-    const todayStr = new Date().toDateString(); 
-
-    getDoc(statsRef).then((docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.lastResetDate !== todayStr) {
-          setDoc(statsRef, { visitorCount: 1, lastResetDate: todayStr }, { merge: true });
-        } else {
-          setDoc(statsRef, { visitorCount: increment(1) }, { merge: true }).catch(e => console.error(e));
-        }
-      } else {
-        setDoc(statsRef, { visitorCount: 1, lastResetDate: todayStr }, { merge: true });
-      }
-    });
 
     const decreaseCount = () => {
-      setDoc(statsRef, { visitorCount: increment(-1) }, { merge: true });
+      if (isActiveVisitor.current) {
+        setDoc(statsRef, { visitorCount: increment(-1) }, { merge: true }).catch(e => console.error(e));
+        isActiveVisitor.current = false;
+      }
     };
 
     window.addEventListener('beforeunload', decreaseCount);
     
     const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
       if (docSnap.exists()) {
-        const count = docSnap.data().visitorCount || 0;
+        const data = docSnap.data();
+        const count = data.visitorCount || 0;
         setVisitorCount(Math.max(0, count)); 
+        // استدعاء وتحديث الإعلان من نفس الاتصال بسلاسة
+        setCartAnnouncement(data.cartAnnouncement || '');
       }
     });
 
@@ -580,8 +641,19 @@ export default function App() {
       window.removeEventListener('beforeunload', decreaseCount);
       unsubscribeStats();
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+      if (projectsFetchTimerRef.current) clearTimeout(projectsFetchTimerRef.current);
     };
-  }, [isAdminMode]);
+  }, [isAdminMode, resetInactivityTimer, fetchProjectsData]);
+
+  // دالة النقر على زر المشاريع لإعطاء الأولوية
+  const handleProjectsClick = () => {
+      if (projectsFetchTimerRef.current) clearTimeout(projectsFetchTimerRef.current); // إلغاء التأخير
+      fetchProjectsData(); // الجلب الفوري إذا لم يتم جلبها بعد
+      setIsProjectsModalOpen(true);
+      setIsSideMenuOpen(false);
+      playSynthSound(600, 'sine', 0.1);
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -872,6 +944,7 @@ export default function App() {
           img: newProdImages.length > 0 ? newProdImages[0] : (newProdImg || products.find(p => p.id === editProdId).img), 
           images: newProdImages,
           compatLink: newProdCompatLink || '',
+          compatProdIds: newProdCompatIds || [], 
           libLink: newProdLibLink || '',
           codeSnippet: newProdCodeSnippet || ''
         };
@@ -892,6 +965,7 @@ export default function App() {
           img: newProdImages.length > 0 ? newProdImages[0] : (newProdImg || 'http://googleusercontent.com/image_collection/image_retrieval/10232467606554598834_0'),
           images: newProdImages,
           compatLink: newProdCompatLink || '',
+          compatProdIds: newProdCompatIds || [], 
           libLink: newProdLibLink || '',
           codeSnippet: newProdCodeSnippet || ''
         };
@@ -911,6 +985,7 @@ export default function App() {
       setNewProdCode(''); 
       setNewProdImages([]);
       setNewProdCompatLink('');
+      setNewProdCompatIds([]);
       setNewProdLibLink('');
       setNewProdCodeSnippet('');
       setEditProdId(null);
@@ -933,6 +1008,8 @@ export default function App() {
     setNewProdCode(prod.code || ''); 
     setNewProdImages(prod.images || (prod.img ? [prod.img] : [])); 
     setNewProdCompatLink(prod.compatLink || '');
+    // التوافق مع الأنظمة السابقة التي كانت تعتمد على id واحد بدلاً من مصفوفة
+    setNewProdCompatIds(prod.compatProdIds || (prod.compatProdId ? [prod.compatProdId] : []));
     setNewProdLibLink(prod.libLink || '');
     setNewProdCodeSnippet(prod.codeSnippet || '');
     setEditProdId(prod.id);
@@ -1085,7 +1162,7 @@ export default function App() {
         
         <div className="p-5 flex flex-col gap-4 flex-grow overflow-y-auto custom-scrollbar">
           
-          <button onClick={() => { setIsProjectsModalOpen(true); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className="w-full flex items-center gap-4 bg-blue-500/10 border border-blue-500/30 text-blue-400 p-4 rounded-xl hover:bg-blue-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
+          <button onClick={handleProjectsClick} className="w-full flex items-center gap-4 bg-blue-500/10 border border-blue-500/30 text-blue-400 p-4 rounded-xl hover:bg-blue-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
             <i className="fa-solid fa-diagram-project text-2xl"></i> 
             <span className="text-sm">{t.projects}</span>
           </button>
@@ -1141,10 +1218,11 @@ export default function App() {
           newProdCode={newProdCode} setNewProdCode={setNewProdCode}
           
           newProdCompatLink={newProdCompatLink} setNewProdCompatLink={setNewProdCompatLink}
+          newProdCompatIds={newProdCompatIds} setNewProdCompatIds={setNewProdCompatIds}
           newProdLibLink={newProdLibLink} setNewProdLibLink={setNewProdLibLink}
           newProdCodeSnippet={newProdCodeSnippet} setNewProdCodeSnippet={setNewProdCodeSnippet}
           
-          projectsList={projectsList} setProjectsList={setProjectsList}
+          projectsList={projectsList} setProjectsList={setProjectsList} fetchProjectsData={fetchProjectsData}
           
           externalLinks={externalLinks} setExternalLinks={setExternalLinks}
 
@@ -1157,6 +1235,10 @@ export default function App() {
           handleResetVisitors={handleResetVisitors} 
           deliveryLocations={deliveryLocations} 
           setDeliveryLocations={setDeliveryLocations} 
+          
+          // الخصائص الجديدة لإعلان السلة
+          cartAnnouncement={cartAnnouncement}
+          handleSaveCartAnnouncement={handleSaveCartAnnouncement}
         />
       ) : (
         <div className="flex-grow flex flex-col w-full">
@@ -1244,13 +1326,13 @@ export default function App() {
                       onMouseMove={(e) => handleCardMove(e, e.currentTarget)}
                       onMouseLeave={(e) => handleCardLeave(e.currentTarget)}
                       onMouseEnter={handleMouseEnterInteractive} 
-                      onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); }}
+                      onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); resetInactivityTimer(); }}
                       className={`card-tilt cursor-pointer h-full w-full flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-5 relative group transition-all duration-300 border bg-neutral-900/40 overflow-hidden break-words min-w-0 ${isOutOfStock ? 'border-red-500/20 hover:border-red-400/60' : 'border-teal-500/20 hover:border-teal-400/60'}`}
                     >
                       <div className="gloss-effect"></div>
                       
                       <div 
-                        onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); }}
+                        onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); resetInactivityTimer(); }}
                         className={`flex-shrink-0 h-28 sm:h-48 w-full rounded-lg sm:rounded-xl overflow-hidden mb-3 sm:mb-5 flex items-center justify-center border transition-all duration-300 relative cursor-pointer bg-white ${isOutOfStock ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-teal-500/10 group-hover:border-teal-500/30'}`}
                         title={t.viewDetails}
                       >
@@ -1284,7 +1366,7 @@ export default function App() {
                         )}
                       </div>
 
-                      <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer text-white hover:text-teal-400 transition-colors break-words min-w-0 w-full`} onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('desc'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); }}>{prod.name}</h3>
+                      <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer text-white hover:text-teal-400 transition-colors break-words min-w-0 w-full`} onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); resetInactivityTimer(); }}>{prod.name}</h3>
                       
                       <p className={`text-[9px] sm:text-sm mb-3 sm:mb-5 leading-relaxed line-clamp-2 text-gray-300 flex-grow break-words min-w-0 w-full`}>{prod.desc || t.noDesc}</p>
                       
@@ -1296,7 +1378,7 @@ export default function App() {
                         <button 
                           type="button" 
                           disabled={isOutOfStock}
-                          onClick={(e) => { e.stopPropagation(); addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock); }} 
+                          onClick={(e) => { e.stopPropagation(); addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock); resetInactivityTimer(); }} 
                           className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 rounded-full font-bold text-[9px] sm:text-xs transition-all relative overflow-hidden z-20 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-slate-900 hover:bg-teal-400'}`}
                         >
                           <i className="fas fa-cart-arrow-down"></i> <span className="truncate">{isOutOfStock ? 'نافذ' : t.addToCart}</span>
@@ -1336,6 +1418,18 @@ export default function App() {
             <i className={`fas fa-times text-teal-400 text-lg`}></i>
           </button>
         </div>
+
+        {/* --- إعلان السلة يظهر هنا إذا لم يكن فارغاً --- */}
+        {cartAnnouncement && (
+          <div className={`bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-b border-yellow-500/30 p-3 sm:p-4 flex items-center gap-3 shrink-0`}>
+            <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center shrink-0 border border-yellow-500/30">
+                <i className="fa-solid fa-bullhorn text-yellow-400 text-sm animate-pulse"></i>
+            </div>
+            <p className="text-yellow-400 text-xs sm:text-sm font-bold whitespace-pre-wrap leading-relaxed flex-grow">
+               {cartAnnouncement}
+            </p>
+          </div>
+        )}
 
         <div className="flex flex-col-reverse md:flex-row flex-grow overflow-y-auto overflow-x-hidden md:overflow-hidden custom-scrollbar">
           
@@ -1627,6 +1721,7 @@ export default function App() {
                         e.stopPropagation(); 
                         addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock, modalQty); 
                         setModalQty(1);
+                        resetInactivityTimer();
                     }} 
                     className={`relative overflow-hidden w-full py-3 sm:py-4 rounded-xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0 ? 'bg-slate-800 text-gray-500 border border-slate-700 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-slate-900 hover:from-teal-400 hover:to-emerald-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(20,184,166,0.4)] hover:-translate-y-1 shadow-[0_4px_15px_rgba(0,0,0,0.2)]'}`}
                 >
@@ -1643,6 +1738,9 @@ export default function App() {
 
                 {/* التبويبات */}
                 <div className="flex gap-3 sm:gap-6 border-b border-teal-500/20 mt-2 overflow-x-auto custom-scrollbar flex-shrink-0">
+                    <button onClick={() => setModalTab('compat')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'compat' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                        <i className="fa-solid fa-puzzle-piece ml-1"></i> متوافق مع
+                    </button>
                     <button onClick={() => setModalTab('desc')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'desc' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
                         <i className="fa-solid fa-circle-info ml-1"></i> الشرح والتفاصيل
                     </button>
@@ -1650,13 +1748,49 @@ export default function App() {
                         <i className="fa-solid fa-code ml-1"></i> الكود البرمجي
                     </button>
                     <button onClick={() => setModalTab('links')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'links' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
-                        <i className="fa-solid fa-link ml-1"></i> الملحقات والمكتبات
+                        <i className="fa-solid fa-paperclip ml-1"></i> الملحقات
                     </button>
                 </div>
               </div>
               
               {/* === محتوى التبويبات === */}
               <div className="flex-grow flex flex-col mb-0 pb-4 min-h-[200px] overflow-y-auto custom-scrollbar overscroll-contain max-h-[45vh] sm:max-h-[55vh]">
+                  {modalTab === 'compat' && (
+                      <div className="flex flex-wrap gap-3 h-fit min-h-full p-2">
+                          {(() => {
+                              const compatIds = selectedProduct.compatProdIds || (selectedProduct.compatProdId ? [selectedProduct.compatProdId] : []);
+                              if (compatIds.length === 0) {
+                                  return <div className="p-4 w-full border border-dashed border-gray-600/50 rounded-xl text-gray-500 text-sm text-center">لا توجد منتجات متوافقة مضافة حالياً.</div>;
+                              }
+                              return compatIds.map(id => {
+                                  const compProd = products.find(p => p.id === id);
+                                  if(!compProd) return null;
+                                  return (
+                                      <div 
+                                          key={id}
+                                          onClick={(e) => {
+                                              e.stopPropagation();
+                                              setSelectedProduct(compProd);
+                                              setActiveImageIndex(0);
+                                              setModalTab('compat');
+                                              setModalQty(1);
+                                              setModalQtyWarning('');
+                                              resetInactivityTimer();
+                                          }}
+                                          className="cursor-pointer flex flex-col items-center bg-slate-800/60 border border-teal-500/20 rounded-xl p-3 hover:border-teal-400 hover:bg-slate-800 transition-all shadow-sm w-28 sm:w-32 shrink-0 group"
+                                          title={`عرض ${compProd.name}`}
+                                      >
+                                          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg p-1 flex items-center justify-center overflow-hidden mb-2 border border-neutral-200">
+                                              <img src={compProd.images && compProd.images.length > 0 ? compProd.images[0] : compProd.img} loading="lazy" alt={compProd.name} className="max-w-full max-h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-300" />
+                                          </div>
+                                          <span className="text-[10px] sm:text-xs font-bold text-teal-400 text-center line-clamp-2 leading-tight">{compProd.name}</span>
+                                      </div>
+                                  );
+                              });
+                          })()}
+                      </div>
+                  )}
+
                   {modalTab === 'desc' && (
                       <div className={`p-4 sm:p-5 rounded-xl text-xs sm:text-sm leading-relaxed border bg-slate-800/50 border-teal-500/10 text-gray-300 h-fit min-h-full break-words whitespace-pre-wrap`}>
                           {selectedProduct.desc || t.noDesc}
@@ -1675,17 +1809,21 @@ export default function App() {
                       <div className="flex flex-col gap-4 h-fit min-h-full">
                           {selectedProduct.compatLink ? (
                               <a href={selectedProduct.compatLink} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm group">
-                                  <span className="font-bold text-sm"><i className="fa-solid fa-microchip ml-2"></i> مادة تتوافق معه (رابط خارجي)</span>
+                                  <span className="font-bold text-sm"><i className="fa-solid fa-link ml-2"></i> مادة تتوافق معه (رابط خارجي)</span>
                                   <i className="fa-solid fa-arrow-up-right-from-square group-hover:scale-110 transition-transform"></i>
                               </a>
-                          ) : <div className="p-4 border border-dashed border-gray-600/50 rounded-xl text-gray-500 text-sm text-center">لا توجد مواد متوافقة مضافة.</div>}
+                          ) : null}
                           
                           {selectedProduct.libLink ? (
                               <a href={selectedProduct.libLink} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm group">
                                   <span className="font-bold text-sm"><i className="fa-solid fa-book-bookmark ml-2"></i> تحميل مكتبة الحساس / القطعة</span>
-                                  <i className="fa-solid fa-arrow-up-right-from-square group-hover:scale-10 transition-transform"></i>
+                                  <i className="fa-solid fa-arrow-up-right-from-square group-hover:scale-110 transition-transform"></i>
                               </a>
-                          ) : <div className="p-4 border border-dashed border-gray-600/50 rounded-xl text-gray-500 text-sm text-center">لا توجد مكتبة برمجية مضافة.</div>}
+                          ) : null}
+
+                          {(!selectedProduct.compatLink && !selectedProduct.libLink) && (
+                              <div className="p-4 border border-dashed border-gray-600/50 rounded-xl text-gray-500 text-sm text-center">لا توجد ملحقات خارجية أو مكتبات مضافة حالياً.</div>
+                          )}
                       </div>
                   )}
               </div>
@@ -1713,8 +1851,8 @@ export default function App() {
                   {projectsList.length === 0 ? (
                      <div className="flex flex-col items-center justify-center h-full text-center">
                         <i className="fa-solid fa-folder-open text-6xl text-teal-500/20 mb-4"></i>
-                        <h3 className="text-xl font-bold text-gray-300">لا توجد مشاريع مضافة حالياً</h3>
-                        <p className="text-gray-500 mt-2 text-sm">سيتم إضافة المشاريع المنجزة هنا قريباً.</p>
+                        <h3 className="text-xl font-bold text-gray-300">جاري تحميل المشاريع...</h3>
+                        <p className="text-gray-500 mt-2 text-sm">سيتم عرض المشاريع المنجزة هنا قريباً.</p>
                      </div>
                   ) : (
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1735,7 +1873,8 @@ export default function App() {
                                         }
                                     }}
                                 >
-                                  <img src={proj.img} loading="lazy" decoding="async" alt={proj.name} className="w-full h-full object-contain mix-blend-multiply group-hover/img:scale-110 transition-transform duration-700 p-2" />
+                                  {/* تم إزالة fetchPriority="low" و loading="lazy" لكي يتم تحميل الصور بشكل فوري بمجرد النقر على الزر */}
+                                  <img src={proj.img} decoding="async" alt={proj.name} className="w-full h-full object-contain mix-blend-multiply group-hover/img:scale-110 transition-transform duration-700 p-2" />
                                   <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-transparent to-transparent opacity-60 pointer-events-none"></div>
                                   
                                   {proj.images && proj.images.length > 0 && (

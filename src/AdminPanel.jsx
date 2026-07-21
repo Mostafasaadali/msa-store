@@ -19,10 +19,11 @@ export default function AdminPanel({
   newProdCode, setNewProdCode,
   
   newProdCompatLink, setNewProdCompatLink,
+  newProdCompatIds, setNewProdCompatIds,
   newProdLibLink, setNewProdLibLink,
   newProdCodeSnippet, setNewProdCodeSnippet,
   
-  projectsList, setProjectsList,
+  projectsList, setProjectsList, fetchProjectsData,
   
   externalLinks, setExternalLinks,
 
@@ -34,7 +35,10 @@ export default function AdminPanel({
   visitorCount,
   handleResetVisitors, 
   
-  deliveryLocations, setDeliveryLocations
+  deliveryLocations, setDeliveryLocations,
+  
+  // استدعاء خصائص إعلان السلة
+  cartAnnouncement, handleSaveCartAnnouncement
 }) {
 
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -61,8 +65,14 @@ export default function AdminPanel({
   const [newLinkTitle, setNewLinkTitle] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
 
+  // حالات خاصة بإعلان السلة
+  const [showAnnouncementManager, setShowAnnouncementManager] = useState(false);
+  const [announcementInput, setAnnouncementInput] = useState('');
+
   const [adminSearch, setAdminSearch] = useState('');
   const [adminFilter, setAdminFilter] = useState('all');
+  
+  const [selectedCompatToAdd, setSelectedCompatToAdd] = useState(''); // State لإضافة المنتجات المتوافقة
 
   const activeOrders = orders.filter(o => o.status !== 'completed');
   const completedOrders = orders.filter(o => o.status === 'completed');
@@ -261,12 +271,17 @@ export default function AdminPanel({
                <span className="text-sm font-black text-white" dir="ltr">{visitorCount}</span>
             </div>
          </div>
+
+         {/* الزر الخاص بإضافة الإعلان للسلة */}
+         <button onClick={() => { setAnnouncementInput(cartAnnouncement || ''); setShowAnnouncementManager(true); }} className="bg-[#030212] border border-yellow-500/30 hover:bg-yellow-500/20 text-yellow-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
+            <i className="fa-solid fa-bullhorn"></i> إعلان السلة
+         </button>
          
          <button onClick={() => setShowLinksManager(true)} className="bg-[#030212] border border-purple-500/30 hover:bg-purple-500/20 text-purple-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
             <i className="fa-solid fa-link"></i> إدارة الروابط
          </button>
          
-         <button onClick={() => setShowProjectsManager(true)} className="bg-[#030212] border border-blue-500/30 hover:bg-blue-500/20 text-blue-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
+         <button onClick={() => { if(fetchProjectsData) fetchProjectsData(); setShowProjectsManager(true); }} className="bg-[#030212] border border-blue-500/30 hover:bg-blue-500/20 text-blue-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
             <i className="fa-solid fa-diagram-project"></i> المشاريع
          </button>
          
@@ -397,7 +412,47 @@ export default function AdminPanel({
                    </div>
                    
                    <div>
-                     <label className="text-[9px] sm:text-[10px] font-mono text-gray-400 block mb-1">رابط مادة تتوافق معه</label>
+                     <label className="text-[9px] sm:text-[10px] font-mono text-gray-400 block mb-1">المنتجات المتوافقة (اختر وأضف)</label>
+                     <div className="flex gap-2 mb-2">
+                        <select 
+                           value={selectedCompatToAdd} 
+                           onChange={(e) => setSelectedCompatToAdd(e.target.value)} 
+                           className="w-full p-2 bg-black/40 border border-neutral-700 text-teal-400 rounded-lg text-[10px] sm:text-xs outline-none focus:border-teal-500 cursor-pointer"
+                        >
+                           <option value="">-- اختر منتج للتوافق --</option>
+                           {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                        <button 
+                           type="button" 
+                           onClick={(e) => {
+                              e.preventDefault();
+                              if(selectedCompatToAdd && !newProdCompatIds.includes(selectedCompatToAdd)) {
+                                 setNewProdCompatIds([...newProdCompatIds, selectedCompatToAdd]);
+                                 setSelectedCompatToAdd('');
+                              }
+                           }} 
+                           className="px-3 py-2 bg-teal-600/20 text-teal-400 border border-teal-500/30 rounded-lg hover:bg-teal-500 hover:text-slate-900 text-xs font-bold transition-colors"
+                        >
+                           إضافة
+                        </button>
+                     </div>
+                     <div className="flex flex-wrap gap-2">
+                        {newProdCompatIds.map(id => {
+                           const p = products.find(x => x.id === id);
+                           return p ? (
+                              <span key={id} className="bg-teal-500/10 text-teal-300 border border-teal-500/30 px-2 py-1 rounded text-[10px] flex items-center gap-1 shadow-sm">
+                                 {p.name}
+                                 <button type="button" onClick={() => setNewProdCompatIds(newProdCompatIds.filter(x => x !== id))} className="text-red-400 hover:text-red-300 ml-1 transition-colors">
+                                     <i className="fa-solid fa-xmark"></i>
+                                 </button>
+                              </span>
+                           ) : null;
+                        })}
+                     </div>
+                   </div>
+
+                   <div>
+                     <label className="text-[9px] sm:text-[10px] font-mono text-gray-400 block mb-1">رابط مادة تتوافق معه (خارجي)</label>
                      <input type="text" dir="ltr" placeholder="https://..." value={newProdCompatLink || ''} onChange={(e) => setNewProdCompatLink(e.target.value)} className="w-full p-2 bg-black/40 border border-neutral-700 text-blue-400 rounded-lg text-[10px] sm:text-xs outline-none focus:border-blue-500" />
                    </div>
 
@@ -481,7 +536,7 @@ export default function AdminPanel({
                        <div className="mt-1 flex gap-1 flex-wrap">
                           {prod.category && <span className="bg-teal-500/10 border border-teal-500/20 text-teal-400 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono whitespace-nowrap">{prod.category}</span>}
                           {prod.code && <span className="bg-neutral-800 border border-neutral-700 text-gray-400 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono whitespace-nowrap">{prod.code}</span>}
-                          {(prod.compatLink || prod.libLink || prod.codeSnippet) && (
+                          {(prod.compatLink || prod.libLink || prod.codeSnippet || (prod.compatProdIds && prod.compatProdIds.length > 0)) && (
                              <span className="bg-blue-500/10 border border-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono whitespace-nowrap" title="يحتوي على ملحقات وبرمجيات"><i className="fa-solid fa-paperclip"></i> مدعوم</span>
                           )}
                        </div>
@@ -550,6 +605,24 @@ export default function AdminPanel({
                   </div>
                ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* مودال إعلان السلة */}
+      {showAnnouncementManager && (
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowAnnouncementManager(false)}></div>
+          <div className="relative bg-[#0c0c11] border border-yellow-500/40 p-6 rounded-3xl w-full max-w-lg shadow-2xl">
+             <button type="button" onClick={() => setShowAnnouncementManager(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white">
+               <i className="fa-solid fa-xmark text-xl"></i>
+             </button>
+             <h3 className="text-xl font-bold text-yellow-400 mb-4"><i className="fa-solid fa-bullhorn"></i> إدارة إعلان سلة الطلبات</h3>
+             <div className="space-y-3 mb-6 bg-black/40 p-4 rounded-xl border border-yellow-500/20">
+                <p className="text-xs text-gray-400 mb-2">اكتب الإعلان الذي سيظهر أعلى السلة للزبائن. اتركه فارغاً وسوف يتم إخفاء الإعلان تلقائياً من السلة.</p>
+                <textarea placeholder="أدخل نص الإعلان هنا..." value={announcementInput} onChange={e => setAnnouncementInput(e.target.value)} className="w-full p-3 bg-black/60 border border-yellow-500/30 text-white rounded-lg outline-none min-h-[100px]"></textarea>
+                <button onClick={() => { handleSaveCartAnnouncement(announcementInput); setShowAnnouncementManager(false); }} className="w-full bg-yellow-600 hover:bg-yellow-500 text-slate-900 py-3 rounded-lg font-bold transition-colors">حفظ الإعلان ونشره</button>
+             </div>
           </div>
         </div>
       )}
@@ -738,7 +811,6 @@ export default function AdminPanel({
                 </button>
              </div>
              
-             {/* تم التعديل هنا: إضافة overflow-y-auto للوضع المعروض على الجوال ليسمح بالنزول للمنتجات المطلوبة */}
              <div className="flex flex-col lg:flex-row flex-grow overflow-y-auto lg:overflow-hidden order-scrollbar">
                 
                 <div className={`w-full lg:w-2/5 flex flex-col bg-[#0d131f] border-b lg:border-b-0 lg:border-l p-4 sm:p-5 lg:overflow-y-auto order-scrollbar shrink-0 ${selectedOrder.status === 'completed' ? 'border-blue-500/10' : 'border-emerald-500/10'}`}>
