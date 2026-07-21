@@ -6,7 +6,6 @@ import { collection, addDoc, doc, setDoc, getDocs, query, orderBy, limit, delete
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'; 
 import { gsap } from 'gsap';
 
-// فصل لوحة الإدارة كلياً لضمان سرعة تحميل فائقة جداً للموقع الأساسي
 const AdminPanel = React.lazy(() => import('./AdminPanel'));
 
 const translations = {
@@ -147,7 +146,6 @@ const normalizeText = (text) => {
     .replace(/[\u064B-\u065F]/g, ''); 
 };
 
-// Singleton AudioContext
 let globalAudioCtx = null;
 
 export default function App() {
@@ -202,6 +200,10 @@ export default function App() {
   const [newProdLibLink, setNewProdLibLink] = useState('');
   const [newProdCodeSnippet, setNewProdCodeSnippet] = useState('');
   
+  const [newProdEnableWholesale, setNewProdEnableWholesale] = useState(false);
+  const [newProdDiscount10, setNewProdDiscount10] = useState('');
+  const [newProdDiscount20, setNewProdDiscount20] = useState('');
+
   const [editProdId, setEditProdId] = useState(null);
   const [orders, setOrders] = useState([]);
 
@@ -277,19 +279,14 @@ export default function App() {
     }, 5 * 60 * 1000); 
   }, []);
 
-  // =========================================================================
-  // نظام الذكاء لزر الرجوع في الهاتف (Hardware Back Button) للتعامل مع النوافذ
-  // =========================================================================
   const isAnyModalOpen = !!(activeGallery || selectedProduct || isProjectsModalOpen || isCartOpen || isSideMenuOpen);
   const wasModalOpen = useRef(false);
 
   useEffect(() => {
-      // عند فتح أي نافذة، نقوم بإنشاء توجيه وهمي (Hash) لحماية زر الرجوع
       if (isAnyModalOpen && !wasModalOpen.current) {
           window.history.pushState({ modal: true }, '', '#view');
           wasModalOpen.current = true;
       } 
-      // عند إغلاق النوافذ يدوياً (عن طريق أزرار X)، ننظف التوجيه الوهمي
       else if (!isAnyModalOpen && wasModalOpen.current) {
           wasModalOpen.current = false;
           if (window.location.hash === '#view') {
@@ -300,22 +297,18 @@ export default function App() {
 
   useEffect(() => {
       const handlePopState = () => {
-          // إذا تم الضغط على زر الرجوع في الهاتف واختفى التوجيه الوهمي
           if (window.location.hash !== '#view' && wasModalOpen.current) {
               let closedSomething = false;
 
-              // إغلاق النوافذ بالترتيب المنطقي للطبقات من الأعلى للأسفل
               if (activeGallery) { setActiveGallery(null); closedSomething = true; }
               else if (selectedProduct) { setSelectedProduct(null); closedSomething = true; }
               else if (isProjectsModalOpen) { setIsProjectsModalOpen(false); closedSomething = true; }
               else if (isSideMenuOpen) { setIsSideMenuOpen(false); closedSomething = true; }
               else if (isCartOpen) { setIsCartOpen(false); closedSomething = true; }
 
-              // التحقق مما إذا كان هناك نوافذ أخرى لا تزال مفتوحة تحت النافذة المغلقة
               const openModalsCount = [activeGallery, selectedProduct, isProjectsModalOpen, isCartOpen, isSideMenuOpen].filter(Boolean).length;
               
               if (openModalsCount > 1) {
-                  // إذا كانت هناك نوافذ متبقية، نعيد التوجيه الوهمي لحمايتها للضغطة القادمة
                   window.history.pushState({ modal: true }, '', '#view');
               } else {
                   wasModalOpen.current = false;
@@ -330,7 +323,6 @@ export default function App() {
       window.addEventListener('popstate', handlePopState);
       return () => window.removeEventListener('popstate', handlePopState);
   }, [activeGallery, selectedProduct, isProjectsModalOpen, isCartOpen, isSideMenuOpen, playSynthSound]);
-  // =========================================================================
 
   useEffect(() => {
     const savedCart = localStorage.getItem('msa_store_cart');
@@ -819,7 +811,7 @@ export default function App() {
     card.style.transform = `rotateX(0deg) rotateY(0deg) scale(1)`;
   }, []);
 
-  const addToCart = (id, name, price, image, stock, qtyToAdd = 1) => {
+  const addToCart = (id, name, price, image, stock, qtyToAdd = 1, enableWholesale = false, discount10 = 250, discount20 = 500) => {
     const stockVal = parseInt(stock) || 0;
     if (stockVal <= 0) {
        playErrorBuzz();
@@ -841,7 +833,7 @@ export default function App() {
       if (existing) {
         return prevCart.map((item) => item.id === id ? { ...item, qty: item.qty + qtyToAdd } : item);
       }
-      return [...prevCart, { id, name, price, image, qty: qtyToAdd }];
+      return [...prevCart, { id, name, price, image, qty: qtyToAdd, enableWholesale, discount10, discount20 }];
     });
   };
 
@@ -872,7 +864,19 @@ export default function App() {
     }
   };
 
-  const subtotal = useMemo(() => cart.reduce((acc, item) => acc + (Number(item.price) || 0) * (parseInt(item.qty) || 0), 0), [cart]);
+  const subtotal = useMemo(() => cart.reduce((acc, item) => {
+      let effectivePrice = Number(item.price) || 0;
+      const qty = parseInt(item.qty) || 0;
+      if (item.enableWholesale) {
+          if (qty >= 20) {
+              effectivePrice = Math.max(0, effectivePrice - (Number(item.discount20) || 500));
+          } else if (qty >= 10) {
+              effectivePrice = Math.max(0, effectivePrice - (Number(item.discount10) || 250));
+          }
+      }
+      return acc + (effectivePrice * qty);
+  }, 0), [cart]);
+
   const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0), [cart]);
   
   const activeGov = useMemo(() => deliveryLocations.find(g => g.id === selectedGovId) || { price: 0, time: '', name: '' }, [deliveryLocations, selectedGovId]);
@@ -900,13 +904,21 @@ export default function App() {
       location: String(`${activeGov.name || ''} - ${detailedAddress || ''}`),
       governorate: String(activeGov.name || ''),
       expectedTime: String(activeGov.time || ''),
-      items: finalCart.map(item => ({
-          id: String(item.id || ''),
-          name: String(item.name || ''),
-          price: Number(item.price) || 0,
-          image: String(item.image || ''),
-          qty: Number(item.qty) || 1
-      })),
+      items: finalCart.map(item => {
+          let effectivePrice = Number(item.price) || 0;
+          if (item.enableWholesale) {
+              if (item.qty >= 20) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount20) || 500));
+              else if (item.qty >= 10) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount10) || 250));
+          }
+          return {
+              id: String(item.id || ''),
+              name: String(item.name || ''),
+              price: Number(effectivePrice) || 0,
+              originalPrice: Number(item.price) || 0,
+              image: String(item.image || ''),
+              qty: Number(item.qty) || 1
+          };
+      }),
       subtotalAmount: Number(subtotal) || 0,
       deliveryFee: Number(currentDeliveryFee) || 0,
       totalAmount: (Number(subtotal) || 0) + (Number(currentDeliveryFee) || 0),
@@ -986,7 +998,10 @@ export default function App() {
           compatLink: newProdCompatLink || '',
           compatProdIds: newProdCompatIds || [], 
           libLink: newProdLibLink || '',
-          codeSnippet: newProdCodeSnippet || ''
+          codeSnippet: newProdCodeSnippet || '',
+          enableWholesale: newProdEnableWholesale || false,
+          discount10: newProdDiscount10 !== '' ? parseInt(newProdDiscount10) : 250,
+          discount20: newProdDiscount20 !== '' ? parseInt(newProdDiscount20) : 500
         };
         await updateDoc(productRef, updatedData);
         setProducts(products.map(p => p.id === editProdId ? { ...p, ...updatedData } : p));
@@ -1007,7 +1022,10 @@ export default function App() {
           compatLink: newProdCompatLink || '',
           compatProdIds: newProdCompatIds || [], 
           libLink: newProdLibLink || '',
-          codeSnippet: newProdCodeSnippet || ''
+          codeSnippet: newProdCodeSnippet || '',
+          enableWholesale: newProdEnableWholesale || false,
+          discount10: newProdDiscount10 !== '' ? parseInt(newProdDiscount10) : 250,
+          discount20: newProdDiscount20 !== '' ? parseInt(newProdDiscount20) : 500
         };
         const docRef = await addDoc(collection(db, "products"), newP);
         setProducts([...products, { id: docRef.id, ...newP }]);
@@ -1028,6 +1046,9 @@ export default function App() {
       setNewProdCompatIds([]);
       setNewProdLibLink('');
       setNewProdCodeSnippet('');
+      setNewProdEnableWholesale(false);
+      setNewProdDiscount10('');
+      setNewProdDiscount20('');
       setEditProdId(null);
     } catch (error) {
       playErrorBuzz();
@@ -1051,6 +1072,9 @@ export default function App() {
     setNewProdCompatIds(prod.compatProdIds || (prod.compatProdId ? [prod.compatProdId] : []));
     setNewProdLibLink(prod.libLink || '');
     setNewProdCodeSnippet(prod.codeSnippet || '');
+    setNewProdEnableWholesale(prod.enableWholesale || false);
+    setNewProdDiscount10(prod.discount10 !== undefined ? prod.discount10 : 250);
+    setNewProdDiscount20(prod.discount20 !== undefined ? prod.discount20 : 500);
     setEditProdId(prod.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -1267,6 +1291,10 @@ export default function App() {
             newProdLibLink={newProdLibLink} setNewProdLibLink={setNewProdLibLink}
             newProdCodeSnippet={newProdCodeSnippet} setNewProdCodeSnippet={setNewProdCodeSnippet}
             
+            newProdEnableWholesale={newProdEnableWholesale} setNewProdEnableWholesale={setNewProdEnableWholesale}
+            newProdDiscount10={newProdDiscount10} setNewProdDiscount10={setNewProdDiscount10}
+            newProdDiscount20={newProdDiscount20} setNewProdDiscount20={setNewProdDiscount20}
+
             projectsList={projectsList} setProjectsList={setProjectsList} fetchProjectsData={fetchProjectsData}
             
             externalLinks={externalLinks} setExternalLinks={setExternalLinks}
@@ -1416,15 +1444,20 @@ export default function App() {
                       <p className={`text-[9px] sm:text-sm mb-3 sm:mb-5 leading-relaxed line-clamp-2 flex-grow break-words min-w-0 w-full ${isDarkMode ? 'text-gray-300' : 'text-slate-500'}`}>{prod.desc || t.noDesc}</p>
                       
                       <div className={`mt-auto flex flex-col justify-between items-stretch sm:items-end pt-2 sm:pt-4 border-t gap-2 sm:gap-0 flex-shrink-0 w-full z-10 min-w-0 ${isOutOfStock ? (isDarkMode ? 'border-red-500/10' : 'border-red-100') : (isDarkMode ? 'border-teal-500/10' : 'border-gray-100')}`}>
-                        <div className="w-full text-center sm:text-right min-w-0">
-                           <span className={`block text-[8px] sm:text-[10px] font-mono font-bold truncate ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>{t.price}</span>
-                           <span className={`text-xs sm:text-xl font-bold font-mono truncate block ${isOutOfStock ? 'text-red-400 opacity-60' : (isDarkMode ? 'text-teal-400' : 'text-teal-600')}`}>{prod.price?.toLocaleString() || 0}</span>
+                        <div className="w-full text-center sm:text-right min-w-0 flex justify-between items-end">
+                           <div>
+                               <span className={`block text-[8px] sm:text-[10px] font-mono font-bold truncate ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>{t.price}</span>
+                               <span className={`text-xs sm:text-xl font-bold font-mono truncate block ${isOutOfStock ? 'text-red-400 opacity-60' : (isDarkMode ? 'text-teal-400' : 'text-teal-600')}`}>{prod.price?.toLocaleString() || 0}</span>
+                           </div>
+                           {prod.enableWholesale && (
+                               <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isDarkMode ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-yellow-100 text-yellow-700 border border-yellow-300'}`}>يتوفر خصم جملة</span>
+                           )}
                         </div>
                         <button 
                           type="button" 
                           disabled={isOutOfStock}
-                          onClick={(e) => { e.stopPropagation(); addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock); resetInactivityTimer(); }} 
-                          className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 rounded-full font-bold text-[9px] sm:text-xs transition-all relative overflow-hidden z-20 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-white hover:bg-teal-400'}`}
+                          onClick={(e) => { e.stopPropagation(); addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock, 1, prod.enableWholesale, prod.discount10, prod.discount20); resetInactivityTimer(); }} 
+                          className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 mt-2 rounded-full font-bold text-[9px] sm:text-xs transition-all relative overflow-hidden z-20 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-white hover:bg-teal-400'}`}
                         >
                           <i className="fas fa-cart-arrow-down"></i> <span className="truncate">{isOutOfStock ? 'نافذ' : t.addToCart}</span>
                           
@@ -1542,14 +1575,26 @@ export default function App() {
                   <p>{t.cartEmpty}</p>
                 </div>
               ) : (
-                cart.map((item, i) => (
+                cart.map((item, i) => {
+                  let effectivePrice = Number(item.price) || 0;
+                  if (item.enableWholesale) {
+                      if (item.qty >= 20) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount20) || 500));
+                      else if (item.qty >= 10) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount10) || 250));
+                  }
+                  
+                  return (
                   <div key={item.id || i} className={`border rounded-xl p-3 sm:p-4 flex gap-3 sm:gap-4 items-center shadow-sm transition-colors ${isDarkMode ? 'bg-slate-800/60 border-teal-500/10 hover:border-teal-500/40' : 'bg-white border-gray-100 hover:border-teal-300'}`}>
                     <div className={`w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-lg p-1 flex-shrink-0 border flex items-center justify-center overflow-hidden ${isDarkMode ? 'border-teal-500/20' : 'border-gray-200'}`}>
                       <img src={item.image} loading="lazy" decoding="async" alt="" className="max-w-full max-h-full object-contain mix-blend-multiply" />
                     </div>
                     <div className="flex-grow min-w-0">
                       <h4 className={`font-bold text-xs sm:text-sm line-clamp-1 truncate break-words ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{item.name}</h4>
-                      <span className={`font-mono text-[10px] sm:text-xs font-bold mt-1 block ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>{Number(item.price).toLocaleString()} {t.currency}</span>
+                      <div className={`font-mono text-[10px] sm:text-xs font-bold mt-1 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>
+                         {effectivePrice.toLocaleString()} {t.currency}
+                         {effectivePrice < Number(item.price) && (
+                            <span className="text-yellow-500 text-[9px] mr-2 line-through font-light opacity-80">{Number(item.price).toLocaleString()}</span>
+                         )}
+                      </div>
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
                       <div className={`flex items-center gap-1 border rounded-lg px-1 py-1 ${isDarkMode ? 'bg-slate-900/60 border-teal-500/30' : 'bg-slate-50 border-gray-200'}`}>
@@ -1566,7 +1611,7 @@ export default function App() {
                       </div>
                     </div>
                   </div>
-                ))
+                )})
               )}
             </div>
           </div>
@@ -1697,13 +1742,25 @@ export default function App() {
                       <span className={`font-mono font-bold text-sm uppercase tracking-widest whitespace-nowrap ${isDarkMode ? 'text-gray-300' : 'text-slate-500'}`}>
                           {t.price}
                       </span>
-                      <div className="flex flex-row items-center gap-2">
-                          <span className={`text-2xl sm:text-3xl font-black font-mono tracking-tight leading-none ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'text-red-400 opacity-60' : (isDarkMode ? 'text-teal-400 drop-shadow-[0_0_15px_rgba(20,184,166,0.3)]' : 'text-teal-600')}`}>
-                              {selectedProduct.price?.toLocaleString() || 0}
-                          </span>
-                          <span className={`border px-2 py-1 rounded-lg font-bold text-xs sm:text-sm whitespace-nowrap ${isDarkMode ? 'bg-teal-500/10 border-teal-500/30 text-teal-400' : 'bg-teal-50 border-teal-200 text-teal-700'}`}>
-                              {t.currency}
-                          </span>
+                      <div className="flex flex-col items-end gap-1">
+                          <div className="flex items-center gap-2">
+                              <span className={`text-2xl sm:text-3xl font-black font-mono tracking-tight leading-none ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'text-red-400 opacity-60' : (isDarkMode ? 'text-teal-400 drop-shadow-[0_0_15px_rgba(20,184,166,0.3)]' : 'text-teal-600')}`}>
+                                  {(() => {
+                                      let effP = Number(selectedProduct.price) || 0;
+                                      if (selectedProduct.enableWholesale) {
+                                          if (modalQty >= 20) effP = Math.max(0, effP - (Number(selectedProduct.discount20) || 500));
+                                          else if (modalQty >= 10) effP = Math.max(0, effP - (Number(selectedProduct.discount10) || 250));
+                                      }
+                                      return effP.toLocaleString();
+                                  })()}
+                              </span>
+                              <span className={`border px-2 py-1 rounded-lg font-bold text-xs sm:text-sm whitespace-nowrap ${isDarkMode ? 'bg-teal-500/10 border-teal-500/30 text-teal-400' : 'bg-teal-50 border-teal-200 text-teal-700'}`}>
+                                  {t.currency}
+                              </span>
+                          </div>
+                          {selectedProduct.enableWholesale && (
+                             <span className="text-yellow-500 text-[9px] font-bold tracking-widest"><i className="fa-solid fa-tags"></i> تفعيل خصم الجملة للكميات</span>
+                          )}
                       </div>
                   </div>
                 </div>
@@ -1758,7 +1815,7 @@ export default function App() {
                     disabled={(parseInt(selectedProduct.stock)||0) <= 0 || ((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0}
                     onClick={(e) => { 
                         e.stopPropagation(); 
-                        addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock, modalQty); 
+                        addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock, modalQty, selectedProduct.enableWholesale, selectedProduct.discount10, selectedProduct.discount20); 
                         setModalQty(1);
                         resetInactivityTimer();
                     }} 
@@ -1908,7 +1965,6 @@ export default function App() {
                                         }
                                     }}
                                 >
-                                  {/* تم إضافة loading="lazy" لضمان عدم تحميل الصورة إلا حينما يقترب منها الزبون في سكرول النافذة */}
                                   <img src={proj.img} decoding="async" alt={proj.name} loading="lazy" className="w-full h-full object-contain mix-blend-multiply group-hover/img:scale-110 transition-transform duration-700 p-2" />
                                   <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-transparent to-transparent opacity-60 pointer-events-none"></div>
                                   
