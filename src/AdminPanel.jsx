@@ -229,7 +229,7 @@ export default function AdminPanel({
       
       <div className="mb-6 pb-4 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <h2 className="text-xl md:text-2xl font-black tracking-tight mt-1 text-transparent bg-clip-text bg-gradient-to-l from-teal-400 to-blue-500">
+          <h2 className="text-xl md:text-2xl font-black tracking-tight mt-1 text-transparent bg-clip-text bg-gradient-to-l from-teal-400 to-blue-900">
             لوحة الإدارة
           </h2>
         </div>
@@ -241,7 +241,7 @@ export default function AdminPanel({
             className={`mr-auto transition-all shrink-0 font-bold flex items-center shadow-sm relative ${
                activeOrders.length > 0
                ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white px-6 py-3 rounded-2xl text-sm border-2 border-red-400 shadow-[0_0_20px_rgba(220,38,38,0.6)] scale-110 hover:scale-110 animate-pulse cursor-pointer z-50'
-               : 'bg-[#030212] border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-xl text-xs cursor-pointer'
+               : 'bg-[#11192b] border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-xl text-xs cursor-pointer'
             }`}
          >
             <i className={`fa-solid fa-boxes-packing ${activeOrders.length > 0 ? 'text-xl ml-2 animate-bounce' : 'ml-2'}`}></i>
@@ -255,7 +255,7 @@ export default function AdminPanel({
 
          <button
             onClick={() => { setShowCompletedOrdersManager(true); fetchOrders(); }}
-            className="bg-[#030212] border border-blue-500/30 hover:bg-blue-500/20 text-blue-400 px-4 py-2 rounded-xl text-xs font-bold cursor-pointer shrink-0 shadow-sm flex items-center gap-2"
+            className="bg-[#11192b] border border-blue-500/30 hover:bg-blue-500/20 text-blue-400 px-4 py-2 rounded-xl text-xs font-bold cursor-pointer shrink-0 shadow-sm flex items-center gap-2"
          >
             <i className="fa-solid fa-check-double text-sm"></i>
             <span>الطلبات المكتملة</span>
@@ -264,7 +264,7 @@ export default function AdminPanel({
             )}
          </button>
 
-         <div className="bg-[#030212] border border-teal-500/30 px-3 py-2 rounded-xl flex items-center gap-3 shadow-lg shrink-0">
+         <div className="bg-[#11192b] border border-teal-500/30 px-3 py-2 rounded-xl flex items-center gap-3 shadow-lg shrink-0">
             <i className="fa-solid fa-chart-pie text-teal-400 text-sm"></i>
             <div className="flex items-center gap-2">
                <span className="text-[10px] text-gray-400 font-mono">الزيارات:</span>
@@ -273,7 +273,7 @@ export default function AdminPanel({
          </div>
 
          {/* الزر الخاص بإضافة الإعلان للسلة */}
-         <button onClick={() => { setAnnouncementInput(cartAnnouncement || ''); setShowAnnouncementManager(true); }} className="bg-[#030212] border border-yellow-500/30 hover:bg-yellow-500/20 text-yellow-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
+         <button onClick={() => { setAnnouncementInput(cartAnnouncement || ''); setShowAnnouncementManager(true); }} className="bg-[#11192b] border border-yellow-500/30 hover:bg-yellow-500/20 text-yellow-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
             <i className="fa-solid fa-bullhorn"></i> إعلان السلة
          </button>
          
@@ -281,11 +281,11 @@ export default function AdminPanel({
             <i className="fa-solid fa-link"></i> إدارة الروابط
          </button>
          
-         <button onClick={() => { if(fetchProjectsData) fetchProjectsData(); setShowProjectsManager(true); }} className="bg-[#030212] border border-blue-500/30 hover:bg-blue-500/20 text-blue-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
+         <button onClick={() => { if(fetchProjectsData) fetchProjectsData(); setShowProjectsManager(true); }} className="bg-[#11192b] border border-blue-500/30 hover:bg-blue-500/20 text-blue-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
             <i className="fa-solid fa-diagram-project"></i> المشاريع
          </button>
          
-         <button onClick={() => setShowDeliveryManager(true)} className="bg-[#030212] border border-teal-500/30 hover:bg-teal-500/20 text-teal-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
+         <button onClick={() => setShowDeliveryManager(true)} className="bg-[#11192b] border border-teal-500/30 hover:bg-teal-500/20 text-teal-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
             <i className="fa-solid fa-map-location-dot"></i> التوصيل
          </button>
 
@@ -301,7 +301,7 @@ export default function AdminPanel({
 
       <div className="space-y-8 w-full">
          
-         <div className={`border rounded-2xl p-4 sm:p-6 backdrop-blur-md shadow-xl transition-all w-full ${editProdId ? 'border-orange-500/50 bg-orange-900/10' : 'border-teal-500/20 bg-[#030212]'}`}>
+         <div className={`border rounded-2xl p-4 sm:p-6 backdrop-blur-md shadow-xl transition-all w-full ${editProdId ? 'border-orange-500/50 bg-orange-900/10' : 'border-teal-500/20 bg-[#11192b]'}`}>
            <h3 className="text-base sm:text-lg font-bold text-gray-200 mb-6 flex items-center gap-2 border-b border-neutral-800 pb-3">
              <i className={`fa-solid ${editProdId ? 'fa-pen-to-square text-orange-500' : 'fa-square-plus text-teal-500'}`}></i> 
              {editProdId ? 'تعديل بيانات القطعة' : 'إضافة قطعة إلكترونية جديدة'}
@@ -469,7 +469,7 @@ export default function AdminPanel({
            </div>
          </div>
 
-         <div className="border border-neutral-800 rounded-2xl p-4 sm:p-6 bg-[#030212] shadow-xl overflow-hidden w-full">
+         <div className="border border-neutral-800 rounded-2xl p-4 sm:p-6 bg-[#0d1526] shadow-xl overflow-hidden w-full">
            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-neutral-800 pb-4">
              <h3 className="text-base sm:text-lg font-bold text-gray-200 flex items-center gap-2">
                <i className="fa-solid fa-list-check text-teal-500"></i> الكتالوج ({filteredAdminProducts.length})

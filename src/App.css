@@ -3,6 +3,7 @@
 
 body {
     font-family: 'Tajawal', sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .font-cairo-black {
@@ -11,11 +12,19 @@ body {
     letter-spacing: normal !important;
 }
 
+/* تأثير الشبكة الخلفية للوضع الداكن (الافتراضي) */
 .tech-grid {
     background-image: 
         linear-gradient(to right, rgba(20, 184, 166, 0.04) 1px, transparent 1px),
         linear-gradient(to bottom, rgba(20, 184, 166, 0.04) 1px, transparent 1px);
     background-size: 50px 50px;
+}
+
+/* تأثير الشبكة الخلفية للوضع الفاتح */
+body.light-mode .tech-grid {
+    background-image: 
+        linear-gradient(to right, rgba(20, 184, 166, 0.1) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(20, 184, 166, 0.1) 1px, transparent 1px);
 }
 
 .robot-glow-container {
@@ -24,6 +33,7 @@ body {
     z-index: 1;
 }
 
+/* توهج الكلمة الرئيسية للوضع الداكن */
 .robot-glow-container::before {
     content: '';
     position: absolute;
@@ -37,10 +47,16 @@ body {
     z-index: -1;
     pointer-events: none;
     filter: blur(170px);
+    transition: background 0.3s ease;
+}
+
+/* توهج الكلمة الرئيسية للوضع الفاتح */
+body.light-mode .robot-glow-container::before {
+    background: radial-gradient(circle, rgba(20, 184, 166, 0.15) 0%, rgba(20, 184, 166, 0) 65%);
 }
 
 .cyber-stretched-title {
-    font-family: 'Tajawal', sans-serif ;
+    font-family: 'Tajawal', sans-serif;
     transform: scaleX(1.15); 
     transform-origin: center;
     display: inline-block;
@@ -83,6 +99,7 @@ body {
                  0 0 25px rgba(20, 184, 166, 0.3);
 }
 
+/* تأثير اللمعان على البطاقات */
 .gloss-effect {
     position: absolute;
     top: 0;
@@ -94,25 +111,30 @@ body {
     z-index: 5;
 }
 
+/* تخصيص شريط التمرير (Scrollbar) */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 10px;
+    width: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(20, 184, 166, 0.05);
-  border-radius: 10px;
+    background: rgba(20, 184, 166, 0.05);
+    border-radius: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(20, 184, 166, 0.6); 
-  border-radius: 10px;
-  border: 2px solid rgba(15, 23, 42, 1); 
+    background: rgba(20, 184, 166, 0.6); 
+    border-radius: 10px;
+    border: 2px solid transparent; 
+    background-clip: padding-box;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(20, 184, 166, 1); 
+    background: rgba(20, 184, 166, 1); 
+    border: 2px solid transparent;
+    background-clip: padding-box;
 }
 
+/* حركة النبض (Pulse Animation) */
 @keyframes deep-pulse {
     0%, 100% {
         opacity: 1;
