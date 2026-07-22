@@ -706,6 +706,8 @@ export default function App() {
     }
   };
 
+// -------------------------------------------------------------
+  // -------------------------------------------------------------
   useEffect(() => {
     fetchProducts(); 
     fetchCategories();
@@ -718,7 +720,8 @@ export default function App() {
     if (!vid) { vid = Math.random().toString(36).substring(2, 15); localStorage.setItem('msa_vid', vid); }
     const visitorRef = doc(db, "active_visitors", vid);
 
-    const pingPresence = () => setDoc(visitorRef, { lastPing: Date.now() }, { merge: true }).catch(()=>{});
+    const pingPresence = () => setDoc(visitorRef, { lastPing: Date.now() }, { merge: true }).catch((e)=>{ console.error("Firebase Blocked Visitor Ping:", e) });
+    
     pingPresence();
     const pingInterval = setInterval(pingPresence, 20000); 
 
@@ -746,6 +749,8 @@ export default function App() {
     };
   }, [fetchProjectsData]);
 
+  // -------------------------------------------------------------
+  // -------------------------------------------------------------
   useEffect(() => {
       let unsub;
       let intervalId;
@@ -759,8 +764,18 @@ export default function App() {
               const now = Date.now();
               currentDocs.forEach(docSnap => {
                   const data = docSnap.data();
-                  if (now - data.lastPing <= 45000) activeCount++;
-                  else if (now - data.lastPing > 60000) deleteDoc(docSnap.ref).catch(()=>{});
+                  const pingTime = data.lastPing || 0;
+                  
+
+                  const timeDifference = Math.abs(now - pingTime);
+
+
+                  if (timeDifference <= 3 * 60 * 1000) {
+                      activeCount++;
+                  } else if (timeDifference > 5 * 60 * 1000) { 
+
+                      deleteDoc(docSnap.ref).catch(()=>{});
+                  }
               });
               setVisitorCount(activeCount);
           };
@@ -769,85 +784,13 @@ export default function App() {
               currentDocs = snap.docs;
               updateCount();
           });
+          
           intervalId = setInterval(updateCount, 5000);
       }
       return () => {
           if (unsub) unsub();
           if (intervalId) clearInterval(intervalId);
       };
-  }, [isAdminMode]);
-
-  const handleProjectsClick = () => {
-      if (projectsFetchTimerRef.current) clearTimeout(projectsFetchTimerRef.current);
-      fetchProjectsData(); 
-      setIsProjectsModalOpen(true);
-      setIsSideMenuOpen(false);
-      playSynthSound(600, 'sine', 0.1);
-  };
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        const storedUser = localStorage.getItem("msa_store_customer");
-        if (storedUser) {
-          const parsed = JSON.parse(storedUser);
-          setUser(parsed);
-          setCustomerName(parsed.name || ''); setCustomerPhone(parsed.phone || ''); setCustomerPhone2(parsed.phone2 || ''); setDetailedAddress(parsed.address || '');
-          if(parsed.govId) setSelectedGovId(parsed.govId);
-        } else {
-          const userData = { uid: firebaseUser.uid, name: firebaseUser.displayName, email: firebaseUser.email, photoURL: firebaseUser.photoURL };
-          setUser(userData);
-          setCustomerName(firebaseUser.displayName || '');
-        }
-      } else setUser(null);
-    });
-
-    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    let mouseX = 0, mouseY = 0, outerX = 0, outerY = 0, throttleTimer = null, cursorAnimFrame = null;
-
-    if (!isTouchDevice) {
-      const handleMouseMove = (e) => {
-        if(throttleTimer) return;
-        throttleTimer = setTimeout(() => {
-          mouseX = e.clientX; mouseY = e.clientY;
-          if (cursorInnerRef.current) { cursorInnerRef.current.style.left = `${mouseX}px`; cursorInnerRef.current.style.top = `${mouseY}px`; }
-          throttleTimer = null;
-        }, 16); 
-      };
-      window.addEventListener('mousemove', handleMouseMove);
-
-      const updateCursor = () => {
-        outerX += (mouseX - outerX) * 0.15; outerY += (mouseY - outerY) * 0.15;
-        if (cursorOuterRef.current) { cursorOuterRef.current.style.left = `${outerX}px`; cursorOuterRef.current.style.top = `${outerY}px`; }
-        cursorAnimFrame = requestAnimationFrame(updateCursor);
-      };
-      cursorAnimFrame = requestAnimationFrame(updateCursor);
-
-      return () => { unsubscribe(); window.removeEventListener('mousemove', handleMouseMove); if(cursorAnimFrame) cancelAnimationFrame(cursorAnimFrame); };
-    }
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (isTouchDevice) return;
-
-    const mContainer = magneticContainerRef.current;
-    const mBtn = magneticBtnRef.current;
-    if (!mContainer || !mBtn) return;
-
-    const onMove = (e) => {
-      const bound = mBtn.getBoundingClientRect();
-      const x = e.clientX - (bound.left + bound.width / 2);
-      const y = e.clientY - (bound.top + bound.height / 2);
-      gsap.to(mBtn, { x: x * 0.45, y: y * 0.45, duration: 0.1, ease: "power2.out" });
-    };
-
-    const onLeave = () => gsap.to(mBtn, { x: 0, y: 0, duration: 0.5, ease: "elastic.out(1, 0.3)" });
-
-    mContainer.addEventListener('mousemove', onMove);
-    mContainer.addEventListener('mouseleave', onLeave);
-    return () => { mContainer.removeEventListener('mousemove', onMove); mContainer.removeEventListener('mouseleave', onLeave); };
   }, [isAdminMode]);
 
   const handleMouseEnterInteractive = useCallback(() => {
@@ -1384,7 +1327,7 @@ export default function App() {
                      />
                   ))}
                   
-                  {/* حاوية وهمية لمراقب التمرير اللانهائي */}
+
                   {displayCount < filteredProducts.length && (
                      <div ref={lastElementRef} className="col-span-2 sm:col-span-3 lg:col-span-4 h-4 w-full"></div>
                   )}
