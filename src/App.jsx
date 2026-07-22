@@ -221,9 +221,6 @@ export default function App() {
   const magneticBtnRef = useRef(null);
   const magneticContainerRef = useRef(null);
   
-  const isActiveVisitor = useRef(false);
-  const inactivityTimerRef = useRef(null);
-  
   const projectsFetchedRef = useRef(false);
   const projectsFetchTimerRef = useRef(null);
 
@@ -262,24 +259,6 @@ export default function App() {
     setTimeout(() => playSynthSound(900, 'sine', 0.15), 80);
   }, [playSynthSound]);
   const playErrorBuzz = useCallback(() => playSynthSound(150, 'sawtooth', 0.4), [playSynthSound]);
-
-  const resetInactivityTimer = useCallback(() => {
-    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-    
-    if (!isActiveVisitor.current) {
-        isActiveVisitor.current = true;
-        const statsRef = doc(db, "system", "stats");
-        setDoc(statsRef, { visitorCount: increment(1) }, { merge: true }).catch(e => console.error(e));
-    }
-
-    inactivityTimerRef.current = setTimeout(() => {
-        if (isActiveVisitor.current) { 
-            isActiveVisitor.current = false;
-            const statsRef = doc(db, "system", "stats");
-            setDoc(statsRef, { visitorCount: increment(-1) }, { merge: true }).catch(e => console.error(e));
-        }
-    }, 5 * 60 * 1000); 
-  }, []);
 
   const isAnyModalOpen = !!(activeGallery || selectedProduct || isProjectsModalOpen || isCartOpen || isSideMenuOpen);
   const wasModalOpen = useRef(false);
@@ -358,7 +337,17 @@ export default function App() {
         setDeferredPrompt(null);
       }
     } else {
-      alert("التطبيق مثبت بالفعل أو أن متصفحك لا يدعم هذه الميزة حالياً.");
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      
+      if (isIOS) {
+         alert(lang === 'ar' 
+           ? "لتثبيت التطبيق على أجهزة آيفون (iOS):\n\n1. اضغط على زر المشاركة (المربع الذي يخرج منه سهم أعلى أو أسفل الشاشة).\n2. اختر من القائمة 'إضافة إلى الصفحة الرئيسية' (Add to Home Screen)." 
+           : "To install on iOS:\n\n1. Tap the Share button at the bottom/top.\n2. Select 'Add to Home Screen'.");
+      } else {
+         alert(lang === 'ar' 
+           ? "لتثبيت التطبيق على جهازك:\n\n- افتح قائمة المتصفح (الثلاث نقاط أعلى الشاشة).\n- اختر 'إضافة إلى الشاشة الرئيسية' أو 'تثبيت التطبيق' (Install App / Add to Home Screen).\n\n(ملاحظة: إذا لم يظهر الخيار فقد يكون التطبيق مثبتاً بالفعل)" 
+           : "To install the app:\n\n- Open the browser menu (three dots).\n- Select 'Add to Home Screen' or 'Install App'.");
+      }
     }
   };
 
@@ -434,10 +423,17 @@ export default function App() {
     }
   };
 
-  const handleResetVisitors = () => {
+  const handleResetVisitors = async () => {
     if(window.confirm("هل أنت متأكد من تصفير عداد الزوار الحاليين؟")) {
-       setDoc(doc(db, "system", "stats"), { visitorCount: 0 }, { merge: true });
-       playSuccessBeep();
+       try {
+          const snap = await getDocs(collection(db, "active_visitors"));
+          snap.forEach(d => deleteDoc(d.ref));
+          setVisitorCount(0);
+          playSuccessBeep();
+       } catch(e) {
+          console.error(e);
+          playErrorBuzz();
+       }
     }
   };
 
@@ -630,56 +626,50 @@ export default function App() {
     }
   };
 
-   useEffect(() => {
+  // -------------------------------------------------------------
+
+  // -------------------------------------------------------------
+  useEffect(() => {
     fetchProducts(); 
     fetchCategories();
     fetchDeliveryLocations();
     fetchExternalLinks();
-    resetInactivityTimer();
 
     projectsFetchTimerRef.current = setTimeout(() => {
         fetchProjectsData();
     }, 8000); 
-    
-    const statsRef = doc(db, "system", "stats");
 
-    const decreaseCount = () => {
-      if (isActiveVisitor.current) {
-        if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-        setDoc(statsRef, { visitorCount: increment(-1) }, { merge: true }).catch(e => console.error(e));
-        isActiveVisitor.current = false;
-      }
-    };
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        decreaseCount();
-      } else if (document.visibilityState === 'visible') {
-        resetInactivityTimer();
-      }
-    };
-
-    window.addEventListener('beforeunload', decreaseCount);
-    window.addEventListener('pagehide', decreaseCount);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    window.addEventListener('mousemove', resetInactivityTimer);
-    window.addEventListener('touchstart', resetInactivityTimer, { passive: true });
-    window.addEventListener('keydown', resetInactivityTimer);
-    window.addEventListener('click', resetInactivityTimer);
-
-    const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        const count = data.visitorCount || 0;
-        setVisitorCount(Math.max(0, count)); 
-        setCartAnnouncement(data.cartAnnouncement || '');
-      }
-    });
-
-    if (isAdminMode) {
-      fetchOrders();
+    let vid = localStorage.getItem('msa_vid');
+    if (!vid) {
+        vid = Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('msa_vid', vid);
     }
+    const visitorRef = doc(db, "active_visitors", vid);
+
+    const pingPresence = () => {
+        setDoc(visitorRef, { lastPing: Date.now() }, { merge: true }).catch(()=>{});
+    };
+
+    pingPresence();
+    const pingInterval = setInterval(pingPresence, 20000); // إرسال نبضة كل 20 ثانية
+
+    const handleVisibility = () => {
+        if (document.visibilityState === 'visible') pingPresence();
+    };
+
+    const handleUnload = () => {
+        deleteDoc(visitorRef).catch(()=>{});
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('beforeunload', handleUnload);
+
+
+    const statsRef = doc(db, "system", "stats");
+    const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
+      if (docSnap.exists()) setCartAnnouncement(docSnap.data().cartAnnouncement || '');
+    });
 
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
@@ -688,22 +678,58 @@ export default function App() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     return () => {
-      decreaseCount();
-      window.removeEventListener('beforeunload', decreaseCount);
-      window.removeEventListener('pagehide', decreaseCount);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-
-      window.removeEventListener('mousemove', resetInactivityTimer);
-      window.removeEventListener('touchstart', resetInactivityTimer);
-      window.removeEventListener('keydown', resetInactivityTimer);
-      window.removeEventListener('click', resetInactivityTimer);
-
+      clearInterval(pingInterval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('beforeunload', handleUnload);
       unsubscribeStats();
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
       if (projectsFetchTimerRef.current) clearTimeout(projectsFetchTimerRef.current);
     };
-  }, [isAdminMode, resetInactivityTimer, fetchProjectsData]);
+  }, [fetchProjectsData]);
+
+  // -------------------------------------------------------------
+
+  // -------------------------------------------------------------
+  useEffect(() => {
+      let unsub;
+      let intervalId;
+      
+      if (isAdminMode) {
+          fetchOrders();
+          
+          const q = query(collection(db, "active_visitors"));
+          let currentDocs = [];
+
+          const updateCount = () => {
+              let activeCount = 0;
+              const now = Date.now();
+              currentDocs.forEach(docSnap => {
+                  const data = docSnap.data();
+
+                  if (now - data.lastPing <= 45000) { 
+                      activeCount++;
+                  } else if (now - data.lastPing > 60000) { 
+
+                      deleteDoc(docSnap.ref).catch(()=>{});
+                  }
+              });
+              setVisitorCount(activeCount);
+          };
+
+          unsub = onSnapshot(q, (snap) => {
+              currentDocs = snap.docs;
+              updateCount();
+          });
+
+
+          intervalId = setInterval(updateCount, 5000);
+      }
+      
+      return () => {
+          if (unsub) unsub();
+          if (intervalId) clearInterval(intervalId);
+      };
+  }, [isAdminMode]);
 
   const handleProjectsClick = () => {
       if (projectsFetchTimerRef.current) clearTimeout(projectsFetchTimerRef.current);
@@ -1149,10 +1175,8 @@ export default function App() {
 
       let matchCat = true;
       if (selectedCatFilter === '') {
-          // إخفاء "ادوات مشروع" من القائمة العامة (الكل)
           matchCat = prod.category !== 'ادوات مشروع';
       } else {
-          // إظهار منتجات القسم المحدد فقط
           matchCat = prod.category === selectedCatFilter;
       }
 
@@ -1396,7 +1420,6 @@ export default function App() {
             </div>
 
             <div className={`flex flex-wrap gap-2 mb-6 px-2 justify-center md:justify-start custom-scrollbar ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
-               {/* زر عرض الكل (لا يعرض منتجات ادوات مشروع) */}
                <button 
                   onClick={() => setSelectedCatFilter('')} 
                   className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
@@ -1404,7 +1427,6 @@ export default function App() {
                   All / الكل
                </button>
 
-               {/* الزر المميز الخاص بأدوات المشروع */}
                <button 
                   onClick={() => setSelectedCatFilter('ادوات مشروع')} 
                   className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-md flex items-center gap-2 ${selectedCatFilter === 'ادوات مشروع' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold border-transparent shadow-[0_0_15px_rgba(147,51,234,0.5)] scale-105' : (isDarkMode ? 'bg-[#1e1136] text-purple-400 border-purple-500/30 hover:border-purple-400 hover:text-purple-300' : 'bg-purple-50 text-purple-700 border-purple-200 hover:border-purple-400 hover:text-purple-600')}`}
@@ -1412,9 +1434,8 @@ export default function App() {
                   <i className="fa-solid fa-toolbox"></i> ادوات مشروع
                </button>
 
-               {/* باقي الفئات */}
                {categories.map(c => {
-                   if (c.name === 'ادوات مشروع') return null; // استثناء الفئة لأننا رسمناها بزر مميز
+                   if (c.name === 'ادوات مشروع') return null; 
                    return (
                        <button 
                           key={c.id} 
@@ -1446,13 +1467,13 @@ export default function App() {
                       onMouseMove={(e) => handleCardMove(e, e.currentTarget)}
                       onMouseLeave={(e) => handleCardLeave(e.currentTarget)}
                       onMouseEnter={handleMouseEnterInteractive} 
-                      onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); resetInactivityTimer(); }}
+                      onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); }}
                       className={`card-tilt cursor-pointer h-full w-full flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-5 relative group transition-all duration-300 border overflow-hidden break-words min-w-0 ${isDarkMode ? (isOutOfStock ? 'bg-neutral-900/40 border-red-500/20 hover:border-red-400/60' : 'bg-neutral-900/40 border-teal-500/20 hover:border-teal-400/60') : (isOutOfStock ? 'bg-white border-red-200 hover:border-red-400 shadow-md' : 'bg-white border-gray-100 hover:border-teal-300 shadow-xl hover:shadow-2xl')}`}
                     >
                       <div className="gloss-effect"></div>
                       
                       <div 
-                        onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); resetInactivityTimer(); }}
+                        onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); }}
                         className={`flex-shrink-0 h-28 sm:h-48 w-full rounded-lg sm:rounded-xl overflow-hidden mb-3 sm:mb-5 flex items-center justify-center border transition-all duration-300 relative cursor-pointer bg-white ${isOutOfStock ? (isDarkMode ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-red-100') : (isDarkMode ? 'border-teal-500/10 group-hover:border-teal-500/30' : 'border-gray-100')}`}
                         title={t.viewDetails}
                       >
@@ -1486,7 +1507,7 @@ export default function App() {
                         )}
                       </div>
 
-                      <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer transition-colors break-words min-w-0 w-full ${isDarkMode ? 'text-white hover:text-teal-400' : 'text-slate-800 hover:text-teal-600'}`} onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); resetInactivityTimer(); }}>{prod.name}</h3>
+                      <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer transition-colors break-words min-w-0 w-full ${isDarkMode ? 'text-white hover:text-teal-400' : 'text-slate-800 hover:text-teal-600'}`} onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); }}>{prod.name}</h3>
                       
                       <p className={`text-[9px] sm:text-sm mb-3 sm:mb-5 leading-relaxed line-clamp-2 flex-grow break-words min-w-0 w-full ${isDarkMode ? 'text-gray-300' : 'text-slate-500'}`}>{prod.desc || t.noDesc}</p>
                       
@@ -1503,7 +1524,7 @@ export default function App() {
                         <button 
                           type="button" 
                           disabled={isOutOfStock}
-                          onClick={(e) => { e.stopPropagation(); addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock, 1, prod.enableWholesale, prod.discount10, prod.discount20); resetInactivityTimer(); }} 
+                          onClick={(e) => { e.stopPropagation(); addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock, 1, prod.enableWholesale, prod.discount10, prod.discount20); }} 
                           className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 mt-2 rounded-full font-bold text-[9px] sm:text-xs transition-all relative overflow-hidden z-20 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-white hover:bg-teal-400'}`}
                         >
                           <i className="fas fa-cart-arrow-down"></i> <span className="truncate">{isOutOfStock ? 'نافذ' : t.addToCart}</span>
@@ -1531,7 +1552,6 @@ export default function App() {
          </div>
       </footer>
 
-      {/* Cart Sidebar */}
       <div className={`fixed inset-y-0 ${lang === 'en' ? 'right-0' : 'left-0'} w-full md:w-[850px] border-${lang === 'en' ? 'l' : 'r'} shadow-2xl z-50 transform transition-transform duration-500 flex flex-col ${isCartOpen ? 'translate-x-0' : (lang === 'en' ? 'translate-x-full' : '-translate-x-full')} ${isDarkMode ? 'bg-[#0f172a] border-teal-500/20' : 'bg-white border-teal-200'}`}>
         <div className={`p-5 border-b flex justify-between items-center ${isDarkMode ? 'bg-slate-900/60 border-teal-500/20' : 'bg-slate-50 border-teal-100'}`}>
           <div className="flex items-center gap-5">
@@ -1667,7 +1687,6 @@ export default function App() {
 
       {isCartOpen && <div onClick={() => setIsCartOpen(false)} className={`fixed inset-0 z-40 transition-opacity ${isDarkMode ? 'bg-slate-900/80 backdrop-blur-sm' : 'bg-slate-800/40 backdrop-blur-sm'}`}></div>}
 
-      {/* Product Detail Modal */}
       {selectedProduct && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
           <div 
@@ -1684,7 +1703,6 @@ export default function App() {
               <i className="fas fa-times text-sm sm:text-lg"></i>
             </button>
 
-            {/* الجانب الأيمن للمودال (الصورة) */}
             <div className={`w-full md:w-5/12 p-1 sm:p-8 flex flex-col items-center justify-start sm:justify-center border-b md:border-b-0 md:border-${lang === 'en' ? 'r' : 'l'} flex-shrink-0 md:flex-shrink ${isDarkMode ? 'border-teal-500/20 bg-[#0b1120]' : 'border-gray-200 bg-slate-50'}`}>
               
               <div 
@@ -1772,7 +1790,6 @@ export default function App() {
               )}
             </div>
 
-            {/* الجانب الأيسر (تفاصيل المنتج) */}
             <div className={`w-full md:w-7/12 p-2 sm:p-8 flex flex-col justify-start h-auto md:h-auto flex-1 ${isDarkMode ? 'bg-slate-900/50' : 'bg-white'}`}>
               
               <div className="mb-4 flex flex-col gap-4 flex-shrink-0">
@@ -1864,7 +1881,6 @@ export default function App() {
                         e.stopPropagation(); 
                         addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock, modalQty, selectedProduct.enableWholesale, selectedProduct.discount10, selectedProduct.discount20); 
                         setModalQty(1);
-                        resetInactivityTimer();
                     }} 
                     className={`relative overflow-hidden w-full py-3 sm:py-4 rounded-xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0 ? 'bg-slate-300 text-gray-500 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-white hover:scale-[1.02] hover:shadow-lg hover:-translate-y-1'}`}
                 >
@@ -1896,12 +1912,11 @@ export default function App() {
               
               <div className="flex-grow flex flex-col pt-2 pb-4 overflow-y-auto custom-scrollbar overscroll-contain max-h-[50vh]">
                   {modalTab === 'compat' && (
-                      <div className="flex flex-col gap-6 p-1">
+                      <div className="flex flex-col gap-6 p-1 h-fit">
                           
-                          {/* المنتجات المتوافقة تحديداً */}
                           <div>
                               <h4 className={`font-bold text-xs sm:text-sm mb-3 flex items-center gap-2 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>
-                                  <i className="fa-solid fa-puzzle-piece"></i> المنتجات المتوافقة
+                                  <i className="fa-solid fa-puzzle-piece"></i> المنتجات المتوافقة تحديداً
                               </h4>
                               <div className="flex flex-wrap gap-3">
                                   {(() => {
@@ -1922,7 +1937,6 @@ export default function App() {
                                                       setModalTab('compat');
                                                       setModalQty(1);
                                                       setModalQtyWarning('');
-                                                      resetInactivityTimer();
                                                   }}
                                                   className={`cursor-pointer flex flex-col items-center border rounded-xl p-3 transition-all shadow-sm w-28 sm:w-32 shrink-0 group ${isDarkMode ? 'bg-slate-800/60 border-teal-500/20 hover:border-teal-400 hover:bg-slate-800' : 'bg-white border-gray-200 hover:border-teal-400 hover:shadow-md'}`}
                                                   title={`عرض ${compProd.name}`}
@@ -1938,10 +1952,9 @@ export default function App() {
                               </div>
                           </div>
 
-                          {/* منتجات ذات صلة من نفس القائمة */}
-                          <div>
+                          <div className={`pt-4 border-t ${isDarkMode ? 'border-teal-500/20' : 'border-gray-200'}`}>
                               <h4 className={`font-bold text-xs sm:text-sm mb-3 flex items-center gap-2 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>
-                                  <i className="fa-solid fa-layer-group"></i> منتجات ذات صلة من نفس القائمة
+                                  <i className="fa-solid fa-layer-group"></i> منتجات ذات صلة (نفس القائمة)
                               </h4>
                               <div className="flex flex-wrap gap-3">
                                   {(() => {
@@ -1961,7 +1974,6 @@ export default function App() {
                                                       setModalTab('compat');
                                                       setModalQty(1);
                                                       setModalQtyWarning('');
-                                                      resetInactivityTimer();
                                                   }}
                                                   className={`cursor-pointer flex flex-col items-center border rounded-xl p-3 transition-all shadow-sm w-28 sm:w-32 shrink-0 group ${isDarkMode ? 'bg-slate-800/60 border-teal-500/20 hover:border-teal-400 hover:bg-slate-800' : 'bg-white border-gray-200 hover:border-teal-400 hover:shadow-md'}`}
                                                   title={`عرض ${compProd.name}`}
@@ -1981,13 +1993,13 @@ export default function App() {
                   )}
 
                   {modalTab === 'desc' && (
-                      <div className={`p-4 sm:p-5 rounded-xl text-xs sm:text-sm leading-relaxed border break-words whitespace-pre-wrap ${isDarkMode ? 'bg-slate-800/50 border-teal-500/10 text-gray-300' : 'bg-slate-50 border-gray-200 text-slate-700'}`}>
+                      <div className={`p-4 sm:p-5 rounded-xl text-xs sm:text-sm leading-relaxed border h-fit break-words whitespace-pre-wrap ${isDarkMode ? 'bg-slate-800/50 border-teal-500/10 text-gray-300' : 'bg-slate-50 border-gray-200 text-slate-700'}`}>
                           {selectedProduct.desc || t.noDesc}
                       </div>
                   )}
                   
                   {modalTab === 'code' && (
-                      <div className={`p-4 rounded-xl border overflow-x-auto text-left shadow-inner ${isDarkMode ? 'bg-[#0a0a0f] border-teal-500/20' : 'bg-gray-100 border-gray-300'}`} dir="ltr">
+                      <div className={`p-4 rounded-xl border overflow-x-auto text-left h-fit shadow-inner ${isDarkMode ? 'bg-[#0a0a0f] border-teal-500/20' : 'bg-gray-100 border-gray-300'}`} dir="ltr">
                           <pre className={`font-mono text-xs sm:text-sm ${isDarkMode ? 'text-teal-300' : 'text-slate-800'}`}>
                               {selectedProduct.codeSnippet || '// لا يوجد كود برمجي متاح لهذه القطعة حالياً.\n// يمكنك إضافة الكود من لوحة الإدارة.'}
                           </pre>
@@ -1995,7 +2007,7 @@ export default function App() {
                   )}
 
                   {modalTab === 'links' && (
-                      <div className="flex flex-col gap-4">
+                      <div className="flex flex-col gap-4 h-fit">
                           {selectedProduct.compatLink && (
                               <a href={selectedProduct.compatLink} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm group">
                                   <span className="font-bold text-sm"><i className="fa-solid fa-link ml-2"></i> مادة تتوافق معه (رابط خارجي)</span>
