@@ -615,7 +615,7 @@ export default function App() {
 
   const fetchProducts = async () => {
     try {
-      const q = query(collection(db, "products"), limit(1000));
+      const q = query(collection(db, "products"), limit(8));
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {
         const productsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
