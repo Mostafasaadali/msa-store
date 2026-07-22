@@ -1,11 +1,12 @@
-import AdminPanel from './AdminPanel'; 
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import './App.css';
 
 import {ADMIN_UID, db, auth, provider } from './firebase';
 import { collection, addDoc, doc, setDoc, getDocs, query, orderBy, limit, deleteDoc, updateDoc, getDoc, onSnapshot, increment, where } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'; 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { gsap } from 'gsap';
+
+const AdminPanel = React.lazy(() => import('./AdminPanel'));
 
 const translations = {
   ar: {
@@ -145,12 +146,16 @@ const normalizeText = (text) => {
     .replace(/[\u064B-\u065F]/g, ''); 
 };
 
-// Singleton AudioContext لتحسين الأداء على الموبايل
 let globalAudioCtx = null;
 
 export default function App() {
   const [lang, setLang] = useState('ar');
   const t = translations[lang]; 
+
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('msa_theme');
+    return saved !== null ? saved === 'dark' : true;
+  });
 
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -171,7 +176,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCatFilter, setSelectedCatFilter] = useState(''); 
   const [visitorCount, setVisitorCount] = useState(0); 
-  const [cartAnnouncement, setCartAnnouncement] = useState(''); // حالة لإعلان السلة
+  const [cartAnnouncement, setCartAnnouncement] = useState(''); 
   
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [products, setProducts] = useState([]);
@@ -195,6 +200,10 @@ export default function App() {
   const [newProdLibLink, setNewProdLibLink] = useState('');
   const [newProdCodeSnippet, setNewProdCodeSnippet] = useState('');
   
+  const [newProdEnableWholesale, setNewProdEnableWholesale] = useState(false);
+  const [newProdDiscount10, setNewProdDiscount10] = useState('');
+  const [newProdDiscount20, setNewProdDiscount20] = useState('');
+
   const [editProdId, setEditProdId] = useState(null);
   const [orders, setOrders] = useState([]);
 
@@ -202,7 +211,6 @@ export default function App() {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [modalTab, setModalTab] = useState('compat');
 
-  // حالات كمية المنتج داخل الـ Modal
   const [modalQty, setModalQty] = useState(1);
   const [modalQtyWarning, setModalQtyWarning] = useState('');
 
@@ -213,13 +221,20 @@ export default function App() {
   const magneticBtnRef = useRef(null);
   const magneticContainerRef = useRef(null);
   
-  // Ref الخاص بحساب خمول المستخدم للزيارات
   const isActiveVisitor = useRef(false);
   const inactivityTimerRef = useRef(null);
   
-  // Ref الخاص بالتحميل المتأخر للمشاريع
   const projectsFetchedRef = useRef(false);
   const projectsFetchTimerRef = useRef(null);
+
+  useEffect(() => {
+    localStorage.setItem('msa_theme', isDarkMode ? 'dark' : 'light');
+    if (!isDarkMode) {
+      document.body.classList.add('light-mode');
+    } else {
+      document.body.classList.remove('light-mode');
+    }
+  }, [isDarkMode]);
 
   const playSynthSound = useCallback((freq, type, duration) => {
     try {
@@ -248,7 +263,6 @@ export default function App() {
   }, [playSynthSound]);
   const playErrorBuzz = useCallback(() => playSynthSound(150, 'sawtooth', 0.4), [playSynthSound]);
 
-  // إدارة 5 دقائق خمول الزائر
   const resetInactivityTimer = useCallback(() => {
     if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
     
@@ -259,33 +273,59 @@ export default function App() {
     }
 
     inactivityTimerRef.current = setTimeout(() => {
-        isActiveVisitor.current = false;
-        const statsRef = doc(db, "system", "stats");
-        setDoc(statsRef, { visitorCount: increment(-1) }, { merge: true }).catch(e => console.error(e));
+        if (isActiveVisitor.current) { 
+            isActiveVisitor.current = false;
+            const statsRef = doc(db, "system", "stats");
+            setDoc(statsRef, { visitorCount: increment(-1) }, { merge: true }).catch(e => console.error(e));
+        }
     }, 5 * 60 * 1000); 
   }, []);
 
-  // منع زر الرجوع من الخروج من الموقع
-  useEffect(() => {
-    const isAnyModalOpen = activeGallery || selectedProduct || isProjectsModalOpen || isCartOpen || isSideMenuOpen;
-    if (isAnyModalOpen) {
-      window.history.pushState({ modalOpen: true }, '');
-    }
-  }, [activeGallery, selectedProduct, isProjectsModalOpen, isCartOpen, isSideMenuOpen]);
+  const isAnyModalOpen = !!(activeGallery || selectedProduct || isProjectsModalOpen || isCartOpen || isSideMenuOpen);
+  const wasModalOpen = useRef(false);
 
   useEffect(() => {
-    const handlePopState = (e) => {
-        if (activeGallery) { setActiveGallery(null); playSynthSound(400, 'sine', 0.1); }
-        else if (selectedProduct) { setSelectedProduct(null); playSynthSound(400, 'sine', 0.1); }
-        else if (isProjectsModalOpen) { setIsProjectsModalOpen(false); playSynthSound(400, 'sine', 0.1); }
-        else if (isCartOpen) { setIsCartOpen(false); playSynthSound(400, 'sine', 0.1); }
-        else if (isSideMenuOpen) { setIsSideMenuOpen(false); playSynthSound(400, 'sine', 0.1); }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+      if (isAnyModalOpen && !wasModalOpen.current) {
+          window.history.pushState({ modal: true }, '', '#view');
+          wasModalOpen.current = true;
+      } 
+      else if (!isAnyModalOpen && wasModalOpen.current) {
+          wasModalOpen.current = false;
+          if (window.location.hash === '#view') {
+              window.history.back();
+          }
+      }
+  }, [isAnyModalOpen]);
+
+  useEffect(() => {
+      const handlePopState = () => {
+          if (window.location.hash !== '#view' && wasModalOpen.current) {
+              let closedSomething = false;
+
+              if (activeGallery) { setActiveGallery(null); closedSomething = true; }
+              else if (selectedProduct) { setSelectedProduct(null); closedSomething = true; }
+              else if (isProjectsModalOpen) { setIsProjectsModalOpen(false); closedSomething = true; }
+              else if (isSideMenuOpen) { setIsSideMenuOpen(false); closedSomething = true; }
+              else if (isCartOpen) { setIsCartOpen(false); closedSomething = true; }
+
+              const openModalsCount = [activeGallery, selectedProduct, isProjectsModalOpen, isCartOpen, isSideMenuOpen].filter(Boolean).length;
+              
+              if (openModalsCount > 1) {
+                  window.history.pushState({ modal: true }, '', '#view');
+              } else {
+                  wasModalOpen.current = false;
+              }
+              
+              if (closedSomething) {
+                  playSynthSound(400, 'sine', 0.1);
+              }
+          }
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
   }, [activeGallery, selectedProduct, isProjectsModalOpen, isCartOpen, isSideMenuOpen, playSynthSound]);
 
-  // Load and auto-clear cart after 18 hours
   useEffect(() => {
     const savedCart = localStorage.getItem('msa_store_cart');
     const savedTime = localStorage.getItem('msa_store_cart_time');
@@ -300,7 +340,6 @@ export default function App() {
     }
   }, []);
 
-  // Save cart changes and time
   useEffect(() => {
     if (cart.length > 0) {
       localStorage.setItem('msa_store_cart', JSON.stringify(cart));
@@ -311,6 +350,7 @@ export default function App() {
     }
   }, [cart]);
 
+  // تحديث دالة التثبيت لتعمل على جميع الأجهزة بذكاء
   const handleInstallApp = async () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
@@ -319,7 +359,17 @@ export default function App() {
         setDeferredPrompt(null);
       }
     } else {
-      alert("التطبيق مثبت بالفعل أو أن متصفحك لا يدعم هذه الميزة حالياً.");
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      
+      if (isIOS) {
+         alert(lang === 'ar' 
+           ? "لتثبيت التطبيق على أجهزة آيفون (iOS):\n\n1. اضغط على زر المشاركة (المربع الذي يخرج منه سهم أعلى أو أسفل الشاشة).\n2. اختر من القائمة 'إضافة إلى الصفحة الرئيسية' (Add to Home Screen)." 
+           : "To install on iOS:\n\n1. Tap the Share button at the bottom/top.\n2. Select 'Add to Home Screen'.");
+      } else {
+         alert(lang === 'ar' 
+           ? "لتثبيت التطبيق على جهازك:\n\n- افتح قائمة المتصفح (الثلاث نقاط أعلى الشاشة).\n- اختر 'إضافة إلى الشاشة الرئيسية' أو 'تثبيت التطبيق' (Install App / Add to Home Screen).\n\n(ملاحظة: إذا لم يظهر الخيار فقد يكون التطبيق مثبتاً بالفعل)" 
+           : "To install the app:\n\n- Open the browser menu (three dots).\n- Select 'Add to Home Screen' or 'Install App'.");
+      }
     }
   };
 
@@ -402,7 +452,6 @@ export default function App() {
     }
   };
 
-  // دالة حفظ الإعلان الخاص بالسلة
   const handleSaveCartAnnouncement = async (text) => {
     try {
       await setDoc(doc(db, "system", "stats"), { cartAnnouncement: text }, { merge: true });
@@ -502,10 +551,9 @@ export default function App() {
     }
   };
   
-  // دالة جلب المشاريع بشكل منفصل للتحكم بها
   const fetchProjectsData = useCallback(async () => {
       if (projectsFetchedRef.current) return;
-      projectsFetchedRef.current = true; // منع التكرار
+      projectsFetchedRef.current = true;
       try {
           const q = query(collection(db, "projects"), limit(50));
           const querySnapshot = await getDocs(q);
@@ -600,7 +648,6 @@ export default function App() {
     fetchExternalLinks();
     resetInactivityTimer();
 
-    // تأخير جلب المشاريع ليكون آخر شيء يحمّل في الخلفية (بعد 8 ثوانٍ)
     projectsFetchTimerRef.current = setTimeout(() => {
         fetchProjectsData();
     }, 8000); 
@@ -609,19 +656,34 @@ export default function App() {
 
     const decreaseCount = () => {
       if (isActiveVisitor.current) {
+        if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
         setDoc(statsRef, { visitorCount: increment(-1) }, { merge: true }).catch(e => console.error(e));
         isActiveVisitor.current = false;
       }
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        decreaseCount();
+      } else if (document.visibilityState === 'visible') {
+        resetInactivityTimer();
+      }
+    };
+
     window.addEventListener('beforeunload', decreaseCount);
+    window.addEventListener('pagehide', decreaseCount);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     
+    window.addEventListener('mousemove', resetInactivityTimer);
+    window.addEventListener('touchstart', resetInactivityTimer, { passive: true });
+    window.addEventListener('keydown', resetInactivityTimer);
+    window.addEventListener('click', resetInactivityTimer);
+
     const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         const count = data.visitorCount || 0;
         setVisitorCount(Math.max(0, count)); 
-        // استدعاء وتحديث الإعلان من نفس الاتصال بسلاسة
         setCartAnnouncement(data.cartAnnouncement || '');
       }
     });
@@ -639,6 +701,14 @@ export default function App() {
     return () => {
       decreaseCount();
       window.removeEventListener('beforeunload', decreaseCount);
+      window.removeEventListener('pagehide', decreaseCount);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+
+      window.removeEventListener('mousemove', resetInactivityTimer);
+      window.removeEventListener('touchstart', resetInactivityTimer);
+      window.removeEventListener('keydown', resetInactivityTimer);
+      window.removeEventListener('click', resetInactivityTimer);
+
       unsubscribeStats();
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
@@ -646,10 +716,9 @@ export default function App() {
     };
   }, [isAdminMode, resetInactivityTimer, fetchProjectsData]);
 
-  // دالة النقر على زر المشاريع لإعطاء الأولوية
   const handleProjectsClick = () => {
-      if (projectsFetchTimerRef.current) clearTimeout(projectsFetchTimerRef.current); // إلغاء التأخير
-      fetchProjectsData(); // الجلب الفوري إذا لم يتم جلبها بعد
+      if (projectsFetchTimerRef.current) clearTimeout(projectsFetchTimerRef.current);
+      fetchProjectsData(); 
       setIsProjectsModalOpen(true);
       setIsSideMenuOpen(false);
       playSynthSound(600, 'sine', 0.1);
@@ -779,7 +848,7 @@ export default function App() {
     card.style.transform = `rotateX(0deg) rotateY(0deg) scale(1)`;
   }, []);
 
-  const addToCart = (id, name, price, image, stock, qtyToAdd = 1) => {
+  const addToCart = (id, name, price, image, stock, qtyToAdd = 1, enableWholesale = false, discount10 = 250, discount20 = 500) => {
     const stockVal = parseInt(stock) || 0;
     if (stockVal <= 0) {
        playErrorBuzz();
@@ -801,7 +870,7 @@ export default function App() {
       if (existing) {
         return prevCart.map((item) => item.id === id ? { ...item, qty: item.qty + qtyToAdd } : item);
       }
-      return [...prevCart, { id, name, price, image, qty: qtyToAdd }];
+      return [...prevCart, { id, name, price, image, qty: qtyToAdd, enableWholesale, discount10, discount20 }];
     });
   };
 
@@ -832,7 +901,19 @@ export default function App() {
     }
   };
 
-  const subtotal = useMemo(() => cart.reduce((acc, item) => acc + (Number(item.price) || 0) * (parseInt(item.qty) || 0), 0), [cart]);
+  const subtotal = useMemo(() => cart.reduce((acc, item) => {
+      let effectivePrice = Number(item.price) || 0;
+      const qty = parseInt(item.qty) || 0;
+      if (item.enableWholesale) {
+          if (qty >= 20) {
+              effectivePrice = Math.max(0, effectivePrice - (Number(item.discount20) || 500));
+          } else if (qty >= 10) {
+              effectivePrice = Math.max(0, effectivePrice - (Number(item.discount10) || 250));
+          }
+      }
+      return acc + (effectivePrice * qty);
+  }, 0), [cart]);
+
   const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0), [cart]);
   
   const activeGov = useMemo(() => deliveryLocations.find(g => g.id === selectedGovId) || { price: 0, time: '', name: '' }, [deliveryLocations, selectedGovId]);
@@ -860,13 +941,21 @@ export default function App() {
       location: String(`${activeGov.name || ''} - ${detailedAddress || ''}`),
       governorate: String(activeGov.name || ''),
       expectedTime: String(activeGov.time || ''),
-      items: finalCart.map(item => ({
-          id: String(item.id || ''),
-          name: String(item.name || ''),
-          price: Number(item.price) || 0,
-          image: String(item.image || ''),
-          qty: Number(item.qty) || 1
-      })),
+      items: finalCart.map(item => {
+          let effectivePrice = Number(item.price) || 0;
+          if (item.enableWholesale) {
+              if (item.qty >= 20) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount20) || 500));
+              else if (item.qty >= 10) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount10) || 250));
+          }
+          return {
+              id: String(item.id || ''),
+              name: String(item.name || ''),
+              price: Number(effectivePrice) || 0,
+              originalPrice: Number(item.price) || 0,
+              image: String(item.image || ''),
+              qty: Number(item.qty) || 1
+          };
+      }),
       subtotalAmount: Number(subtotal) || 0,
       deliveryFee: Number(currentDeliveryFee) || 0,
       totalAmount: (Number(subtotal) || 0) + (Number(currentDeliveryFee) || 0),
@@ -946,7 +1035,10 @@ export default function App() {
           compatLink: newProdCompatLink || '',
           compatProdIds: newProdCompatIds || [], 
           libLink: newProdLibLink || '',
-          codeSnippet: newProdCodeSnippet || ''
+          codeSnippet: newProdCodeSnippet || '',
+          enableWholesale: newProdEnableWholesale || false,
+          discount10: newProdDiscount10 !== '' ? parseInt(newProdDiscount10) : 250,
+          discount20: newProdDiscount20 !== '' ? parseInt(newProdDiscount20) : 500
         };
         await updateDoc(productRef, updatedData);
         setProducts(products.map(p => p.id === editProdId ? { ...p, ...updatedData } : p));
@@ -967,7 +1059,10 @@ export default function App() {
           compatLink: newProdCompatLink || '',
           compatProdIds: newProdCompatIds || [], 
           libLink: newProdLibLink || '',
-          codeSnippet: newProdCodeSnippet || ''
+          codeSnippet: newProdCodeSnippet || '',
+          enableWholesale: newProdEnableWholesale || false,
+          discount10: newProdDiscount10 !== '' ? parseInt(newProdDiscount10) : 250,
+          discount20: newProdDiscount20 !== '' ? parseInt(newProdDiscount20) : 500
         };
         const docRef = await addDoc(collection(db, "products"), newP);
         setProducts([...products, { id: docRef.id, ...newP }]);
@@ -988,6 +1083,9 @@ export default function App() {
       setNewProdCompatIds([]);
       setNewProdLibLink('');
       setNewProdCodeSnippet('');
+      setNewProdEnableWholesale(false);
+      setNewProdDiscount10('');
+      setNewProdDiscount20('');
       setEditProdId(null);
     } catch (error) {
       playErrorBuzz();
@@ -1008,10 +1106,12 @@ export default function App() {
     setNewProdCode(prod.code || ''); 
     setNewProdImages(prod.images || (prod.img ? [prod.img] : [])); 
     setNewProdCompatLink(prod.compatLink || '');
-    // التوافق مع الأنظمة السابقة التي كانت تعتمد على id واحد بدلاً من مصفوفة
     setNewProdCompatIds(prod.compatProdIds || (prod.compatProdId ? [prod.compatProdId] : []));
     setNewProdLibLink(prod.libLink || '');
     setNewProdCodeSnippet(prod.codeSnippet || '');
+    setNewProdEnableWholesale(prod.enableWholesale || false);
+    setNewProdDiscount10(prod.discount10 !== undefined ? prod.discount10 : 250);
+    setNewProdDiscount20(prod.discount20 !== undefined ? prod.discount20 : 500);
     setEditProdId(prod.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -1058,7 +1158,12 @@ export default function App() {
         normCode.includes(normalizedQuery) ||
         priceStr.includes(normalizedQuery);
 
-      const matchCat = normalizedQuery !== '' ? true : (selectedCatFilter === '' || prod.category === selectedCatFilter);
+      let matchCat = true;
+      if (selectedCatFilter === '') {
+          matchCat = prod.category !== 'ادوات مشروع';
+      } else {
+          matchCat = prod.category === selectedCatFilter;
+      }
 
       return matchSearch && matchCat;
     }).sort((a, b) => {
@@ -1083,12 +1188,12 @@ export default function App() {
   };
 
   return (
-    <div className={`tech-grid relative min-h-screen font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 bg-[#0f172a] text-gray-100 flex flex-col w-full`} dir={lang === 'en' ? 'ltr' : 'rtl'}>
+    <div className={`tech-grid relative min-h-screen font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 flex flex-col w-full ${isDarkMode ? 'bg-[#0f172a] text-gray-100' : 'bg-[#f4f7f6] text-slate-800'}`} dir={lang === 'en' ? 'ltr' : 'rtl'}>
       
       <div ref={cursorOuterRef} className={`custom-cursor hidden md:block fixed top-0 left-0 w-[30px] h-[30px] border rounded-full pointer-events-none -translate-x-1/2 -translate-y-1/2 z-[9999] border-teal-500/60`}></div>
       <div ref={cursorInnerRef} className={`custom-cursor-dot hidden md:block fixed top-0 left-0 w-[6px] h-[6px] rounded-full pointer-events-none -translate-x-1/2 -translate-y-1/2 z-[9999] bg-teal-500`}></div>
 
-      <header className={`border-b fixed top-0 left-0 right-0 z-50 px-2 sm:px-6 py-2 sm:py-3 backdrop-blur-md transition-colors duration-500 border-teal-500/20 bg-slate-900/90 shadow-lg`}>
+      <header className={`border-b fixed top-0 left-0 right-0 z-50 px-2 sm:px-6 py-2 sm:py-3 backdrop-blur-md transition-colors duration-500 shadow-lg ${isDarkMode ? 'border-teal-500/20 bg-slate-900/90' : 'border-teal-200 bg-white/90 shadow-sm'}`}>
         <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center w-full gap-y-2">
           
           <div className="flex flex-row items-center gap-2 sm:gap-3 flex-shrink-0" style={{ direction: 'ltr' }}>
@@ -1098,7 +1203,7 @@ export default function App() {
             
             <button 
               onClick={() => setIsSideMenuOpen(true)} 
-              className="flex items-center gap-2 text-teal-400 bg-teal-500/10 border border-teal-500/30 px-3 py-2 rounded-lg hover:bg-teal-500 hover:text-slate-900 transition-colors cursor-pointer shadow-sm"
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors cursor-pointer shadow-sm ${isDarkMode ? 'text-teal-400 bg-teal-500/10 border border-teal-500/30 hover:bg-teal-500 hover:text-slate-900' : 'text-teal-700 bg-teal-50 border border-teal-200 hover:bg-teal-500 hover:text-white'}`}
             >
               <i className="fas fa-bars text-lg"></i> <span className={`font-mono text-xs font-bold tracking-widest hidden sm:inline`}>{t.menu}</span>
             </button>
@@ -1106,11 +1211,18 @@ export default function App() {
 
           <div className="flex items-center gap-1.5 sm:gap-4 flex-wrap justify-end">
             
-            <div className={`flex items-center bg-slate-900/80 border border-teal-500/30 rounded-full p-1 backdrop-blur-sm shadow-inner`}>
-              <button type="button" onClick={() => setLang('ar')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'ar' ? 'bg-teal-500 text-slate-900 shadow-md' : 'text-gray-400 hover:text-white'}`}>AR</button>
-              <button type="button" onClick={() => setLang('ku')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'ku' ? 'bg-teal-500 text-slate-900 shadow-md' : 'text-gray-400 hover:text-white'}`}>KU</button>
-              <button type="button" onClick={() => setLang('en')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'en' ? 'bg-teal-500 text-slate-900 shadow-md' : 'text-gray-400 hover:text-white'}`}>EN</button>
+            <button
+              onClick={() => { setIsDarkMode(!isDarkMode); playSynthSound(isDarkMode ? 800 : 400, 'sine', 0.1); }}
+              className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full transition-all shadow-md ${isDarkMode ? 'bg-slate-800 text-yellow-400 border border-slate-700 hover:bg-slate-700' : 'bg-teal-50 text-teal-600 border border-teal-200 hover:bg-teal-100 hover:scale-105'}`}
+              title={isDarkMode ? 'تفعيل الوضع الفاتح' : 'تفعيل الوضع الداكن'}
+            >
+              <i className={`fas ${isDarkMode ? 'fa-moon' : 'fa-sun'} text-sm sm:text-lg`}></i>
+            </button>
 
+            <div className={`flex items-center rounded-full p-1 backdrop-blur-sm shadow-inner border ${isDarkMode ? 'bg-slate-900/80 border-teal-500/30' : 'bg-slate-100 border-teal-200'}`}>
+              <button type="button" onClick={() => setLang('ar')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'ar' ? 'bg-teal-500 text-white shadow-md' : 'text-gray-400 hover:text-teal-500'}`}>AR</button>
+              <button type="button" onClick={() => setLang('ku')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'ku' ? 'bg-teal-500 text-white shadow-md' : 'text-gray-400 hover:text-teal-500'}`}>KU</button>
+              <button type="button" onClick={() => setLang('en')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'en' ? 'bg-teal-500 text-white shadow-md' : 'text-gray-400 hover:text-teal-500'}`}>EN</button>
             </div>
 
             {user && user.uid === ADMIN_UID && (
@@ -1119,7 +1231,7 @@ export default function App() {
                    type="button"
                    onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                    onClick={() => { playSynthSound(900, 'sine', 0.1); setIsAdminMode(!isAdminMode); }}
-                   className="w-10 h-10 sm:w-auto sm:px-4 sm:py-2 bg-red-600/20 border border-red-500 text-red-400 hover:bg-red-500 hover:text-white rounded-full font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
+                   className="w-10 h-10 sm:w-auto sm:px-4 sm:py-2 bg-red-600/20 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white rounded-full font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
                    title={isAdminMode ? t.adminLeave : t.adminLogin}
                  >
                    <i className={`fas ${isAdminMode ? 'fa-sign-out-alt' : 'fa-user-shield'} text-sm`}></i> 
@@ -1129,64 +1241,62 @@ export default function App() {
             )}
 
             {user ? (
-              <div className={`flex items-center gap-1 sm:gap-2 bg-slate-900/80 border border-teal-500/30 rounded-full p-1 sm:px-2 shadow-inner`}>
+              <div className={`flex items-center gap-1 sm:gap-2 rounded-full p-1 sm:px-2 shadow-inner border ${isDarkMode ? 'bg-slate-900/80 border-teal-500/30' : 'bg-slate-100 border-teal-200'}`}>
                 <img src={user.photoURL} alt="pfp" className="w-8 h-8 rounded-full border border-teal-400" />
-                <span className={`text-gray-200 hidden lg:inline text-xs font-bold`}>{user.name}</span>
+                <span className={`hidden lg:inline text-xs font-bold ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>{user.name}</span>
                 <button type="button" onClick={handleLogout} className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-500/20 rounded-full transition-colors" title={t.adminLeave}>
                    <i className="fas fa-power-off"></i>
                 </button>
               </div>
             ) : (
-              <button type="button" onClick={handleGoogleLogin} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-10 h-10 sm:w-auto sm:px-4 sm:py-2 flex items-center justify-center rounded-full font-bold transition-all shadow-md bg-gradient-to-r from-teal-500 to-emerald-500 text-slate-900`}>
+              <button type="button" onClick={handleGoogleLogin} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-10 h-10 sm:w-auto sm:px-4 sm:py-2 flex items-center justify-center rounded-full font-bold transition-all shadow-md bg-gradient-to-r from-teal-500 to-emerald-500 text-white`}>
                 <i className="fab fa-google text-sm"></i> <span className="hidden sm:inline font-mono text-xs mx-2">{t.cloudLogin}</span>
               </button>
             )}
 
-            {/* Cart Button */}
-            <button type="button" onClick={() => { setIsCartOpen(true); playSynthSound(800, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`relative flex items-center justify-center w-10 h-10 sm:w-auto sm:px-5 sm:py-2 rounded-full transition-all shadow-[0_0_15px_rgba(20,184,166,0.5)] bg-teal-500 text-slate-900 hover:bg-teal-400 hover:scale-105 flex-shrink-0`}>
+            <button type="button" onClick={() => { setIsCartOpen(true); playSynthSound(800, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`relative flex items-center justify-center w-10 h-10 sm:w-auto sm:px-5 sm:py-2 rounded-full transition-all shadow-[0_0_15px_rgba(20,184,166,0.5)] bg-teal-500 text-white hover:bg-teal-400 hover:scale-105 flex-shrink-0`}>
               <i className={`fas fa-shopping-cart text-lg`}></i>
               <span className="font-mono text-sm hidden sm:inline font-bold ml-2 mr-2">{totalQty.toString().padStart(2, '0')}</span>
-              <span className={`absolute -top-1.5 -right-1.5 w-6 h-6 font-mono text-xs font-bold rounded-full flex items-center justify-center shadow-lg bg-red-600 text-white border-2 border-[#0f172a]`}>{totalQty}</span>
+              <span className={`absolute -top-1.5 -right-1.5 w-6 h-6 font-mono text-xs font-bold rounded-full flex items-center justify-center shadow-lg bg-red-600 text-white border-2 ${isDarkMode ? 'border-[#0f172a]' : 'border-white'}`}>{totalQty}</span>
             </button>
           </div>
         </div>
       </header>
 
-      <div className={`fixed inset-y-0 ${lang === 'en' ? 'left-0' : 'right-0'} w-72 bg-[#1e293b] border-${lang === 'en' ? 'r' : 'l'} border-teal-500/20 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[100] transform transition-transform duration-300 flex flex-col ${isSideMenuOpen ? 'translate-x-0' : (lang === 'en' ? '-translate-x-full' : 'translate-x-full')}`}>
-        <div className="p-5 border-b border-teal-500/20 flex justify-between items-center bg-slate-900/50">
-          <h3 className="text-teal-400 font-bold text-lg flex items-center gap-2"><i className="fas fa-list-ul"></i> {t.menu}</h3>
-          <button type="button" onClick={() => setIsSideMenuOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full border border-teal-500/20 text-teal-400 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-all">
+      <div className={`fixed inset-y-0 ${lang === 'en' ? 'left-0' : 'right-0'} w-72 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[100] transform transition-transform duration-300 flex flex-col ${isSideMenuOpen ? 'translate-x-0' : (lang === 'en' ? '-translate-x-full' : 'translate-x-full')} ${isDarkMode ? 'bg-[#1e293b] border-teal-500/20' : 'bg-white border-teal-200'}`}>
+        <div className={`p-5 border-b flex justify-between items-center ${isDarkMode ? 'border-teal-500/20 bg-slate-900/50' : 'border-teal-100 bg-slate-50'}`}>
+          <h3 className={`font-bold text-lg flex items-center gap-2 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}><i className="fas fa-list-ul"></i> {t.menu}</h3>
+          <button type="button" onClick={() => setIsSideMenuOpen(false)} className={`w-8 h-8 flex items-center justify-center rounded-full border transition-all ${isDarkMode ? 'border-teal-500/20 text-teal-400 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30' : 'border-teal-200 text-teal-600 hover:bg-red-50 hover:text-red-500 hover:border-red-200'}`}>
             <i className="fas fa-times text-lg"></i>
           </button>
         </div>
         
         <div className="p-5 flex flex-col gap-4 flex-grow overflow-y-auto custom-scrollbar">
           
-          <button onClick={handleProjectsClick} className="w-full flex items-center gap-4 bg-blue-500/10 border border-blue-500/30 text-blue-400 p-4 rounded-xl hover:bg-blue-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
+          <button onClick={handleProjectsClick} className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500 hover:text-slate-900' : 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-500 hover:text-white'}`}>
             <i className="fa-solid fa-diagram-project text-2xl"></i> 
             <span className="text-sm">{t.projects}</span>
           </button>
 
-          <button onClick={() => { handleInstallApp(); setIsSideMenuOpen(false); }} className="w-full flex items-center gap-4 bg-teal-500/10 border border-teal-500/30 text-teal-400 p-4 rounded-xl hover:bg-teal-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
+          <button onClick={() => { handleInstallApp(); setIsSideMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-teal-500/10 border-teal-500/30 text-teal-400 hover:bg-teal-500 hover:text-slate-900' : 'bg-teal-50 border-teal-200 text-teal-600 hover:bg-teal-500 hover:text-white'}`}>
             <i className="fas fa-download text-2xl"></i> 
             <span className="text-sm">{t.installApp}</span>
           </button>
           
-          <a href="https://wa.me/9647760599953" target="_blank" rel="noopener noreferrer" className="w-full flex items-center gap-4 bg-green-500/10 border border-green-500/30 text-green-400 p-4 rounded-xl hover:bg-green-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
+          <a href="https://wa.me/9647760599953" target="_blank" rel="noopener noreferrer" className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500 hover:text-slate-900' : 'bg-green-50 border-green-200 text-green-600 hover:bg-green-500 hover:text-white'}`}>
             <i className="fab fa-whatsapp text-2xl"></i> 
             <span className="text-sm">{t.whatsappSupport}</span>
           </a>
 
           {externalLinks.map(link => (
-            <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className="w-full flex items-center gap-4 bg-purple-500/10 border border-purple-500/30 text-purple-400 p-4 rounded-xl hover:bg-purple-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
+            <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500 hover:text-slate-900' : 'bg-purple-50 border-purple-200 text-purple-600 hover:bg-purple-500 hover:text-white'}`}>
                <i className="fa-solid fa-arrow-up-right-from-square text-2xl"></i>
                <span className="text-sm">{link.title}</span>
             </a>
           ))}
 
-         
-          <div className="mt-auto pt-4 border-t border-teal-500/20">
-             <button onClick={() => { alert('الحمد لله الذي علّم بالقلم، والشكر موصول لرسوله الأعظم وعترته الطاهرة، ينابيع الحكمة وأصل كل علم، من أشرقت بأنوار معارفهم عقول البشر، وقامت على فيض علومهم حضارات الأمم'); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className="w-full flex items-center gap-4 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-4 rounded-xl hover:bg-yellow-500 hover:text-slate-900 transition-all font-bold shadow-md hover:scale-105">
+          <div className={`mt-auto pt-4 border-t ${isDarkMode ? 'border-teal-500/20' : 'border-teal-100'}`}>
+             <button onClick={() => { alert('الحمد لله الذي علّم بالقلم، والشكر موصول لرسوله الأعظم وعترته الطاهرة، ينابيع الحكمة وأصل كل علم، من أشرقت بأنوار معارفهم عقول البشر، وقامت على فيض علومهم حضارات الأمم'); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500 hover:text-slate-900' : 'bg-yellow-50 border-yellow-200 text-yellow-600 hover:bg-yellow-500 hover:text-white'}`}>
                 <i className="fa-solid fa-hands-praying text-2xl"></i>
                 <span className="text-sm">شكرا</span>
              </button>
@@ -1195,88 +1305,93 @@ export default function App() {
       </div>
       
       {isSideMenuOpen && (
-        <div onClick={() => setIsSideMenuOpen(false)} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[90] transition-opacity"></div>
+        <div onClick={() => setIsSideMenuOpen(false)} className={`fixed inset-0 z-[90] transition-opacity ${isDarkMode ? 'bg-slate-900/80 backdrop-blur-sm' : 'bg-slate-800/40 backdrop-blur-sm'}`}></div>
       )}
 
       {isAdminMode && user?.uid === ADMIN_UID ? (
-        <AdminPanel 
-          products={products} setProducts={setProducts}
-          handleSaveProduct={handleSaveProduct} handleDeleteProduct={handleDeleteProduct} handleEditClick={handleEditClick}
-          newProdName={newProdName} setNewProdName={setNewProdName}
-          newProdPrice={newProdPrice} setNewProdPrice={setNewProdPrice}
-          newProdImg={newProdImg} setNewProdImg={setNewProdImg}
-          newProdDesc={newProdDesc} setNewProdDesc={setNewProdDesc} 
-          newProdImages={newProdImages} setNewProdImages={setNewProdImages} 
-          newProdStock={newProdStock} setNewProdStock={setNewProdStock} 
-          newProdOrderIndex={newProdOrderIndex} setNewProdOrderIndex={setNewProdOrderIndex}
-          newProdCategory={newProdCategory} setNewProdCategory={setNewProdCategory}
-          categories={categories}
-          handleAddCategory={handleAddCategory}
-          handleDeleteCategory={handleDeleteCategory}
-          handleEditCategory={handleEditCategory}
-          newProdChip={newProdChip} setNewProdChip={setNewProdChip}
-          newProdCode={newProdCode} setNewProdCode={setNewProdCode}
-          
-          newProdCompatLink={newProdCompatLink} setNewProdCompatLink={setNewProdCompatLink}
-          newProdCompatIds={newProdCompatIds} setNewProdCompatIds={setNewProdCompatIds}
-          newProdLibLink={newProdLibLink} setNewProdLibLink={setNewProdLibLink}
-          newProdCodeSnippet={newProdCodeSnippet} setNewProdCodeSnippet={setNewProdCodeSnippet}
-          
-          projectsList={projectsList} setProjectsList={setProjectsList} fetchProjectsData={fetchProjectsData}
-          
-          externalLinks={externalLinks} setExternalLinks={setExternalLinks}
+        <Suspense fallback={<div className="flex-grow flex items-center justify-center min-h-screen text-teal-500 font-bold animate-pulse text-xl"><i className="fas fa-spinner fa-spin ml-2"></i> جاري تحميل بيئة الإدارة السريعة...</div>}>
+            <AdminPanel 
+            products={products} setProducts={setProducts}
+            handleSaveProduct={handleSaveProduct} handleDeleteProduct={handleDeleteProduct} handleEditClick={handleEditClick}
+            newProdName={newProdName} setNewProdName={setNewProdName}
+            newProdPrice={newProdPrice} setNewProdPrice={setNewProdPrice}
+            newProdImg={newProdImg} setNewProdImg={setNewProdImg}
+            newProdDesc={newProdDesc} setNewProdDesc={setNewProdDesc} 
+            newProdImages={newProdImages} setNewProdImages={setNewProdImages} 
+            newProdStock={newProdStock} setNewProdStock={setNewProdStock} 
+            newProdOrderIndex={newProdOrderIndex} setNewProdOrderIndex={setNewProdOrderIndex}
+            newProdCategory={newProdCategory} setNewProdCategory={setNewProdCategory}
+            categories={categories}
+            handleAddCategory={handleAddCategory}
+            handleDeleteCategory={handleDeleteCategory}
+            handleEditCategory={handleEditCategory}
+            newProdChip={newProdChip} setNewProdChip={setNewProdChip}
+            newProdCode={newProdCode} setNewProdCode={setNewProdCode}
+            
+            newProdCompatLink={newProdCompatLink} setNewProdCompatLink={setNewProdCompatLink}
+            newProdCompatIds={newProdCompatIds} setNewProdCompatIds={setNewProdCompatIds}
+            newProdLibLink={newProdLibLink} setNewProdLibLink={setNewProdLibLink}
+            newProdCodeSnippet={newProdCodeSnippet} setNewProdCodeSnippet={setNewProdCodeSnippet}
+            
+            newProdEnableWholesale={newProdEnableWholesale} setNewProdEnableWholesale={setNewProdEnableWholesale}
+            newProdDiscount10={newProdDiscount10} setNewProdDiscount10={setNewProdDiscount10}
+            newProdDiscount20={newProdDiscount20} setNewProdDiscount20={setNewProdDiscount20}
 
-          editProdId={editProdId}
-          orders={orders} fetchOrders={fetchOrders}
-          handleDeleteOrder={handleDeleteOrder} 
-          handleCancelOrder={handleCancelOrder}
-          handleCompleteOrder={handleCompleteOrder} 
-          visitorCount={visitorCount}
-          handleResetVisitors={handleResetVisitors} 
-          deliveryLocations={deliveryLocations} 
-          setDeliveryLocations={setDeliveryLocations} 
-          
-          // الخصائص الجديدة لإعلان السلة
-          cartAnnouncement={cartAnnouncement}
-          handleSaveCartAnnouncement={handleSaveCartAnnouncement}
-        />
+            projectsList={projectsList} setProjectsList={setProjectsList} fetchProjectsData={fetchProjectsData}
+            
+            externalLinks={externalLinks} setExternalLinks={setExternalLinks}
+
+            editProdId={editProdId}
+            orders={orders} fetchOrders={fetchOrders}
+            handleDeleteOrder={handleDeleteOrder} 
+            handleCancelOrder={handleCancelOrder}
+            handleCompleteOrder={handleCompleteOrder} 
+            visitorCount={visitorCount}
+            handleResetVisitors={handleResetVisitors} 
+            deliveryLocations={deliveryLocations} 
+            setDeliveryLocations={setDeliveryLocations} 
+            
+            cartAnnouncement={cartAnnouncement}
+            handleSaveCartAnnouncement={handleSaveCartAnnouncement}
+            />
+        </Suspense>
       ) : (
         <div className="flex-grow flex flex-col w-full">
           <section className="min-h-auto flex flex-col justify-center items-center text-center px-4 sm:px-8 pt-32 pb-10 relative overflow-hidden">
             <span className={`text-6xl sm:text-7xl font-bold tracking-tighter uppercase m-auto p-4 sm:p-7 leading-none text-[#4ef542]`}>M <span className="text-[#ff8800]">S</span> A</span>
-            <span className="font-mono text-lg sm:text-2xl tracking-[0.04em] mb-3 text-teal-400 animate-deep-pulse">{t.heroSub}</span>
+            <span className={`font-mono text-lg sm:text-2xl tracking-[0.04em] mb-3 animate-deep-pulse ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>{t.heroSub}</span>
             
             <h1 className="text-4xl md:text-8xl font-cairo-black uppercase leading-tight relative z-10 flex items-center justify-center flex-wrap">
-              <span className="scanline-text text-white mx-2">{t.heroTitle1}</span> 
+              <span className={`scanline-text mx-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{t.heroTitle1}</span> 
               <span className="robot-gradient-scanline mx-4 robot-glow-container text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-500">
                   {t.heroTitle2}
               </span> 
-              <span className="scanline-text text-white mx-2">{t.heroTitle3}</span>
+              <span className={`scanline-text mx-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{t.heroTitle3}</span>
             </h1>
-            <p className="max-w-xl m-auto p-4 sm:p-6 text-xs sm:text-lg mb-2 font-light text-gray-300">
+            <p className={`max-w-xl m-auto p-4 sm:p-6 text-xs sm:text-lg mb-2 font-light ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
               {t.heroDesc}
             </p>
             <div ref={magneticContainerRef} className="p-4 sm:p-10 cursor-pointer">
-              <button type="button" ref={magneticBtnRef} onClick={() => document.getElementById('productsSection').scrollIntoView({ behavior: 'smooth' })} className={`relative px-6 py-3 sm:px-10 sm:py-5 bg-transparent border rounded-full text-sm uppercase tracking-widest overflow-hidden group transition-all duration-300 shadow-sm border-teal-500/30 text-teal-400 hover:border-teal-400 hover:text-slate-900`}>
+              <button type="button" ref={magneticBtnRef} onClick={() => document.getElementById('productsSection').scrollIntoView({ behavior: 'smooth' })} className={`relative px-6 py-3 sm:px-10 sm:py-5 bg-transparent border rounded-full text-sm uppercase tracking-widest overflow-hidden group transition-all duration-300 shadow-sm ${isDarkMode ? 'border-teal-500/30 text-teal-400 hover:border-teal-400 hover:text-slate-900' : 'border-teal-500 text-teal-600 hover:text-white'}`}>
                 <span className="relative z-10 font-bold flex items-center gap-3 transition-colors duration-300">
                   <i className="fas fa-arrow-down animate-bounce"></i> {t.browseCat}
                 </span>
-                <div className="absolute inset-0 bg-teal-400 scale-y-0 origin-bottom group-hover:scale-y-100 transition-transform duration-300 ease-out z-0"></div>
+                <div className="absolute inset-0 bg-teal-500 scale-y-0 origin-bottom group-hover:scale-y-100 transition-transform duration-300 ease-out z-0"></div>
               </button>
             </div>
           </section>
 
-          <section className={`max-w-7xl mx-auto px-2 sm:px-4 py-4 border-t border-teal-500/10 flex-grow w-full`} id="productsSection">
+          <section className={`max-w-7xl mx-auto px-2 sm:px-4 py-4 border-t flex-grow w-full ${isDarkMode ? 'border-teal-500/10' : 'border-teal-200'}`} id="productsSection">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4 px-2">
               <div>
-                <h2 className={`text-2xl md:text-5xl font-extrabold tracking-tight mt-2 text-white`}>{t.catTitle}</h2>
+                <h2 className={`text-2xl md:text-5xl font-extrabold tracking-tight mt-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{t.catTitle}</h2>
               </div>
-              <p className={`max-w-sm text-xs sm:text-sm font-mono text-gray-400`}>{t.catDesc}</p>
+              <p className={`max-w-sm text-xs sm:text-sm font-mono ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>{t.catDesc}</p>
             </div>
 
             <div className="mb-6 relative w-full md:w-1/2 lg:w-1/3 px-2">
               <div className={`absolute inset-y-0 ${lang === 'en' ? 'left-4' : 'right-4'} flex items-center pointer-events-none`}>
-                <i className="fas fa-search text-teal-600"></i>
+                <i className={`fas fa-search ${isDarkMode ? 'text-teal-600' : 'text-teal-500'}`}></i>
               </div>
               <input 
                 type="text" 
@@ -1285,34 +1400,45 @@ export default function App() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onMouseEnter={handleMouseEnterInteractive} 
                 onMouseLeave={handleMouseLeaveInteractive}
-                className={`w-full p-3 sm:p-4 ${lang === 'en' ? 'pl-12' : 'pr-12'} rounded-2xl text-xs sm:text-sm outline-none transition-all border border-teal-500 bg-white text-slate-900 placeholder-gray-500 shadow-lg focus:border-teal-600 focus:ring-2 focus:ring-teal-300`}
+                className={`w-full p-3 sm:p-4 ${lang === 'en' ? 'pl-12' : 'pr-12'} rounded-2xl text-xs sm:text-sm outline-none transition-all shadow-lg focus:ring-2 focus:ring-teal-300 ${isDarkMode ? 'border border-teal-500 bg-white text-slate-900 placeholder-gray-500 focus:border-teal-600' : 'border border-teal-200 bg-white text-slate-900 placeholder-slate-400 focus:border-teal-500 shadow-teal-500/10'}`}
               />
             </div>
 
             <div className={`flex flex-wrap gap-2 mb-6 px-2 justify-center md:justify-start custom-scrollbar ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
                <button 
                   onClick={() => setSelectedCatFilter('')} 
-                  className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-slate-900 font-bold border-teal-500' : 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400'}`}
+                  className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
                >
                   All / الكل
                </button>
-               {categories.map(c => (
-                   <button 
-                      key={c.id} 
-                      onClick={() => setSelectedCatFilter(c.name)} 
-                      className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-slate-900 font-bold border-teal-500' : 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400'}`}
-                   >
-                      {c.name}
-                   </button>
-               ))}
+
+               <button 
+                  onClick={() => setSelectedCatFilter('ادوات مشروع')} 
+                  className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-md flex items-center gap-2 ${selectedCatFilter === 'ادوات مشروع' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold border-transparent shadow-[0_0_15px_rgba(147,51,234,0.5)] scale-105' : (isDarkMode ? 'bg-[#1e1136] text-purple-400 border-purple-500/30 hover:border-purple-400 hover:text-purple-300' : 'bg-purple-50 text-purple-700 border-purple-200 hover:border-purple-400 hover:text-purple-600')}`}
+               >
+                  <i className="fa-solid fa-toolbox"></i> ادوات مشروع
+               </button>
+
+               {categories.map(c => {
+                   if (c.name === 'ادوات مشروع') return null; 
+                   return (
+                       <button 
+                          key={c.id} 
+                          onClick={() => setSelectedCatFilter(c.name)} 
+                          className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
+                       >
+                          {c.name}
+                       </button>
+                   );
+               })}
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-6 items-stretch pb-12 w-full px-1 sm:px-2">
               {filteredProducts.length === 0 ? (
-                <div className="col-span-2 sm:col-span-3 lg:col-span-4 text-center py-16 border rounded-2xl border-dashed border-teal-500/20 bg-slate-800/40 mx-2">
+                <div className={`col-span-2 sm:col-span-3 lg:col-span-4 text-center py-16 border rounded-2xl border-dashed mx-2 ${isDarkMode ? 'border-teal-500/20 bg-slate-800/40' : 'border-teal-300 bg-white'}`}>
                   <i className="fas fa-microchip text-3xl sm:text-5xl text-teal-500/30 mb-4 animate-pulse"></i>
-                  <h3 className="text-lg sm:text-xl font-bold text-gray-300">{t.notFoundTitle}</h3>
-                  <p className="text-xs sm:text-sm text-gray-400 mt-2">{t.notFoundDesc}</p>
+                  <h3 className={`text-lg sm:text-xl font-bold ${isDarkMode ? 'text-gray-300' : 'text-slate-800'}`}>{t.notFoundTitle}</h3>
+                  <p className={`text-xs sm:text-sm mt-2 ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>{t.notFoundDesc}</p>
                 </div>
               ) : (
                 filteredProducts.map((prod) => {
@@ -1327,65 +1453,69 @@ export default function App() {
                       onMouseLeave={(e) => handleCardLeave(e.currentTarget)}
                       onMouseEnter={handleMouseEnterInteractive} 
                       onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); resetInactivityTimer(); }}
-                      className={`card-tilt cursor-pointer h-full w-full flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-5 relative group transition-all duration-300 border bg-neutral-900/40 overflow-hidden break-words min-w-0 ${isOutOfStock ? 'border-red-500/20 hover:border-red-400/60' : 'border-teal-500/20 hover:border-teal-400/60'}`}
+                      className={`card-tilt cursor-pointer h-full w-full flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-5 relative group transition-all duration-300 border overflow-hidden break-words min-w-0 ${isDarkMode ? (isOutOfStock ? 'bg-neutral-900/40 border-red-500/20 hover:border-red-400/60' : 'bg-neutral-900/40 border-teal-500/20 hover:border-teal-400/60') : (isOutOfStock ? 'bg-white border-red-200 hover:border-red-400 shadow-md' : 'bg-white border-gray-100 hover:border-teal-300 shadow-xl hover:shadow-2xl')}`}
                     >
                       <div className="gloss-effect"></div>
                       
                       <div 
                         onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); resetInactivityTimer(); }}
-                        className={`flex-shrink-0 h-28 sm:h-48 w-full rounded-lg sm:rounded-xl overflow-hidden mb-3 sm:mb-5 flex items-center justify-center border transition-all duration-300 relative cursor-pointer bg-white ${isOutOfStock ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-teal-500/10 group-hover:border-teal-500/30'}`}
+                        className={`flex-shrink-0 h-28 sm:h-48 w-full rounded-lg sm:rounded-xl overflow-hidden mb-3 sm:mb-5 flex items-center justify-center border transition-all duration-300 relative cursor-pointer bg-white ${isOutOfStock ? (isDarkMode ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-red-100') : (isDarkMode ? 'border-teal-500/10 group-hover:border-teal-500/30' : 'border-gray-100')}`}
                         title={t.viewDetails}
                       >
                         <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} loading="lazy" decoding="async" alt={prod.name} className={`object-contain h-full w-full max-h-full max-w-full mix-blend-multiply transition-all duration-500 p-2 ${isOutOfStock ? 'opacity-50 grayscale' : 'group-hover:scale-110 group-hover:rotate-3'}`} />
                         
                         {prod.images && prod.images.length > 1 && (
-                           <div className={`absolute bottom-1 sm:bottom-2 ${lang === 'en' ? 'left-1 sm:left-2' : 'right-1 sm:right-2'} px-1 py-0.5 sm:px-2 sm:py-1 bg-slate-900/80 text-white rounded text-[8px] sm:text-xs font-mono shadow-md backdrop-blur-sm`}>
+                           <div className={`absolute bottom-1 sm:bottom-2 ${lang === 'en' ? 'left-1 sm:left-2' : 'right-1 sm:right-2'} px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-xs font-mono shadow-md backdrop-blur-sm ${isDarkMode ? 'bg-slate-900/80 text-white' : 'bg-white/90 text-slate-800 border border-gray-200'}`}>
                               <i className="fas fa-images"></i> +{prod.images.length - 1}
                            </div>
                         )}
 
-                        <div className={`absolute top-1 sm:top-2 ${lang === 'en' ? 'right-1 sm:right-2' : 'left-1 sm:left-2'} px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-xs font-mono font-bold bg-teal-500/20 text-teal-600 border border-teal-500/30`}>{prod.chip || 'NEW MCU'}</div>
+                        <div className={`absolute top-1 sm:top-2 ${lang === 'en' ? 'right-1 sm:right-2' : 'left-1 sm:left-2'} px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-xs font-mono font-bold border ${isDarkMode ? 'bg-teal-500/20 text-teal-600 border-teal-500/30' : 'bg-teal-50 text-teal-700 border-teal-200'}`}>{prod.chip || 'NEW MCU'}</div>
                         
                         {isOutOfStock && (
-                           <div className="absolute inset-0 bg-slate-900/60 z-10 flex flex-col items-center justify-center backdrop-blur-[2px]">
+                           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center backdrop-blur-[2px] bg-slate-900/60">
                               <span className="bg-red-600 text-white font-bold px-2 py-1 sm:px-6 sm:py-2 rounded border border-red-400 shadow-[0_0_15px_rgba(220,38,38,0.5)] transform -rotate-12 text-[10px] sm:text-lg uppercase tracking-widest">
                                 نافذ
                               </span>
                            </div>
                         )}
 
-                        <div className="absolute inset-0 bg-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[1px]">
-                            <span className="bg-slate-900/80 text-white font-bold text-[10px] sm:text-xs px-2 py-1 sm:px-4 sm:py-2 rounded-full tracking-widest"><i className="fas fa-eye"></i> {t.viewDetails}</span>
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[1px] bg-teal-500/10">
+                            <span className={`font-bold text-[10px] sm:text-xs px-2 py-1 sm:px-4 sm:py-2 rounded-full tracking-widest shadow-md ${isDarkMode ? 'bg-slate-900/80 text-white' : 'bg-teal-500 text-white'}`}><i className="fas fa-eye"></i> {t.viewDetails}</span>
                         </div>
                       </div>
 
                       <div className="flex justify-between items-center mb-2 flex-shrink-0 min-w-0 gap-1 w-full overflow-hidden">
-                        <span className={`font-mono text-[9px] sm:text-[10px] tracking-widest font-bold text-teal-500 truncate`}>// {prod.code || 'GENERIC'}</span>
+                        <span className={`font-mono text-[9px] sm:text-[10px] tracking-widest font-bold truncate ${isDarkMode ? 'text-teal-500' : 'text-teal-600'}`}>// {prod.code || 'GENERIC'}</span>
                         {prod.category && (
-                          <span className={`font-mono text-[9px] sm:text-[10px] bg-teal-500/10 text-teal-400 px-1.5 sm:px-2 py-0.5 rounded-full border border-teal-500/20 truncate`}>{prod.category}</span>
+                          <span className={`font-mono text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full border truncate ${prod.category === 'ادوات مشروع' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : (isDarkMode ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-teal-50 text-teal-700 border-teal-200')}`}>{prod.category}</span>
                         )}
                       </div>
 
-                      <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer text-white hover:text-teal-400 transition-colors break-words min-w-0 w-full`} onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); resetInactivityTimer(); }}>{prod.name}</h3>
+                      <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer transition-colors break-words min-w-0 w-full ${isDarkMode ? 'text-white hover:text-teal-400' : 'text-slate-800 hover:text-teal-600'}`} onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); resetInactivityTimer(); }}>{prod.name}</h3>
                       
-                      <p className={`text-[9px] sm:text-sm mb-3 sm:mb-5 leading-relaxed line-clamp-2 text-gray-300 flex-grow break-words min-w-0 w-full`}>{prod.desc || t.noDesc}</p>
+                      <p className={`text-[9px] sm:text-sm mb-3 sm:mb-5 leading-relaxed line-clamp-2 flex-grow break-words min-w-0 w-full ${isDarkMode ? 'text-gray-300' : 'text-slate-500'}`}>{prod.desc || t.noDesc}</p>
                       
-                      <div className={`mt-auto flex flex-col justify-between items-stretch sm:items-end pt-2 sm:pt-4 border-t gap-2 sm:gap-0 flex-shrink-0 w-full z-10 ${isOutOfStock ? 'border-red-500/10' : 'border-teal-500/10'} min-w-0`}>
-                        <div className="w-full text-center sm:text-right min-w-0">
-                           <span className="block text-[8px] sm:text-[10px] text-gray-400 font-mono font-bold truncate">{t.price}</span>
-                           <span className={`text-xs sm:text-xl font-bold font-mono truncate block ${isOutOfStock ? 'text-red-400 opacity-60' : 'text-teal-400'}`}>{prod.price?.toLocaleString() || 0}</span>
+                      <div className={`mt-auto flex flex-col justify-between items-stretch sm:items-end pt-2 sm:pt-4 border-t gap-2 sm:gap-0 flex-shrink-0 w-full z-10 min-w-0 ${isOutOfStock ? (isDarkMode ? 'border-red-500/10' : 'border-red-100') : (isDarkMode ? 'border-teal-500/10' : 'border-gray-100')}`}>
+                        <div className="w-full text-center sm:text-right min-w-0 flex justify-between items-end">
+                           <div>
+                               <span className={`block text-[8px] sm:text-[10px] font-mono font-bold truncate ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>{t.price}</span>
+                               <span className={`text-xs sm:text-xl font-bold font-mono truncate block ${isOutOfStock ? 'text-red-400 opacity-60' : (isDarkMode ? 'text-teal-400' : 'text-teal-600')}`}>{prod.price?.toLocaleString() || 0}</span>
+                           </div>
+                           {prod.enableWholesale && (
+                               <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isDarkMode ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-yellow-100 text-yellow-700 border border-yellow-300'}`}>يتوفر خصم جملة</span>
+                           )}
                         </div>
                         <button 
                           type="button" 
                           disabled={isOutOfStock}
-                          onClick={(e) => { e.stopPropagation(); addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock); resetInactivityTimer(); }} 
-                          className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 rounded-full font-bold text-[9px] sm:text-xs transition-all relative overflow-hidden z-20 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-slate-900 hover:bg-teal-400'}`}
+                          onClick={(e) => { e.stopPropagation(); addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock, 1, prod.enableWholesale, prod.discount10, prod.discount20); resetInactivityTimer(); }} 
+                          className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 mt-2 rounded-full font-bold text-[9px] sm:text-xs transition-all relative overflow-hidden z-20 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-white hover:bg-teal-400'}`}
                         >
                           <i className="fas fa-cart-arrow-down"></i> <span className="truncate">{isOutOfStock ? 'نافذ' : t.addToCart}</span>
                           
-                          {/* إشعار مصغر للكمية يظهر داخل زر البطاقة */}
                           {prodInCartQty > 0 && (
-                              <span className="absolute left-1 bg-slate-900 text-teal-400 text-[10px] font-mono px-2 py-0.5 rounded-full shadow-md animate-pulse">
+                              <span className={`absolute left-1 text-[10px] font-mono px-2 py-0.5 rounded-full shadow-md animate-pulse ${isDarkMode ? 'bg-slate-900 text-teal-400' : 'bg-white text-teal-600'}`}>
                                   {prodInCartQty}
                               </span>
                           )}
@@ -1401,31 +1531,29 @@ export default function App() {
         </div>
       )}
 
-      <footer className="w-full bg-[#0b1120] border-t border-teal-500/20 py-8 flex flex-col items-center justify-center mt-auto">
+      <footer className={`w-full border-t py-8 flex flex-col items-center justify-center mt-auto ${isDarkMode ? 'bg-[#0b1120] border-teal-500/20' : 'bg-white border-teal-200'}`}>
          <div className="text-center">
-            <p className="text-gray-400 font-mono text-sm tracking-wider">جميع الحقوق محفوظة لدى MSA &copy; 2026</p>
+            <p className={`font-mono text-sm tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>جميع الحقوق محفوظة لدى MSA &copy; 2026</p>
          </div>
       </footer>
 
-      {/* Cart Sidebar */}
-      <div className={`fixed inset-y-0 ${lang === 'en' ? 'right-0' : 'left-0'} w-full md:w-[850px] border-${lang === 'en' ? 'l' : 'r'} shadow-2xl z-50 transform transition-transform duration-500 flex flex-col ${isCartOpen ? 'translate-x-0' : (lang === 'en' ? 'translate-x-full' : '-translate-x-full')} bg-[#0f172a] border-teal-500/20`}>
-        <div className={`p-5 border-b flex justify-between items-center bg-slate-900/60 border-teal-500/20`}>
+      <div className={`fixed inset-y-0 ${lang === 'en' ? 'right-0' : 'left-0'} w-full md:w-[850px] border-${lang === 'en' ? 'l' : 'r'} shadow-2xl z-50 transform transition-transform duration-500 flex flex-col ${isCartOpen ? 'translate-x-0' : (lang === 'en' ? 'translate-x-full' : '-translate-x-full')} ${isDarkMode ? 'bg-[#0f172a] border-teal-500/20' : 'bg-white border-teal-200'}`}>
+        <div className={`p-5 border-b flex justify-between items-center ${isDarkMode ? 'bg-slate-900/60 border-teal-500/20' : 'bg-slate-50 border-teal-100'}`}>
           <div className="flex items-center gap-5">
-            <i className={`fas fa-shopping-cart text-xl text-teal-400`}></i>
-            <div><h3 className={`text-lg font-bold text-white`}>{t.cartTitle}</h3></div>
+            <i className={`fas fa-shopping-cart text-xl ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}></i>
+            <div><h3 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{t.cartTitle}</h3></div>
           </div>
-          <button type="button" onClick={() => { setIsCartOpen(false); playSynthSound(400, 'sine', 0.1); }} className={`w-10 h-10 rounded-full border flex items-center justify-center transition-colors border-teal-500/20 hover:bg-slate-800`}>
-            <i className={`fas fa-times text-teal-400 text-lg`}></i>
+          <button type="button" onClick={() => { setIsCartOpen(false); playSynthSound(400, 'sine', 0.1); }} className={`w-10 h-10 rounded-full border flex items-center justify-center transition-colors ${isDarkMode ? 'border-teal-500/20 hover:bg-slate-800 text-teal-400' : 'border-teal-200 hover:bg-teal-50 text-teal-600'}`}>
+            <i className={`fas fa-times text-lg`}></i>
           </button>
         </div>
 
-        {/* --- إعلان السلة يظهر هنا إذا لم يكن فارغاً --- */}
         {cartAnnouncement && (
           <div className={`bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-b border-yellow-500/30 p-3 sm:p-4 flex items-center gap-3 shrink-0`}>
             <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center shrink-0 border border-yellow-500/30">
-                <i className="fa-solid fa-bullhorn text-yellow-400 text-sm animate-pulse"></i>
+                <i className="fa-solid fa-bullhorn text-yellow-500 text-sm animate-pulse"></i>
             </div>
-            <p className="text-yellow-400 text-xs sm:text-sm font-bold whitespace-pre-wrap leading-relaxed flex-grow">
+            <p className={`text-xs sm:text-sm font-bold whitespace-pre-wrap leading-relaxed flex-grow ${isDarkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>
                {cartAnnouncement}
             </p>
           </div>
@@ -1433,17 +1561,17 @@ export default function App() {
 
         <div className="flex flex-col-reverse md:flex-row flex-grow overflow-y-auto overflow-x-hidden md:overflow-hidden custom-scrollbar">
           
-          <div className={`w-full md:w-2/5 flex flex-col flex-shrink-0 h-auto md:h-full md:border-${lang === 'en' ? 'l' : 'r'} border-teal-500/10 bg-slate-800/30`}>
+          <div className={`w-full md:w-2/5 flex flex-col flex-shrink-0 h-auto md:h-full md:border-${lang === 'en' ? 'l' : 'r'} ${isDarkMode ? 'border-teal-500/10 bg-slate-800/30' : 'border-teal-100 bg-slate-50'}`}>
             <div className="p-6 space-y-6 flex-grow overflow-y-auto custom-scrollbar">
-              <h4 className="font-bold text-teal-400 text-sm mb-4"><i className="fas fa-user-astronaut"></i> {t.cartInfo}</h4>
-              <input type="text" placeholder={t.cartName} value={customerName} onChange={(e) => setCustomerName(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400`} />
-              <input type="tel" placeholder={t.cartPhone} value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400`} />
-              <input type="tel" placeholder={t.cartPhone2} value={customerPhone2} onChange={(e) => setCustomerPhone2(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400`} />
+              <h4 className={`font-bold text-sm mb-4 ${isDarkMode ? 'text-teal-400' : 'text-teal-700'}`}><i className="fas fa-user-astronaut"></i> {t.cartInfo}</h4>
+              <input type="text" placeholder={t.cartName} value={customerName} onChange={(e) => setCustomerName(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all ${isDarkMode ? 'bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400' : 'bg-white border-gray-200 text-slate-800 focus:border-teal-500'}`} />
+              <input type="tel" placeholder={t.cartPhone} value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all ${isDarkMode ? 'bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400' : 'bg-white border-gray-200 text-slate-800 focus:border-teal-500'}`} />
+              <input type="tel" placeholder={t.cartPhone2} value={customerPhone2} onChange={(e) => setCustomerPhone2(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all ${isDarkMode ? 'bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400' : 'bg-white border-gray-200 text-slate-800 focus:border-teal-500'}`} />
               
               <select 
                  value={selectedGovId} 
                  onChange={e => setSelectedGovId(e.target.value)} 
-                 className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400`}
+                 className={`w-full p-3 border rounded-xl text-sm outline-none transition-all ${isDarkMode ? 'bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400' : 'bg-white border-gray-200 text-slate-800 focus:border-teal-500'}`}
               >
                  <option value="" disabled>اختر المحافظة</option>
                  {deliveryLocations.map(gov => (
@@ -1451,26 +1579,26 @@ export default function App() {
                  ))}
               </select>
 
-              <textarea placeholder={t.cartAddress} value={detailedAddress} onChange={(e) => setDetailedAddress(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400 min-h-[80px] resize-none`}></textarea>
+              <textarea placeholder={t.cartAddress} value={detailedAddress} onChange={(e) => setDetailedAddress(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all min-h-[80px] resize-none ${isDarkMode ? 'bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400' : 'bg-white border-gray-200 text-slate-800 focus:border-teal-500'}`}></textarea>
             </div>
 
-            <div className={`p-4 border-t space-y-4 bg-slate-800/40 border-teal-500/20`}>
-              <div className={`flex justify-between font-mono text-sm font-bold text-gray-300`}><span>{t.cartSub}</span><span>{subtotal.toLocaleString()} {t.currency}</span></div>
-              <div className={`flex justify-between font-mono text-sm font-bold text-gray-300`}><span>{t.cartDelivery}</span><span>{currentDeliveryFee.toLocaleString()} {t.currency}</span></div>
+            <div className={`p-4 border-t space-y-4 ${isDarkMode ? 'bg-slate-800/40 border-teal-500/20' : 'bg-white border-gray-200 shadow-[0_-10px_20px_rgba(0,0,0,0.02)]'}`}>
+              <div className={`flex justify-between font-mono text-sm font-bold ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}><span>{t.cartSub}</span><span>{subtotal.toLocaleString()} {t.currency}</span></div>
+              <div className={`flex justify-between font-mono text-sm font-bold ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}><span>{t.cartDelivery}</span><span>{currentDeliveryFee.toLocaleString()} {t.currency}</span></div>
               
               {selectedGovId && (
-                 <div className={`flex justify-between font-mono text-xs text-teal-300`}>
+                 <div className={`flex justify-between font-mono text-xs ${isDarkMode ? 'text-teal-300' : 'text-teal-600'}`}>
                     <span>{t.cartTime}</span><span>{activeGov.time}</span>
                  </div>
               )}
 
-              <div className={`flex justify-between text-xl font-bold pt-2 border-t text-white border-teal-500/10`}>
+              <div className={`flex justify-between text-xl font-bold pt-2 border-t ${isDarkMode ? 'text-white border-teal-500/10' : 'text-slate-800 border-gray-200'}`}>
                  <span>{t.cartTotal}</span>
-                 <span className={`font-mono text-teal-400`}>{(subtotal + currentDeliveryFee).toLocaleString()} {t.currency}</span>
+                 <span className={`font-mono ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>{(subtotal + currentDeliveryFee).toLocaleString()} {t.currency}</span>
               </div>
               
               <div className="flex gap-2 mt-2 w-full">
-                <button type="button" onClick={handleCheckout} className="flex-grow py-3 sm:py-4 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 text-slate-900 hover:from-teal-400 hover:to-emerald-400 font-extrabold tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 text-xs sm:text-sm">
+                <button type="button" onClick={handleCheckout} className="flex-grow py-3 sm:py-4 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-extrabold tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 text-xs sm:text-sm hover:scale-[1.02]">
                   <i className="fas fa-check-double text-base sm:text-lg"></i> {t.cartCheckout}
                 </button>
                 <button type="button" onClick={() => { 
@@ -1479,81 +1607,91 @@ export default function App() {
                         setIsCartOpen(false); 
                         playSynthSound(400, 'sawtooth', 0.2); 
                     }
-                }} className="shrink-0 px-4 sm:px-6 py-3 sm:py-4 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/30 font-extrabold tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 text-xs sm:text-sm">
+                }} className={`shrink-0 px-4 sm:px-6 py-3 sm:py-4 rounded-xl font-extrabold tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 text-xs sm:text-sm ${isDarkMode ? 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/30' : 'bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border border-red-200'}`}>
                   <i className="fa-solid fa-trash-can text-base sm:text-lg"></i> {t.cancelOrder}
                 </button>
               </div>
             </div>
           </div>
 
-          <div className="w-full md:w-3/5 flex flex-col flex-shrink-0 h-auto md:h-full bg-transparent border-b md:border-b-0 border-teal-500/20">
-            <div className="p-4 border-b border-teal-500/10 flex justify-between items-center bg-slate-800/40">
-              <span className="font-bold text-teal-400 text-sm"><i className="fas fa-box-open"></i> {t.cartItems}</span>
-              <span className="font-mono text-xs bg-teal-500/20 text-teal-400 px-2 py-1 rounded border border-teal-500/30">{cart.length} {t.itemCount}</span>
+          <div className={`w-full md:w-3/5 flex flex-col flex-shrink-0 h-auto md:h-full bg-transparent border-b md:border-b-0 ${isDarkMode ? 'border-teal-500/20' : 'border-teal-100'}`}>
+            <div className={`p-4 border-b flex justify-between items-center ${isDarkMode ? 'border-teal-500/10 bg-slate-800/40' : 'border-gray-200 bg-white'}`}>
+              <span className={`font-bold text-sm ${isDarkMode ? 'text-teal-400' : 'text-teal-700'}`}><i className="fas fa-box-open"></i> {t.cartItems}</span>
+              <span className={`font-mono text-xs px-2 py-1 rounded border ${isDarkMode ? 'bg-teal-500/20 text-teal-400 border-teal-500/30' : 'bg-teal-50 text-teal-700 border-teal-200'}`}>{cart.length} {t.itemCount}</span>
             </div>
             
             <div className="flex-grow overflow-y-auto p-4 sm:p-6 space-y-4 custom-scrollbar max-h-[45vh] md:max-h-none">
               {cart.length === 0 ? (
-                <div className={`h-full flex flex-col justify-center items-center text-center font-mono text-gray-400`}>
-                  <i className="fas fa-ghost text-4xl mb-4 text-teal-500/20 animate-bounce"></i>
+                <div className={`h-full flex flex-col justify-center items-center text-center font-mono ${isDarkMode ? 'text-gray-400' : 'text-slate-400'}`}>
+                  <i className={`fas fa-ghost text-4xl mb-4 animate-bounce ${isDarkMode ? 'text-teal-500/20' : 'text-teal-200'}`}></i>
                   <p>{t.cartEmpty}</p>
                 </div>
               ) : (
-                cart.map((item, i) => (
-                  <div key={item.id || i} className={`border rounded-xl p-3 sm:p-4 flex gap-3 sm:gap-4 items-center shadow-sm hover:border-teal-500/40 transition-colors bg-slate-800/60 border-teal-500/10`}>
-                    <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-lg p-1 flex-shrink-0 border border-teal-500/20 flex items-center justify-center overflow-hidden">
+                cart.map((item, i) => {
+                  let effectivePrice = Number(item.price) || 0;
+                  if (item.enableWholesale) {
+                      if (item.qty >= 20) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount20) || 500));
+                      else if (item.qty >= 10) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount10) || 250));
+                  }
+                  
+                  return (
+                  <div key={item.id || i} className={`border rounded-xl p-3 sm:p-4 flex gap-3 sm:gap-4 items-center shadow-sm transition-colors ${isDarkMode ? 'bg-slate-800/60 border-teal-500/10 hover:border-teal-500/40' : 'bg-white border-gray-100 hover:border-teal-300'}`}>
+                    <div className={`w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-lg p-1 flex-shrink-0 border flex items-center justify-center overflow-hidden ${isDarkMode ? 'border-teal-500/20' : 'border-gray-200'}`}>
                       <img src={item.image} loading="lazy" decoding="async" alt="" className="max-w-full max-h-full object-contain mix-blend-multiply" />
                     </div>
                     <div className="flex-grow min-w-0">
-                      <h4 className={`font-bold text-xs sm:text-sm line-clamp-1 text-white truncate break-words`}>{item.name}</h4>
-                      <span className={`font-mono text-[10px] sm:text-xs font-bold mt-1 block text-teal-400`}>{Number(item.price).toLocaleString()} {t.currency}</span>
+                      <h4 className={`font-bold text-xs sm:text-sm line-clamp-1 truncate break-words ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{item.name}</h4>
+                      <div className={`font-mono text-[10px] sm:text-xs font-bold mt-1 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>
+                         {effectivePrice.toLocaleString()} {t.currency}
+                         {effectivePrice < Number(item.price) && (
+                            <span className="text-yellow-500 text-[9px] mr-2 line-through font-light opacity-80">{Number(item.price).toLocaleString()}</span>
+                         )}
+                      </div>
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                      <div className={`flex items-center gap-1 border rounded-lg px-1 py-1 bg-slate-900/60 border-teal-500/30`}>
-                        <button type="button" onClick={() => updateQty(item.id, 1)} className={`w-6 h-6 sm:w-7 sm:h-7 rounded text-xs font-bold transition-colors text-teal-400 hover:bg-teal-500/20`}>+</button>
+                      <div className={`flex items-center gap-1 border rounded-lg px-1 py-1 ${isDarkMode ? 'bg-slate-900/60 border-teal-500/30' : 'bg-slate-50 border-gray-200'}`}>
+                        <button type="button" onClick={() => updateQty(item.id, 1)} className={`w-6 h-6 sm:w-7 sm:h-7 rounded text-xs font-bold transition-colors ${isDarkMode ? 'text-teal-400 hover:bg-teal-500/20' : 'text-teal-600 hover:bg-teal-100'}`}>+</button>
                         <input 
                           type="number" 
                           min="0"
                           value={item.qty}
                           onChange={(e) => setItemQty(item.id, e.target.value)}
-                          className={`w-8 sm:w-10 text-center font-mono text-xs sm:text-sm font-bold outline-none bg-transparent text-white`}
+                          className={`w-8 sm:w-10 text-center font-mono text-xs sm:text-sm font-bold outline-none bg-transparent ${isDarkMode ? 'text-white' : 'text-slate-800'}`}
                           style={{ MozAppearance: 'textfield', WebkitAppearance: 'none' }}
                         />
-                        <button type="button" onClick={() => updateQty(item.id, -1)} className={`w-6 h-6 sm:w-7 sm:h-7 rounded text-xs font-bold transition-colors text-red-400 hover:bg-red-500/20`}>-</button>
+                        <button type="button" onClick={() => updateQty(item.id, -1)} className={`w-6 h-6 sm:w-7 sm:h-7 rounded text-xs font-bold transition-colors ${isDarkMode ? 'text-red-400 hover:bg-red-500/20' : 'text-red-600 hover:bg-red-100'}`}>-</button>
                       </div>
                     </div>
                   </div>
-                ))
+                )})
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {isCartOpen && <div onClick={() => setIsCartOpen(false)} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-40 transition-opacity"></div>}
+      {isCartOpen && <div onClick={() => setIsCartOpen(false)} className={`fixed inset-0 z-40 transition-opacity ${isDarkMode ? 'bg-slate-900/80 backdrop-blur-sm' : 'bg-slate-800/40 backdrop-blur-sm'}`}></div>}
 
-      {/* Product Detail Modal */}
       {selectedProduct && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
           <div 
-            className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm" 
+            className={`absolute inset-0 backdrop-blur-sm ${isDarkMode ? 'bg-slate-900/90' : 'bg-slate-800/70'}`} 
             onClick={() => { setSelectedProduct(null); playSynthSound(400, 'sine', 0.1); }}
           ></div>
           
-          <div className={`relative w-full max-w-5xl max-h-[95vh] overflow-y-auto md:overflow-hidden rounded-3xl shadow-2xl flex flex-col md:flex-row transform transition-transform duration-300 scale-100 bg-[#0f172a] border border-teal-500/30`}>
+          <div className={`relative w-full max-w-5xl max-h-[95vh] overflow-y-auto md:overflow-hidden rounded-3xl shadow-2xl flex flex-col md:flex-row transform transition-transform duration-300 scale-100 border ${isDarkMode ? 'bg-[#0f172a] border-teal-500/30' : 'bg-white border-teal-200'}`}>
             <button 
               type="button"
               onClick={() => { setSelectedProduct(null); playSynthSound(400, 'sine', 0.1); }} 
-              className={`absolute top-4 ${lang === 'en' ? 'left-4' : 'right-4'} z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border transition-all bg-slate-900/60 border-teal-500/30 text-teal-400 hover:bg-teal-500 hover:text-slate-900`}
+              className={`absolute top-4 ${lang === 'en' ? 'left-4' : 'right-4'} z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border transition-all ${isDarkMode ? 'bg-slate-900/60 border-teal-500/30 text-teal-400 hover:bg-teal-500 hover:text-slate-900' : 'bg-white border-gray-200 text-slate-500 hover:bg-teal-50 hover:text-teal-600 shadow-sm'}`}
             >
               <i className="fas fa-times text-sm sm:text-lg"></i>
             </button>
 
-            {/* الجانب الأيمن للمودال (الصورة) */}
-            <div className={`w-full md:w-5/12 p-1 sm:p-8 flex flex-col items-center justify-start sm:justify-center border-b md:border-b-0 md:border-${lang === 'en' ? 'r' : 'l'} border-teal-500/20 bg-[#0b1120] flex-shrink-0 md:flex-shrink`}>
+            <div className={`w-full md:w-5/12 p-1 sm:p-8 flex flex-col items-center justify-start sm:justify-center border-b md:border-b-0 md:border-${lang === 'en' ? 'r' : 'l'} flex-shrink-0 md:flex-shrink ${isDarkMode ? 'border-teal-500/20 bg-[#0b1120]' : 'border-gray-200 bg-slate-50'}`}>
               
               <div 
-                  className="w-full h-64 sm:h-80 md:h-[26rem] shrink-0 bg-white rounded-3xl p-4 sm:p-8 flex items-center justify-center shadow-[inset_0_0_20px_rgba(0,0,0,0.05)] relative overflow-hidden border-4 border-slate-800 group cursor-pointer"
+                  className={`w-full h-64 sm:h-80 md:h-[26rem] shrink-0 bg-white rounded-3xl p-4 sm:p-8 flex items-center justify-center relative overflow-hidden border-4 group cursor-pointer ${isDarkMode ? 'shadow-[inset_0_0_20px_rgba(0,0,0,0.05)] border-slate-800' : 'shadow-inner border-white shadow-gray-200'}`}
                   onClick={() => {
                       let allImgs = [];
                       if (selectedProduct.images && selectedProduct.images.length > 0) {
@@ -1574,7 +1712,7 @@ export default function App() {
                               setActiveImageIndex(prev => prev === 0 ? selectedProduct.images.length - 1 : prev - 1); 
                               playSynthSound(1000, 'triangle', 0.05);
                           }} 
-                          className="absolute left-2 sm:left-4 z-20 w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-slate-900/40 text-slate-800 flex items-center justify-center hover:bg-teal-500 hover:text-white transition-all backdrop-blur-md"
+                          className="absolute left-2 sm:left-4 z-20 w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-slate-900/40 text-white flex items-center justify-center hover:bg-teal-500 hover:text-white transition-all backdrop-blur-md"
                       >
                           <i className="fas fa-chevron-left text-lg"></i>
                       </button>
@@ -1595,7 +1733,7 @@ export default function App() {
                               setActiveImageIndex(prev => prev === selectedProduct.images.length - 1 ? 0 : prev + 1); 
                               playSynthSound(1000, 'triangle', 0.05);
                           }} 
-                          className="absolute right-2 sm:right-4 z-0 w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-slate-900/40 text-slate-800 flex items-center justify-center hover:bg-teal-500 hover:text-white transition-all backdrop-blur-md"
+                          className="absolute right-2 sm:right-4 z-0 w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-slate-900/40 text-white flex items-center justify-center hover:bg-teal-500 hover:text-white transition-all backdrop-blur-md"
                       >
                           <i className="fas fa-chevron-right text-lg"></i>
                       </button>
@@ -1637,75 +1775,83 @@ export default function App() {
               )}
             </div>
 
-            {/* الجانب الأيسر (تفاصيل المنتج) */}
-            <div className="w-full md:w-7/12 p-2 sm:p-8 flex flex-col justify-start h-auto md:h-auto flex-1 bg-slate-900/50">
+            <div className={`w-full md:w-7/12 p-2 sm:p-8 flex flex-col justify-start h-auto md:h-auto flex-1 ${isDarkMode ? 'bg-slate-900/50' : 'bg-white'}`}>
               
-              {/* === القسم العلوي المعدل: العنوان، السعر وزر الإضافة === */}
-              <div className="mb-4 flex flex-col gap-4">
+              <div className="mb-4 flex flex-col gap-4 flex-shrink-0">
                 
-                {/* صف العنوان والسعر */}
                 <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                   <div className="flex-1 min-w-0">
-                    <h2 className={`text-xl sm:text-3xl font-black mb-2 text-white break-words`}>{selectedProduct.name}</h2>
+                    <h2 className={`text-xl sm:text-3xl font-black mb-2 break-words ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{selectedProduct.name}</h2>
                     <div className="flex gap-1 text-xs sm:text-sm text-yellow-500">
                       <i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i>
                     </div>
                   </div>
 
-                  <div className="flex flex-row items-center bg-[#0a0a0f] p-2 sm:p-3 rounded-xl border border-teal-500/20 shadow-inner shrink-0 gap-3">
-                      <span className="text-gray-300 font-mono font-bold text-sm uppercase tracking-widest whitespace-nowrap">
+                  <div className={`flex flex-row items-center p-2 sm:p-3 rounded-xl border shadow-inner shrink-0 gap-3 ${isDarkMode ? 'bg-[#0a0a0f] border-teal-500/20' : 'bg-slate-50 border-gray-200'}`}>
+                      <span className={`font-mono font-bold text-sm uppercase tracking-widest whitespace-nowrap ${isDarkMode ? 'text-gray-300' : 'text-slate-500'}`}>
                           {t.price}
                       </span>
-                      <div className="flex flex-row items-center gap-2">
-                          <span className={`text-2xl sm:text-3xl font-black font-mono tracking-tight leading-none ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'text-red-400 opacity-60' : 'text-teal-400 drop-shadow-[0_0_15px_rgba(20,184,166,0.3)]'}`}>
-                              {selectedProduct.price?.toLocaleString() || 0}
-                          </span>
-                          <span className="bg-teal-500/10 border border-teal-500/30 px-2 py-1 rounded-lg text-teal-400 font-bold text-xs sm:text-sm whitespace-nowrap">
-                              {t.currency}
-                          </span>
+                      <div className="flex flex-col items-end gap-1">
+                          <div className="flex items-center gap-2">
+                              <span className={`text-2xl sm:text-3xl font-black font-mono tracking-tight leading-none ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'text-red-400 opacity-60' : (isDarkMode ? 'text-teal-400 drop-shadow-[0_0_15px_rgba(20,184,166,0.3)]' : 'text-teal-600')}`}>
+                                  {(() => {
+                                      let effP = Number(selectedProduct.price) || 0;
+                                      if (selectedProduct.enableWholesale) {
+                                          if (modalQty >= 20) effP = Math.max(0, effP - (Number(selectedProduct.discount20) || 500));
+                                          else if (modalQty >= 10) effP = Math.max(0, effP - (Number(selectedProduct.discount10) || 250));
+                                      }
+                                      return effP.toLocaleString();
+                                  })()}
+                              </span>
+                              <span className={`border px-2 py-1 rounded-lg font-bold text-xs sm:text-sm whitespace-nowrap ${isDarkMode ? 'bg-teal-500/10 border-teal-500/30 text-teal-400' : 'bg-teal-50 border-teal-200 text-teal-700'}`}>
+                                  {t.currency}
+                              </span>
+                          </div>
+                          {selectedProduct.enableWholesale && (
+                             <span className="text-yellow-500 text-[9px] font-bold tracking-widest"><i className="fa-solid fa-tags"></i> تفعيل خصم الجملة للكميات</span>
+                          )}
                       </div>
                   </div>
                 </div>
 
-                {/* أزرار تحديد العدد قبل الإضافة */}
                 {(() => {
                     const currentCartQty = cart.find(item => item.id === selectedProduct.id)?.qty || 0;
                     const availableStock = Math.max(0, (parseInt(selectedProduct.stock)||0) - currentCartQty);
                     
                     return (
-                        <div className="bg-[#0b101a] border border-teal-500/20 p-4 rounded-xl shadow-inner flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className={`border p-4 rounded-xl shadow-inner flex flex-col sm:flex-row items-center justify-between gap-4 ${isDarkMode ? 'bg-[#0b101a] border-teal-500/20' : 'bg-slate-50 border-gray-200'}`}>
                             <div className="flex flex-col gap-1 w-full sm:w-auto">
-                                <span className="text-gray-400 font-bold text-xs sm:text-sm flex items-center gap-2">
+                                <span className={`font-bold text-xs sm:text-sm flex items-center gap-2 ${isDarkMode ? 'text-gray-400' : 'text-slate-600'}`}>
                                     <i className="fas fa-layer-group"></i> الكمية المطلوبة:
                                 </span>
                                 {modalQtyWarning && (
-                                    <span className="text-red-400 text-xs font-bold animate-pulse">
+                                    <span className="text-red-500 text-xs font-bold animate-pulse">
                                         <i className="fas fa-exclamation-triangle"></i> {modalQtyWarning}
                                     </span>
                                 )}
                             </div>
                             
                             <div className="flex items-center gap-3">
-                                <div className={`flex items-center gap-2 bg-[#0a0a0f] border rounded-xl px-2 py-1 ${availableStock <= 0 ? 'border-red-500/30 opacity-50' : 'border-teal-500/30'}`}>
+                                <div className={`flex items-center gap-2 border rounded-xl px-2 py-1 ${availableStock <= 0 ? 'border-red-500/30 opacity-50' : (isDarkMode ? 'border-teal-500/30 bg-[#0a0a0f]' : 'border-gray-300 bg-white')}`}>
                                     <button 
                                         type="button" 
                                         disabled={availableStock <= 0}
                                         onClick={() => handleModalQtyChange(1, availableStock)} 
-                                        className="w-10 h-10 rounded-lg bg-teal-500/20 text-teal-400 hover:bg-teal-500 hover:text-slate-900 transition-colors font-bold text-xl flex items-center justify-center disabled:cursor-not-allowed"
+                                        className={`w-10 h-10 rounded-lg transition-colors font-bold text-xl flex items-center justify-center disabled:cursor-not-allowed ${isDarkMode ? 'bg-teal-500/20 text-teal-400 hover:bg-teal-500 hover:text-slate-900' : 'bg-teal-50 text-teal-600 hover:bg-teal-100'}`}
                                     >+</button>
                                     
                                     <input 
                                         type="text" 
                                         value={availableStock <= 0 ? '0' : modalQty} 
                                         readOnly 
-                                        className="w-14 text-center bg-transparent text-white font-mono font-bold text-xl outline-none pointer-events-none" 
+                                        className={`w-14 text-center bg-transparent font-mono font-bold text-xl outline-none pointer-events-none ${isDarkMode ? 'text-white' : 'text-slate-800'}`} 
                                     />
                                     
                                     <button 
                                         type="button" 
                                         disabled={availableStock <= 0 || modalQty <= 1}
                                         onClick={() => handleModalQtyChange(-1, availableStock)} 
-                                        className="w-10 h-10 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-slate-900 transition-colors font-bold text-xl flex items-center justify-center disabled:cursor-not-allowed"
+                                        className={`w-10 h-10 rounded-lg transition-colors font-bold text-xl flex items-center justify-center disabled:cursor-not-allowed ${isDarkMode ? 'bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-slate-900' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
                                     >-</button>
                                 </div>
                             </div>
@@ -1713,116 +1859,162 @@ export default function App() {
                     );
                 })()}
 
-                {/* زر إضافة للسلة تم نقله وتحديثه */}
                 <button 
                     type="button" 
                     disabled={(parseInt(selectedProduct.stock)||0) <= 0 || ((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0}
                     onClick={(e) => { 
                         e.stopPropagation(); 
-                        addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock, modalQty); 
+                        addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock, modalQty, selectedProduct.enableWholesale, selectedProduct.discount10, selectedProduct.discount20); 
                         setModalQty(1);
                         resetInactivityTimer();
                     }} 
-                    className={`relative overflow-hidden w-full py-3 sm:py-4 rounded-xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0 ? 'bg-slate-800 text-gray-500 border border-slate-700 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-slate-900 hover:from-teal-400 hover:to-emerald-300 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(20,184,166,0.4)] hover:-translate-y-1 shadow-[0_4px_15px_rgba(0,0,0,0.2)]'}`}
+                    className={`relative overflow-hidden w-full py-3 sm:py-4 rounded-xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0 ? 'bg-slate-300 text-gray-500 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-white hover:scale-[1.02] hover:shadow-lg hover:-translate-y-1'}`}
                 >
                     <i className="fas fa-cart-plus text-2xl"></i> 
                     {((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0 ? 'المنتج نافذ من المخزن' : t.addToCart}
 
-                    {/* إشعار العدد الكلي الموجود بالسلة */}
                     {cart.find(item => item.id === selectedProduct.id)?.qty > 0 && (
-                        <span className="absolute left-4 bg-slate-900/90 text-teal-400 text-xs sm:text-sm font-mono px-3 py-1.5 rounded-lg border border-teal-500/50 shadow-lg flex items-center gap-1 animate-pulse">
+                        <span className={`absolute left-4 text-xs sm:text-sm font-mono px-3 py-1.5 rounded-lg border shadow-lg flex items-center gap-1 animate-pulse ${isDarkMode ? 'bg-slate-900/90 text-teal-400 border-teal-500/50' : 'bg-white text-teal-600 border-white/50'}`}>
                             <i className="fas fa-check-circle"></i> الكمية: {cart.find(item => item.id === selectedProduct.id).qty}
                         </span>
                     )}
                 </button>
 
-                {/* التبويبات */}
-                <div className="flex gap-3 sm:gap-6 border-b border-teal-500/20 mt-2 overflow-x-auto custom-scrollbar flex-shrink-0">
-                    <button onClick={() => setModalTab('compat')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'compat' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                <div className={`flex flex-wrap gap-2 sm:gap-4 border-b mt-4 pb-2 flex-shrink-0 justify-start ${isDarkMode ? 'border-teal-500/20' : 'border-gray-200'}`}>
+                    <button onClick={() => setModalTab('compat')} className={`pb-2 px-1 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'compat' ? (isDarkMode ? 'text-teal-400 border-b-2 border-teal-400' : 'text-teal-600 border-b-2 border-teal-600') : (isDarkMode ? 'text-gray-500 hover:text-gray-300' : 'text-slate-500 hover:text-slate-800')}`}>
                         <i className="fa-solid fa-puzzle-piece ml-1"></i> متوافق مع
                     </button>
-                    <button onClick={() => setModalTab('desc')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'desc' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                    <button onClick={() => setModalTab('desc')} className={`pb-2 px-1 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'desc' ? (isDarkMode ? 'text-teal-400 border-b-2 border-teal-400' : 'text-teal-600 border-b-2 border-teal-600') : (isDarkMode ? 'text-gray-500 hover:text-gray-300' : 'text-slate-500 hover:text-slate-800')}`}>
                         <i className="fa-solid fa-circle-info ml-1"></i> الشرح والتفاصيل
                     </button>
-                    <button onClick={() => setModalTab('code')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'code' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                    <button onClick={() => setModalTab('code')} className={`pb-2 px-1 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'code' ? (isDarkMode ? 'text-teal-400 border-b-2 border-teal-400' : 'text-teal-600 border-b-2 border-teal-600') : (isDarkMode ? 'text-gray-500 hover:text-gray-300' : 'text-slate-500 hover:text-slate-800')}`}>
                         <i className="fa-solid fa-code ml-1"></i> الكود البرمجي
                     </button>
-                    <button onClick={() => setModalTab('links')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'links' ? 'text-teal-400 border-b-2 border-teal-400' : 'text-gray-500 hover:text-gray-300'}`}>
+                    <button onClick={() => setModalTab('links')} className={`pb-2 px-1 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'links' ? (isDarkMode ? 'text-teal-400 border-b-2 border-teal-400' : 'text-teal-600 border-b-2 border-teal-600') : (isDarkMode ? 'text-gray-500 hover:text-gray-300' : 'text-slate-500 hover:text-slate-800')}`}>
                         <i className="fa-solid fa-paperclip ml-1"></i> الملحقات
                     </button>
                 </div>
               </div>
               
-              {/* === محتوى التبويبات === */}
-              <div className="flex-grow flex flex-col mb-0 pb-4 min-h-[200px] overflow-y-auto custom-scrollbar overscroll-contain max-h-[45vh] sm:max-h-[55vh]">
+              {/* تم السماح للمحتوى بالتمدد واستخدام سكرول داخلي */}
+              <div className="flex-grow flex flex-col pt-2 pb-4 overflow-y-auto custom-scrollbar overscroll-contain max-h-[50vh]">
                   {modalTab === 'compat' && (
-                      <div className="flex flex-wrap gap-3 h-fit min-h-full p-2">
-                          {(() => {
-                              const compatIds = selectedProduct.compatProdIds || (selectedProduct.compatProdId ? [selectedProduct.compatProdId] : []);
-                              if (compatIds.length === 0) {
-                                  return <div className="p-4 w-full border border-dashed border-gray-600/50 rounded-xl text-gray-500 text-sm text-center">لا توجد منتجات متوافقة مضافة حالياً.</div>;
-                              }
-                              return compatIds.map(id => {
-                                  const compProd = products.find(p => p.id === id);
-                                  if(!compProd) return null;
-                                  return (
-                                      <div 
-                                          key={id}
-                                          onClick={(e) => {
-                                              e.stopPropagation();
-                                              setSelectedProduct(compProd);
-                                              setActiveImageIndex(0);
-                                              setModalTab('compat');
-                                              setModalQty(1);
-                                              setModalQtyWarning('');
-                                              resetInactivityTimer();
-                                          }}
-                                          className="cursor-pointer flex flex-col items-center bg-slate-800/60 border border-teal-500/20 rounded-xl p-3 hover:border-teal-400 hover:bg-slate-800 transition-all shadow-sm w-28 sm:w-32 shrink-0 group"
-                                          title={`عرض ${compProd.name}`}
-                                      >
-                                          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg p-1 flex items-center justify-center overflow-hidden mb-2 border border-neutral-200">
-                                              <img src={compProd.images && compProd.images.length > 0 ? compProd.images[0] : compProd.img} loading="lazy" alt={compProd.name} className="max-w-full max-h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-300" />
-                                          </div>
-                                          <span className="text-[10px] sm:text-xs font-bold text-teal-400 text-center line-clamp-2 leading-tight">{compProd.name}</span>
-                                      </div>
-                                  );
-                              });
-                          })()}
+                      <div className="flex flex-col gap-6 p-1 h-fit">
+                          
+                          {/* المنتجات المتوافقة تحديداً */}
+                          <div>
+                              <h4 className={`font-bold text-xs sm:text-sm mb-3 flex items-center gap-2 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>
+                                  <i className="fa-solid fa-puzzle-piece"></i> المنتجات المتوافقة تحديداً
+                              </h4>
+                              <div className="flex flex-wrap gap-3">
+                                  {(() => {
+                                      const compatIds = selectedProduct.compatProdIds || (selectedProduct.compatProdId ? [selectedProduct.compatProdId] : []);
+                                      if (compatIds.length === 0) {
+                                          return <div className="p-4 w-full border border-dashed border-gray-400/50 rounded-xl text-gray-500 text-sm text-center">لا توجد منتجات متوافقة مضافة حالياً.</div>;
+                                      }
+                                      return compatIds.map(id => {
+                                          const compProd = products.find(p => p.id === id);
+                                          if(!compProd) return null;
+                                          return (
+                                              <div 
+                                                  key={id}
+                                                  onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setSelectedProduct(compProd);
+                                                      setActiveImageIndex(0);
+                                                      setModalTab('compat');
+                                                      setModalQty(1);
+                                                      setModalQtyWarning('');
+                                                      resetInactivityTimer();
+                                                  }}
+                                                  className={`cursor-pointer flex flex-col items-center border rounded-xl p-3 transition-all shadow-sm w-28 sm:w-32 shrink-0 group ${isDarkMode ? 'bg-slate-800/60 border-teal-500/20 hover:border-teal-400 hover:bg-slate-800' : 'bg-white border-gray-200 hover:border-teal-400 hover:shadow-md'}`}
+                                                  title={`عرض ${compProd.name}`}
+                                              >
+                                                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg p-1 flex items-center justify-center overflow-hidden mb-2 border border-neutral-200">
+                                                      <img src={compProd.images && compProd.images.length > 0 ? compProd.images[0] : compProd.img} loading="lazy" alt={compProd.name} className="max-w-full max-h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-300" />
+                                                  </div>
+                                                  <span className={`text-[10px] sm:text-xs font-bold text-center line-clamp-2 leading-tight ${isDarkMode ? 'text-teal-400' : 'text-slate-700'}`}>{compProd.name}</span>
+                                              </div>
+                                          );
+                                      });
+                                  })()}
+                              </div>
+                          </div>
+
+                          {/* منتجات ذات صلة من نفس القائمة */}
+                          <div className={`pt-4 border-t ${isDarkMode ? 'border-teal-500/20' : 'border-gray-200'}`}>
+                              <h4 className={`font-bold text-xs sm:text-sm mb-3 flex items-center gap-2 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>
+                                  <i className="fa-solid fa-layer-group"></i> منتجات ذات صلة (نفس القائمة)
+                              </h4>
+                              <div className="flex flex-wrap gap-3">
+                                  {(() => {
+                                      const relatedProducts = products.filter(p => p.category && selectedProduct.category && p.category === selectedProduct.category && p.id !== selectedProduct.id).slice(0, 15);
+                                      
+                                      if (relatedProducts.length === 0) {
+                                          return <div className="p-4 w-full border border-dashed border-gray-400/50 rounded-xl text-gray-500 text-sm text-center">لا توجد منتجات ذات صلة من نفس القائمة حالياً.</div>;
+                                      }
+                                      return relatedProducts.map(compProd => {
+                                          return (
+                                              <div 
+                                                  key={compProd.id}
+                                                  onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setSelectedProduct(compProd);
+                                                      setActiveImageIndex(0);
+                                                      setModalTab('compat');
+                                                      setModalQty(1);
+                                                      setModalQtyWarning('');
+                                                      resetInactivityTimer();
+                                                  }}
+                                                  className={`cursor-pointer flex flex-col items-center border rounded-xl p-3 transition-all shadow-sm w-28 sm:w-32 shrink-0 group ${isDarkMode ? 'bg-slate-800/60 border-teal-500/20 hover:border-teal-400 hover:bg-slate-800' : 'bg-white border-gray-200 hover:border-teal-400 hover:shadow-md'}`}
+                                                  title={`عرض ${compProd.name}`}
+                                              >
+                                                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg p-1 flex items-center justify-center overflow-hidden mb-2 border border-neutral-200 shadow-inner">
+                                                      <img src={compProd.images && compProd.images.length > 0 ? compProd.images[0] : compProd.img} loading="lazy" alt={compProd.name} className="max-w-full max-h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-300" />
+                                                  </div>
+                                                  <span className={`text-[10px] sm:text-xs font-bold text-center line-clamp-2 leading-tight ${isDarkMode ? 'text-teal-400' : 'text-slate-700'}`}>{compProd.name}</span>
+                                              </div>
+                                          );
+                                      });
+                                  })()}
+                              </div>
+                          </div>
+
                       </div>
                   )}
 
                   {modalTab === 'desc' && (
-                      <div className={`p-4 sm:p-5 rounded-xl text-xs sm:text-sm leading-relaxed border bg-slate-800/50 border-teal-500/10 text-gray-300 h-fit min-h-full break-words whitespace-pre-wrap`}>
+                      <div className={`p-4 sm:p-5 rounded-xl text-xs sm:text-sm leading-relaxed border h-fit break-words whitespace-pre-wrap ${isDarkMode ? 'bg-slate-800/50 border-teal-500/10 text-gray-300' : 'bg-slate-50 border-gray-200 text-slate-700'}`}>
                           {selectedProduct.desc || t.noDesc}
                       </div>
                   )}
                   
                   {modalTab === 'code' && (
-                      <div className="bg-[#0a0a0f] p-4 rounded-xl border border-teal-500/20 overflow-x-auto text-left h-fit min-h-full shadow-inner" dir="ltr">
-                          <pre className="text-teal-300 font-mono text-xs sm:text-sm">
+                      <div className={`p-4 rounded-xl border overflow-x-auto text-left h-fit shadow-inner ${isDarkMode ? 'bg-[#0a0a0f] border-teal-500/20' : 'bg-gray-100 border-gray-300'}`} dir="ltr">
+                          <pre className={`font-mono text-xs sm:text-sm ${isDarkMode ? 'text-teal-300' : 'text-slate-800'}`}>
                               {selectedProduct.codeSnippet || '// لا يوجد كود برمجي متاح لهذه القطعة حالياً.\n// يمكنك إضافة الكود من لوحة الإدارة.'}
                           </pre>
                       </div>
                   )}
 
                   {modalTab === 'links' && (
-                      <div className="flex flex-col gap-4 h-fit min-h-full">
-                          {selectedProduct.compatLink ? (
-                              <a href={selectedProduct.compatLink} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm group">
+                      <div className="flex flex-col gap-4 h-fit">
+                          {selectedProduct.compatLink && (
+                              <a href={selectedProduct.compatLink} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm group">
                                   <span className="font-bold text-sm"><i className="fa-solid fa-link ml-2"></i> مادة تتوافق معه (رابط خارجي)</span>
                                   <i className="fa-solid fa-arrow-up-right-from-square group-hover:scale-110 transition-transform"></i>
                               </a>
-                          ) : null}
+                          )}
                           
-                          {selectedProduct.libLink ? (
-                              <a href={selectedProduct.libLink} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm group">
+                          {selectedProduct.libLink && (
+                              <a href={selectedProduct.libLink} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-orange-50 text-orange-600 border border-orange-200 rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm group">
                                   <span className="font-bold text-sm"><i className="fa-solid fa-book-bookmark ml-2"></i> تحميل مكتبة الحساس / القطعة</span>
                                   <i className="fa-solid fa-arrow-up-right-from-square group-hover:scale-110 transition-transform"></i>
                               </a>
-                          ) : null}
+                          )}
 
                           {(!selectedProduct.compatLink && !selectedProduct.libLink) && (
-                              <div className="p-4 border border-dashed border-gray-600/50 rounded-xl text-gray-500 text-sm text-center">لا توجد ملحقات خارجية أو مكتبات مضافة حالياً.</div>
+                              <div className="p-4 border border-dashed border-gray-400/50 rounded-xl text-gray-500 text-sm text-center">لا توجد ملحقات خارجية أو مكتبات مضافة حالياً.</div>
                           )}
                       </div>
                   )}
@@ -1833,16 +2025,15 @@ export default function App() {
         </div>
       )}
 
-      {/* Projects Modal */}
       {isProjectsModalOpen && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
-           <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm" onClick={() => setIsProjectsModalOpen(false)}></div>
-           <div className="relative w-full max-w-6xl h-[90vh] flex flex-col bg-[#0f172a] border border-teal-500/30 rounded-3xl shadow-2xl overflow-hidden">
-               <div className="flex justify-between items-center p-5 border-b border-teal-500/20 bg-slate-800/50">
-                  <h2 className="text-2xl font-black text-white flex items-center gap-3">
+           <div className={`absolute inset-0 backdrop-blur-sm ${isDarkMode ? 'bg-slate-900/90' : 'bg-slate-800/70'}`} onClick={() => setIsProjectsModalOpen(false)}></div>
+           <div className={`relative w-full max-w-6xl h-[90vh] flex flex-col border rounded-3xl shadow-2xl overflow-hidden ${isDarkMode ? 'bg-[#0f172a] border-teal-500/30' : 'bg-slate-50 border-teal-200'}`}>
+               <div className={`flex justify-between items-center p-5 border-b ${isDarkMode ? 'border-teal-500/20 bg-slate-800/50' : 'border-gray-200 bg-white'}`}>
+                  <h2 className={`text-2xl font-black flex items-center gap-3 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
                      <i className="fa-solid fa-diagram-project text-blue-500"></i> معرض المشاريع المنجزة
                   </h2>
-                  <button onClick={() => setIsProjectsModalOpen(false)} className="w-10 h-10 rounded-full border border-teal-500/30 bg-slate-900/60 text-teal-400 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all flex justify-center items-center">
+                  <button onClick={() => setIsProjectsModalOpen(false)} className={`w-10 h-10 rounded-full border transition-all flex justify-center items-center ${isDarkMode ? 'border-teal-500/30 bg-slate-900/60 text-teal-400 hover:bg-red-500 hover:text-white hover:border-red-500' : 'border-gray-200 bg-white text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200'}`}>
                      <i className="fa-solid fa-xmark text-xl"></i>
                   </button>
                </div>
@@ -1850,17 +2041,17 @@ export default function App() {
                <div className="flex-grow p-6 overflow-y-auto custom-scrollbar">
                   {projectsList.length === 0 ? (
                      <div className="flex flex-col items-center justify-center h-full text-center">
-                        <i className="fa-solid fa-folder-open text-6xl text-teal-500/20 mb-4"></i>
-                        <h3 className="text-xl font-bold text-gray-300">جاري تحميل المشاريع...</h3>
+                        <i className={`fa-solid fa-folder-open text-6xl mb-4 ${isDarkMode ? 'text-teal-500/20' : 'text-slate-300'}`}></i>
+                        <h3 className={`text-xl font-bold ${isDarkMode ? 'text-gray-300' : 'text-slate-700'}`}>جاري تحميل المشاريع...</h3>
                         <p className="text-gray-500 mt-2 text-sm">سيتم عرض المشاريع المنجزة هنا قريباً.</p>
                      </div>
                   ) : (
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {projectsList.map((proj) => (
-                           <div key={proj.id} className="bg-slate-800/40 border border-teal-500/20 rounded-2xl p-5 hover:border-teal-500/50 transition-all flex flex-col h-full group overflow-hidden relative shadow-lg">
+                           <div key={proj.id} className={`border rounded-2xl p-5 transition-all flex flex-col h-full group overflow-hidden relative shadow-lg ${isDarkMode ? 'bg-slate-800/40 border-teal-500/20 hover:border-teal-500/50' : 'bg-white border-gray-200 hover:border-teal-300'}`}>
                               {proj.img && (
                                 <div 
-                                    className="w-full h-48 mb-4 overflow-hidden rounded-xl border border-teal-500/30 relative cursor-pointer group/img bg-white shrink-0" 
+                                    className={`w-full h-48 mb-4 overflow-hidden rounded-xl border relative cursor-pointer group/img bg-white shrink-0 ${isDarkMode ? 'border-teal-500/30' : 'border-gray-200'}`} 
                                     onClick={() => {
                                         let allImgs = [];
                                         if (proj.img) allImgs.push(proj.img);
@@ -1873,8 +2064,7 @@ export default function App() {
                                         }
                                     }}
                                 >
-                                  {/* تم إزالة fetchPriority="low" و loading="lazy" لكي يتم تحميل الصور بشكل فوري بمجرد النقر على الزر */}
-                                  <img src={proj.img} decoding="async" alt={proj.name} className="w-full h-full object-contain mix-blend-multiply group-hover/img:scale-110 transition-transform duration-700 p-2" />
+                                  <img src={proj.img} decoding="async" alt={proj.name} loading="lazy" className="w-full h-full object-contain mix-blend-multiply group-hover/img:scale-110 transition-transform duration-700 p-2" />
                                   <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-transparent to-transparent opacity-60 pointer-events-none"></div>
                                   
                                   {proj.images && proj.images.length > 0 && (
@@ -1889,14 +2079,14 @@ export default function App() {
                                 </div>
                               )}
                               <div className="mb-4">
-                                 <span className="text-[10px] font-mono font-bold bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full border border-blue-500/20 inline-block mb-3">
+                                 <span className="text-[10px] font-mono font-bold bg-blue-50 text-blue-600 px-3 py-1 rounded-full border border-blue-200 inline-block mb-3">
                                     {proj.category || 'عام'}
                                  </span>
-                                 <h3 className="text-xl font-black text-white mb-2 break-words">{proj.name}</h3>
-                                 <p className="text-sm text-gray-400 leading-relaxed line-clamp-4 break-words">{proj.desc}</p>
+                                 <h3 className={`text-xl font-black mb-2 break-words ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{proj.name}</h3>
+                                 <p className={`text-sm leading-relaxed line-clamp-4 break-words ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>{proj.desc}</p>
                               </div>
-                              <div className="mt-auto pt-4 border-t border-teal-500/10 flex justify-between items-center opacity-50 group-hover:opacity-100 transition-opacity">
-                                 <span className="text-xs text-teal-500 font-mono"><i className="fa-solid fa-check-circle"></i> مكتمل</span>
+                              <div className={`mt-auto pt-4 border-t flex justify-between items-center opacity-50 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'border-teal-500/10' : 'border-gray-100'}`}>
+                                 <span className="text-xs text-teal-600 font-mono"><i className="fa-solid fa-check-circle"></i> مكتمل</span>
                               </div>
                            </div>
                         ))}
@@ -1910,7 +2100,6 @@ export default function App() {
       {/* Advanced Lightbox Gallery */}
       {activeGallery && (
         <div className="fixed inset-0 z-[9999999] bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-xl transition-opacity duration-300">
-            {/* Header / Title */}
             <div className="absolute top-0 left-0 right-0 p-4 sm:p-6 flex justify-between items-center z-50 bg-gradient-to-b from-black/90 to-transparent">
                 <h3 className="text-white font-bold text-lg sm:text-xl drop-shadow-md truncate max-w-[80%] pr-2">{activeGallery.title}</h3>
                 <button onClick={() => { setActiveGallery(null); playSynthSound(400, 'sine', 0.1); }} className="text-white hover:text-red-500 transition-colors bg-white/10 p-2 sm:p-3 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center backdrop-blur-md hover:bg-red-500/20 flex-shrink-0">
@@ -1918,7 +2107,6 @@ export default function App() {
                 </button>
             </div>
 
-            {/* Main Image Container */}
             <div className="relative w-full max-w-6xl h-[60vh] sm:h-[70vh] flex items-center justify-center mb-4 mt-12 sm:mt-16">
                 {activeGallery.list.length > 1 && (
                     <button onClick={(e) => {
@@ -1949,7 +2137,6 @@ export default function App() {
                 )}
             </div>
 
-            {/* Thumbnails Row */}
             {activeGallery.list.length > 1 && (
                 <div className="w-full max-w-4xl bg-slate-900/80 p-3 sm:p-4 rounded-3xl border border-teal-500/30 backdrop-blur-md flex flex-col items-center shadow-2xl shrink-0">
                     <span className="text-teal-400 font-mono text-[10px] sm:text-xs font-bold mb-2 sm:mb-3 tracking-widest">
@@ -1971,14 +2158,6 @@ export default function App() {
                     </div>
                 </div>
             )}
-            
-            {/* الزر الجديد: إغلاق أسفل اليسار */}
-            <button
-                onClick={() => { setActiveGallery(null); playSynthSound(400, 'sine', 0.1); }}
-                className="absolute bottom-6 left-6 z-[999] bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/30 px-5 py-2.5 rounded-xl font-bold font-mono transition-all shadow-lg backdrop-blur-md flex items-center gap-2 hover:scale-105"
-            >
-                <i className="fas fa-times text-lg"></i> إغلاق
-            </button>
         </div>
       )}
 
