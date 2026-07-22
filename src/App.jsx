@@ -273,9 +273,11 @@ export default function App() {
     }
 
     inactivityTimerRef.current = setTimeout(() => {
-        isActiveVisitor.current = false;
-        const statsRef = doc(db, "system", "stats");
-        setDoc(statsRef, { visitorCount: increment(-1) }, { merge: true }).catch(e => console.error(e));
+        if (isActiveVisitor.current) { 
+            isActiveVisitor.current = false;
+            const statsRef = doc(db, "system", "stats");
+            setDoc(statsRef, { visitorCount: increment(-1) }, { merge: true }).catch(e => console.error(e));
+        }
     }, 5 * 60 * 1000); 
   }, []);
 
@@ -643,13 +645,29 @@ export default function App() {
 
     const decreaseCount = () => {
       if (isActiveVisitor.current) {
+        if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
         setDoc(statsRef, { visitorCount: increment(-1) }, { merge: true }).catch(e => console.error(e));
         isActiveVisitor.current = false;
       }
     };
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        decreaseCount();
+      } else if (document.visibilityState === 'visible') {
+        resetInactivityTimer();
+      }
+    };
+
     window.addEventListener('beforeunload', decreaseCount);
+    window.addEventListener('pagehide', decreaseCount);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     
+    window.addEventListener('mousemove', resetInactivityTimer);
+    window.addEventListener('touchstart', resetInactivityTimer, { passive: true });
+    window.addEventListener('keydown', resetInactivityTimer);
+    window.addEventListener('click', resetInactivityTimer);
+
     const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -672,6 +690,14 @@ export default function App() {
     return () => {
       decreaseCount();
       window.removeEventListener('beforeunload', decreaseCount);
+      window.removeEventListener('pagehide', decreaseCount);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+
+      window.removeEventListener('mousemove', resetInactivityTimer);
+      window.removeEventListener('touchstart', resetInactivityTimer);
+      window.removeEventListener('keydown', resetInactivityTimer);
+      window.removeEventListener('click', resetInactivityTimer);
+
       unsubscribeStats();
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
@@ -1121,7 +1147,14 @@ export default function App() {
         normCode.includes(normalizedQuery) ||
         priceStr.includes(normalizedQuery);
 
-      const matchCat = normalizedQuery !== '' ? true : (selectedCatFilter === '' || prod.category === selectedCatFilter);
+      let matchCat = true;
+      if (selectedCatFilter === '') {
+          // إخفاء "ادوات مشروع" من القائمة العامة (الكل)
+          matchCat = prod.category !== 'ادوات مشروع';
+      } else {
+          // إظهار منتجات القسم المحدد فقط
+          matchCat = prod.category === selectedCatFilter;
+      }
 
       return matchSearch && matchCat;
     }).sort((a, b) => {
@@ -1363,21 +1396,35 @@ export default function App() {
             </div>
 
             <div className={`flex flex-wrap gap-2 mb-6 px-2 justify-center md:justify-start custom-scrollbar ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
+               {/* زر عرض الكل (لا يعرض منتجات ادوات مشروع) */}
                <button 
                   onClick={() => setSelectedCatFilter('')} 
                   className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
                >
                   All / الكل
                </button>
-               {categories.map(c => (
-                   <button 
-                      key={c.id} 
-                      onClick={() => setSelectedCatFilter(c.name)} 
-                      className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
-                   >
-                      {c.name}
-                   </button>
-               ))}
+
+               {/* الزر المميز الخاص بأدوات المشروع */}
+               <button 
+                  onClick={() => setSelectedCatFilter('ادوات مشروع')} 
+                  className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-md flex items-center gap-2 ${selectedCatFilter === 'ادوات مشروع' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold border-transparent shadow-[0_0_15px_rgba(147,51,234,0.5)] scale-105' : (isDarkMode ? 'bg-[#1e1136] text-purple-400 border-purple-500/30 hover:border-purple-400 hover:text-purple-300' : 'bg-purple-50 text-purple-700 border-purple-200 hover:border-purple-400 hover:text-purple-600')}`}
+               >
+                  <i className="fa-solid fa-toolbox"></i> ادوات مشروع
+               </button>
+
+               {/* باقي الفئات */}
+               {categories.map(c => {
+                   if (c.name === 'ادوات مشروع') return null; // استثناء الفئة لأننا رسمناها بزر مميز
+                   return (
+                       <button 
+                          key={c.id} 
+                          onClick={() => setSelectedCatFilter(c.name)} 
+                          className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
+                       >
+                          {c.name}
+                       </button>
+                   );
+               })}
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-6 items-stretch pb-12 w-full px-1 sm:px-2">
@@ -1435,7 +1482,7 @@ export default function App() {
                       <div className="flex justify-between items-center mb-2 flex-shrink-0 min-w-0 gap-1 w-full overflow-hidden">
                         <span className={`font-mono text-[9px] sm:text-[10px] tracking-widest font-bold truncate ${isDarkMode ? 'text-teal-500' : 'text-teal-600'}`}>// {prod.code || 'GENERIC'}</span>
                         {prod.category && (
-                          <span className={`font-mono text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full border truncate ${isDarkMode ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-teal-50 text-teal-700 border-teal-200'}`}>{prod.category}</span>
+                          <span className={`font-mono text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full border truncate ${prod.category === 'ادوات مشروع' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : (isDarkMode ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-teal-50 text-teal-700 border-teal-200')}`}>{prod.category}</span>
                         )}
                       </div>
 
@@ -1728,7 +1775,7 @@ export default function App() {
             {/* الجانب الأيسر (تفاصيل المنتج) */}
             <div className={`w-full md:w-7/12 p-2 sm:p-8 flex flex-col justify-start h-auto md:h-auto flex-1 ${isDarkMode ? 'bg-slate-900/50' : 'bg-white'}`}>
               
-              <div className="mb-4 flex flex-col gap-4">
+              <div className="mb-4 flex flex-col gap-4 flex-shrink-0">
                 
                 <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                   <div className="flex-1 min-w-0">
@@ -1831,67 +1878,116 @@ export default function App() {
                     )}
                 </button>
 
-                <div className={`flex gap-3 sm:gap-6 border-b mt-2 overflow-x-auto custom-scrollbar flex-shrink-0 ${isDarkMode ? 'border-teal-500/20' : 'border-gray-200'}`}>
-                    <button onClick={() => setModalTab('compat')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'compat' ? (isDarkMode ? 'text-teal-400 border-b-2 border-teal-400' : 'text-teal-600 border-b-2 border-teal-600') : (isDarkMode ? 'text-gray-500 hover:text-gray-300' : 'text-slate-500 hover:text-slate-800')}`}>
+                <div className={`flex flex-wrap gap-2 sm:gap-4 border-b mt-4 pb-2 flex-shrink-0 justify-start ${isDarkMode ? 'border-teal-500/20' : 'border-gray-200'}`}>
+                    <button onClick={() => setModalTab('compat')} className={`pb-2 px-1 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'compat' ? (isDarkMode ? 'text-teal-400 border-b-2 border-teal-400' : 'text-teal-600 border-b-2 border-teal-600') : (isDarkMode ? 'text-gray-500 hover:text-gray-300' : 'text-slate-500 hover:text-slate-800')}`}>
                         <i className="fa-solid fa-puzzle-piece ml-1"></i> متوافق مع
                     </button>
-                    <button onClick={() => setModalTab('desc')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'desc' ? (isDarkMode ? 'text-teal-400 border-b-2 border-teal-400' : 'text-teal-600 border-b-2 border-teal-600') : (isDarkMode ? 'text-gray-500 hover:text-gray-300' : 'text-slate-500 hover:text-slate-800')}`}>
+                    <button onClick={() => setModalTab('desc')} className={`pb-2 px-1 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'desc' ? (isDarkMode ? 'text-teal-400 border-b-2 border-teal-400' : 'text-teal-600 border-b-2 border-teal-600') : (isDarkMode ? 'text-gray-500 hover:text-gray-300' : 'text-slate-500 hover:text-slate-800')}`}>
                         <i className="fa-solid fa-circle-info ml-1"></i> الشرح والتفاصيل
                     </button>
-                    <button onClick={() => setModalTab('code')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'code' ? (isDarkMode ? 'text-teal-400 border-b-2 border-teal-400' : 'text-teal-600 border-b-2 border-teal-600') : (isDarkMode ? 'text-gray-500 hover:text-gray-300' : 'text-slate-500 hover:text-slate-800')}`}>
+                    <button onClick={() => setModalTab('code')} className={`pb-2 px-1 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'code' ? (isDarkMode ? 'text-teal-400 border-b-2 border-teal-400' : 'text-teal-600 border-b-2 border-teal-600') : (isDarkMode ? 'text-gray-500 hover:text-gray-300' : 'text-slate-500 hover:text-slate-800')}`}>
                         <i className="fa-solid fa-code ml-1"></i> الكود البرمجي
                     </button>
-                    <button onClick={() => setModalTab('links')} className={`pb-3 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'links' ? (isDarkMode ? 'text-teal-400 border-b-2 border-teal-400' : 'text-teal-600 border-b-2 border-teal-600') : (isDarkMode ? 'text-gray-500 hover:text-gray-300' : 'text-slate-500 hover:text-slate-800')}`}>
+                    <button onClick={() => setModalTab('links')} className={`pb-2 px-1 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'links' ? (isDarkMode ? 'text-teal-400 border-b-2 border-teal-400' : 'text-teal-600 border-b-2 border-teal-600') : (isDarkMode ? 'text-gray-500 hover:text-gray-300' : 'text-slate-500 hover:text-slate-800')}`}>
                         <i className="fa-solid fa-paperclip ml-1"></i> الملحقات
                     </button>
                 </div>
               </div>
               
-              <div className="flex-grow flex flex-col mb-0 pb-4 min-h-[200px] overflow-y-auto custom-scrollbar overscroll-contain max-h-[45vh] sm:max-h-[55vh]">
+              <div className="flex-grow flex flex-col pt-2 pb-4 overflow-y-auto custom-scrollbar overscroll-contain max-h-[50vh]">
                   {modalTab === 'compat' && (
-                      <div className="flex flex-wrap gap-3 h-fit min-h-full p-2">
-                          {(() => {
-                              const compatIds = selectedProduct.compatProdIds || (selectedProduct.compatProdId ? [selectedProduct.compatProdId] : []);
-                              if (compatIds.length === 0) {
-                                  return <div className="p-4 w-full border border-dashed border-gray-400/50 rounded-xl text-gray-500 text-sm text-center">لا توجد منتجات متوافقة مضافة حالياً.</div>;
-                              }
-                              return compatIds.map(id => {
-                                  const compProd = products.find(p => p.id === id);
-                                  if(!compProd) return null;
-                                  return (
-                                      <div 
-                                          key={id}
-                                          onClick={(e) => {
-                                              e.stopPropagation();
-                                              setSelectedProduct(compProd);
-                                              setActiveImageIndex(0);
-                                              setModalTab('compat');
-                                              setModalQty(1);
-                                              setModalQtyWarning('');
-                                              resetInactivityTimer();
-                                          }}
-                                          className={`cursor-pointer flex flex-col items-center border rounded-xl p-3 transition-all shadow-sm w-28 sm:w-32 shrink-0 group ${isDarkMode ? 'bg-slate-800/60 border-teal-500/20 hover:border-teal-400 hover:bg-slate-800' : 'bg-white border-gray-200 hover:border-teal-400 hover:shadow-md'}`}
-                                          title={`عرض ${compProd.name}`}
-                                      >
-                                          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg p-1 flex items-center justify-center overflow-hidden mb-2 border border-neutral-200">
-                                              <img src={compProd.images && compProd.images.length > 0 ? compProd.images[0] : compProd.img} loading="lazy" alt={compProd.name} className="max-w-full max-h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-300" />
-                                          </div>
-                                          <span className={`text-[10px] sm:text-xs font-bold text-center line-clamp-2 leading-tight ${isDarkMode ? 'text-teal-400' : 'text-slate-700'}`}>{compProd.name}</span>
-                                      </div>
-                                  );
-                              });
-                          })()}
+                      <div className="flex flex-col gap-6 p-1">
+                          
+                          {/* المنتجات المتوافقة تحديداً */}
+                          <div>
+                              <h4 className={`font-bold text-xs sm:text-sm mb-3 flex items-center gap-2 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>
+                                  <i className="fa-solid fa-puzzle-piece"></i> المنتجات المتوافقة
+                              </h4>
+                              <div className="flex flex-wrap gap-3">
+                                  {(() => {
+                                      const compatIds = selectedProduct.compatProdIds || (selectedProduct.compatProdId ? [selectedProduct.compatProdId] : []);
+                                      if (compatIds.length === 0) {
+                                          return <div className="p-4 w-full border border-dashed border-gray-400/50 rounded-xl text-gray-500 text-sm text-center">لا توجد منتجات متوافقة مضافة حالياً.</div>;
+                                      }
+                                      return compatIds.map(id => {
+                                          const compProd = products.find(p => p.id === id);
+                                          if(!compProd) return null;
+                                          return (
+                                              <div 
+                                                  key={id}
+                                                  onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setSelectedProduct(compProd);
+                                                      setActiveImageIndex(0);
+                                                      setModalTab('compat');
+                                                      setModalQty(1);
+                                                      setModalQtyWarning('');
+                                                      resetInactivityTimer();
+                                                  }}
+                                                  className={`cursor-pointer flex flex-col items-center border rounded-xl p-3 transition-all shadow-sm w-28 sm:w-32 shrink-0 group ${isDarkMode ? 'bg-slate-800/60 border-teal-500/20 hover:border-teal-400 hover:bg-slate-800' : 'bg-white border-gray-200 hover:border-teal-400 hover:shadow-md'}`}
+                                                  title={`عرض ${compProd.name}`}
+                                              >
+                                                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg p-1 flex items-center justify-center overflow-hidden mb-2 border border-neutral-200">
+                                                      <img src={compProd.images && compProd.images.length > 0 ? compProd.images[0] : compProd.img} loading="lazy" alt={compProd.name} className="max-w-full max-h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-300" />
+                                                  </div>
+                                                  <span className={`text-[10px] sm:text-xs font-bold text-center line-clamp-2 leading-tight ${isDarkMode ? 'text-teal-400' : 'text-slate-700'}`}>{compProd.name}</span>
+                                              </div>
+                                          );
+                                      });
+                                  })()}
+                              </div>
+                          </div>
+
+                          {/* منتجات ذات صلة من نفس القائمة */}
+                          <div>
+                              <h4 className={`font-bold text-xs sm:text-sm mb-3 flex items-center gap-2 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>
+                                  <i className="fa-solid fa-layer-group"></i> منتجات ذات صلة من نفس القائمة
+                              </h4>
+                              <div className="flex flex-wrap gap-3">
+                                  {(() => {
+                                      const relatedProducts = products.filter(p => p.category && selectedProduct.category && p.category === selectedProduct.category && p.id !== selectedProduct.id).slice(0, 15);
+                                      
+                                      if (relatedProducts.length === 0) {
+                                          return <div className="p-4 w-full border border-dashed border-gray-400/50 rounded-xl text-gray-500 text-sm text-center">لا توجد منتجات ذات صلة من نفس القائمة حالياً.</div>;
+                                      }
+                                      return relatedProducts.map(compProd => {
+                                          return (
+                                              <div 
+                                                  key={compProd.id}
+                                                  onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setSelectedProduct(compProd);
+                                                      setActiveImageIndex(0);
+                                                      setModalTab('compat');
+                                                      setModalQty(1);
+                                                      setModalQtyWarning('');
+                                                      resetInactivityTimer();
+                                                  }}
+                                                  className={`cursor-pointer flex flex-col items-center border rounded-xl p-3 transition-all shadow-sm w-28 sm:w-32 shrink-0 group ${isDarkMode ? 'bg-slate-800/60 border-teal-500/20 hover:border-teal-400 hover:bg-slate-800' : 'bg-white border-gray-200 hover:border-teal-400 hover:shadow-md'}`}
+                                                  title={`عرض ${compProd.name}`}
+                                              >
+                                                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg p-1 flex items-center justify-center overflow-hidden mb-2 border border-neutral-200 shadow-inner">
+                                                      <img src={compProd.images && compProd.images.length > 0 ? compProd.images[0] : compProd.img} loading="lazy" alt={compProd.name} className="max-w-full max-h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-300" />
+                                                  </div>
+                                                  <span className={`text-[10px] sm:text-xs font-bold text-center line-clamp-2 leading-tight ${isDarkMode ? 'text-teal-400' : 'text-slate-700'}`}>{compProd.name}</span>
+                                              </div>
+                                          );
+                                      });
+                                  })()}
+                              </div>
+                          </div>
+
                       </div>
                   )}
 
                   {modalTab === 'desc' && (
-                      <div className={`p-4 sm:p-5 rounded-xl text-xs sm:text-sm leading-relaxed border h-fit min-h-full break-words whitespace-pre-wrap ${isDarkMode ? 'bg-slate-800/50 border-teal-500/10 text-gray-300' : 'bg-slate-50 border-gray-200 text-slate-700'}`}>
+                      <div className={`p-4 sm:p-5 rounded-xl text-xs sm:text-sm leading-relaxed border break-words whitespace-pre-wrap ${isDarkMode ? 'bg-slate-800/50 border-teal-500/10 text-gray-300' : 'bg-slate-50 border-gray-200 text-slate-700'}`}>
                           {selectedProduct.desc || t.noDesc}
                       </div>
                   )}
                   
                   {modalTab === 'code' && (
-                      <div className={`p-4 rounded-xl border overflow-x-auto text-left h-fit min-h-full shadow-inner ${isDarkMode ? 'bg-[#0a0a0f] border-teal-500/20' : 'bg-gray-100 border-gray-300'}`} dir="ltr">
+                      <div className={`p-4 rounded-xl border overflow-x-auto text-left shadow-inner ${isDarkMode ? 'bg-[#0a0a0f] border-teal-500/20' : 'bg-gray-100 border-gray-300'}`} dir="ltr">
                           <pre className={`font-mono text-xs sm:text-sm ${isDarkMode ? 'text-teal-300' : 'text-slate-800'}`}>
                               {selectedProduct.codeSnippet || '// لا يوجد كود برمجي متاح لهذه القطعة حالياً.\n// يمكنك إضافة الكود من لوحة الإدارة.'}
                           </pre>
@@ -1899,7 +1995,7 @@ export default function App() {
                   )}
 
                   {modalTab === 'links' && (
-                      <div className="flex flex-col gap-4 h-fit min-h-full">
+                      <div className="flex flex-col gap-4">
                           {selectedProduct.compatLink && (
                               <a href={selectedProduct.compatLink} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm group">
                                   <span className="font-bold text-sm"><i className="fa-solid fa-link ml-2"></i> مادة تتوافق معه (رابط خارجي)</span>

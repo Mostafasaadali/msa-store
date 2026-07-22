@@ -326,6 +326,7 @@ export default function AdminPanel({
                      className="w-full p-2.5 sm:p-3 bg-black/40 border border-teal-500/30 text-white rounded-xl text-xs sm:text-sm focus:outline-none focus:border-teal-500 transition-colors shadow-inner appearance-none cursor-pointer"
                    >
                      <option value="" className="bg-neutral-900 text-gray-500">-- غير محدد --</option>
+                     <option value="ادوات مشروع" className="bg-purple-900 text-white font-bold">ادوات مشروع</option>
                      {(categories || []).map(c => (
                        <option key={c.id} value={c.name} className="bg-neutral-900">{c.name}</option>
                      ))}
