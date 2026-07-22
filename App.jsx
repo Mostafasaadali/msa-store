@@ -221,9 +221,6 @@ export default function App() {
   const magneticBtnRef = useRef(null);
   const magneticContainerRef = useRef(null);
   
-  const isActiveVisitor = useRef(false);
-  const inactivityTimerRef = useRef(null);
-  
   const projectsFetchedRef = useRef(false);
   const projectsFetchTimerRef = useRef(null);
 
@@ -262,24 +259,6 @@ export default function App() {
     setTimeout(() => playSynthSound(900, 'sine', 0.15), 80);
   }, [playSynthSound]);
   const playErrorBuzz = useCallback(() => playSynthSound(150, 'sawtooth', 0.4), [playSynthSound]);
-
-  const resetInactivityTimer = useCallback(() => {
-    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-    
-    if (!isActiveVisitor.current) {
-        isActiveVisitor.current = true;
-        const statsRef = doc(db, "system", "stats");
-        setDoc(statsRef, { visitorCount: increment(1) }, { merge: true }).catch(e => console.error(e));
-    }
-
-    inactivityTimerRef.current = setTimeout(() => {
-        if (isActiveVisitor.current) { 
-            isActiveVisitor.current = false;
-            const statsRef = doc(db, "system", "stats");
-            setDoc(statsRef, { visitorCount: increment(-1) }, { merge: true }).catch(e => console.error(e));
-        }
-    }, 5 * 60 * 1000); 
-  }, []);
 
   const isAnyModalOpen = !!(activeGallery || selectedProduct || isProjectsModalOpen || isCartOpen || isSideMenuOpen);
   const wasModalOpen = useRef(false);
@@ -350,7 +329,6 @@ export default function App() {
     }
   }, [cart]);
 
-  // تحديث دالة التثبيت لتعمل على جميع الأجهزة بذكاء
   const handleInstallApp = async () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
@@ -445,10 +423,17 @@ export default function App() {
     }
   };
 
-  const handleResetVisitors = () => {
+  const handleResetVisitors = async () => {
     if(window.confirm("هل أنت متأكد من تصفير عداد الزوار الحاليين؟")) {
-       setDoc(doc(db, "system", "stats"), { visitorCount: 0 }, { merge: true });
-       playSuccessBeep();
+       try {
+          const snap = await getDocs(collection(db, "active_visitors"));
+          snap.forEach(d => deleteDoc(d.ref));
+          setVisitorCount(0);
+          playSuccessBeep();
+       } catch(e) {
+          console.error(e);
+          playErrorBuzz();
+       }
     }
   };
 
@@ -641,56 +626,57 @@ export default function App() {
     }
   };
 
-   useEffect(() => {
+  // -------------------------------------------------------------
+  // الاستدعاء الرئيسي وبناء نظام النبضات عالي الدقة لجلسات الزوار
+  // -------------------------------------------------------------
+  useEffect(() => {
     fetchProducts(); 
     fetchCategories();
     fetchDeliveryLocations();
     fetchExternalLinks();
-    resetInactivityTimer();
 
     projectsFetchTimerRef.current = setTimeout(() => {
         fetchProjectsData();
     }, 8000); 
-    
+
+    // تسجيل الجلسة للمستخدم الحالي بنظام النبضات
+    const sid = sessionStorage.getItem('msa_vid') || Math.random().toString(36).substring(2, 15);
+    sessionStorage.setItem('msa_vid', sid);
+    const visitorRef = doc(db, "active_visitors", sid);
+
+    const pingPresence = () => {
+        if (document.visibilityState === 'visible') {
+            setDoc(visitorRef, { lastPing: Date.now() }, { merge: true }).catch(()=>{});
+        }
+    };
+
+    pingPresence();
+    const pingInterval = setInterval(pingPresence, 60000); // إرسال نبضة كل دقيقة
+
+    const handleVisibility = () => {
+        if (document.visibilityState === 'hidden') {
+            deleteDoc(visitorRef).catch(()=>{}); // محاولة الحذف عند اخفاء الشاشة
+        } else {
+            pingPresence();
+        }
+    };
+
+    const handleUnload = () => {
+        deleteDoc(visitorRef).catch(()=>{});
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('pagehide', handleUnload);
+
+    // استماع مباشر لإعلانات السلة
     const statsRef = doc(db, "system", "stats");
-
-    const decreaseCount = () => {
-      if (isActiveVisitor.current) {
-        if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-        setDoc(statsRef, { visitorCount: increment(-1) }, { merge: true }).catch(e => console.error(e));
-        isActiveVisitor.current = false;
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        decreaseCount();
-      } else if (document.visibilityState === 'visible') {
-        resetInactivityTimer();
-      }
-    };
-
-    window.addEventListener('beforeunload', decreaseCount);
-    window.addEventListener('pagehide', decreaseCount);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    window.addEventListener('mousemove', resetInactivityTimer);
-    window.addEventListener('touchstart', resetInactivityTimer, { passive: true });
-    window.addEventListener('keydown', resetInactivityTimer);
-    window.addEventListener('click', resetInactivityTimer);
-
     const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const count = data.visitorCount || 0;
-        setVisitorCount(Math.max(0, count)); 
         setCartAnnouncement(data.cartAnnouncement || '');
       }
     });
-
-    if (isAdminMode) {
-      fetchOrders();
-    }
 
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
@@ -699,22 +685,44 @@ export default function App() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     return () => {
-      decreaseCount();
-      window.removeEventListener('beforeunload', decreaseCount);
-      window.removeEventListener('pagehide', decreaseCount);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-
-      window.removeEventListener('mousemove', resetInactivityTimer);
-      window.removeEventListener('touchstart', resetInactivityTimer);
-      window.removeEventListener('keydown', resetInactivityTimer);
-      window.removeEventListener('click', resetInactivityTimer);
-
+      clearInterval(pingInterval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
       unsubscribeStats();
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
       if (projectsFetchTimerRef.current) clearTimeout(projectsFetchTimerRef.current);
     };
-  }, [isAdminMode, resetInactivityTimer, fetchProjectsData]);
+  }, [fetchProjectsData]);
+
+  // -------------------------------------------------------------
+  // حساب عدد الزوار الخاص بالمدير فقط باستخدام النبضات الدقيقة
+  // -------------------------------------------------------------
+  useEffect(() => {
+      let unsub;
+      if (isAdminMode) {
+          fetchOrders();
+          
+          const q = query(collection(db, "active_visitors"));
+          unsub = onSnapshot(q, (snap) => {
+              let activeCount = 0;
+              const now = Date.now();
+              snap.forEach(docSnap => {
+                  const data = docSnap.data();
+                  // إذا كان المستخدم نشطاً خلال آخر 3 دقائق نعتبره متصلاً
+                  if (now - data.lastPing < 3 * 60 * 1000) {
+                      activeCount++;
+                  } else {
+                      deleteDoc(docSnap.ref).catch(()=>{}); // التنظيف التلقائي
+                  }
+              });
+              setVisitorCount(activeCount);
+          });
+      }
+      return () => {
+          if(unsub) unsub();
+      };
+  }, [isAdminMode]);
 
   const handleProjectsClick = () => {
       if (projectsFetchTimerRef.current) clearTimeout(projectsFetchTimerRef.current);
@@ -1452,13 +1460,13 @@ export default function App() {
                       onMouseMove={(e) => handleCardMove(e, e.currentTarget)}
                       onMouseLeave={(e) => handleCardLeave(e.currentTarget)}
                       onMouseEnter={handleMouseEnterInteractive} 
-                      onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); resetInactivityTimer(); }}
+                      onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); }}
                       className={`card-tilt cursor-pointer h-full w-full flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-5 relative group transition-all duration-300 border overflow-hidden break-words min-w-0 ${isDarkMode ? (isOutOfStock ? 'bg-neutral-900/40 border-red-500/20 hover:border-red-400/60' : 'bg-neutral-900/40 border-teal-500/20 hover:border-teal-400/60') : (isOutOfStock ? 'bg-white border-red-200 hover:border-red-400 shadow-md' : 'bg-white border-gray-100 hover:border-teal-300 shadow-xl hover:shadow-2xl')}`}
                     >
                       <div className="gloss-effect"></div>
                       
                       <div 
-                        onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); resetInactivityTimer(); }}
+                        onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); }}
                         className={`flex-shrink-0 h-28 sm:h-48 w-full rounded-lg sm:rounded-xl overflow-hidden mb-3 sm:mb-5 flex items-center justify-center border transition-all duration-300 relative cursor-pointer bg-white ${isOutOfStock ? (isDarkMode ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-red-100') : (isDarkMode ? 'border-teal-500/10 group-hover:border-teal-500/30' : 'border-gray-100')}`}
                         title={t.viewDetails}
                       >
@@ -1492,7 +1500,7 @@ export default function App() {
                         )}
                       </div>
 
-                      <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer transition-colors break-words min-w-0 w-full ${isDarkMode ? 'text-white hover:text-teal-400' : 'text-slate-800 hover:text-teal-600'}`} onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); resetInactivityTimer(); }}>{prod.name}</h3>
+                      <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer transition-colors break-words min-w-0 w-full ${isDarkMode ? 'text-white hover:text-teal-400' : 'text-slate-800 hover:text-teal-600'}`} onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); }}>{prod.name}</h3>
                       
                       <p className={`text-[9px] sm:text-sm mb-3 sm:mb-5 leading-relaxed line-clamp-2 flex-grow break-words min-w-0 w-full ${isDarkMode ? 'text-gray-300' : 'text-slate-500'}`}>{prod.desc || t.noDesc}</p>
                       
@@ -1509,7 +1517,7 @@ export default function App() {
                         <button 
                           type="button" 
                           disabled={isOutOfStock}
-                          onClick={(e) => { e.stopPropagation(); addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock, 1, prod.enableWholesale, prod.discount10, prod.discount20); resetInactivityTimer(); }} 
+                          onClick={(e) => { e.stopPropagation(); addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock, 1, prod.enableWholesale, prod.discount10, prod.discount20); }} 
                           className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 mt-2 rounded-full font-bold text-[9px] sm:text-xs transition-all relative overflow-hidden z-20 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-white hover:bg-teal-400'}`}
                         >
                           <i className="fas fa-cart-arrow-down"></i> <span className="truncate">{isOutOfStock ? 'نافذ' : t.addToCart}</span>
@@ -1730,7 +1738,7 @@ export default function App() {
                       <button 
                           onClick={(e) => { 
                               e.stopPropagation(); 
-                              setActiveImageIndex(prev => prev === selectedProduct.images.length - 1 ? 0 : prev + 1); 
+                              setActiveImageIndex(prev => prev === selectedProduct.images.length - 1 ? 0 : prev - 1); 
                               playSynthSound(1000, 'triangle', 0.05);
                           }} 
                           className="absolute right-2 sm:right-4 z-0 w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-slate-900/40 text-white flex items-center justify-center hover:bg-teal-500 hover:text-white transition-all backdrop-blur-md"
@@ -1866,7 +1874,6 @@ export default function App() {
                         e.stopPropagation(); 
                         addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock, modalQty, selectedProduct.enableWholesale, selectedProduct.discount10, selectedProduct.discount20); 
                         setModalQty(1);
-                        resetInactivityTimer();
                     }} 
                     className={`relative overflow-hidden w-full py-3 sm:py-4 rounded-xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0 ? 'bg-slate-300 text-gray-500 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-white hover:scale-[1.02] hover:shadow-lg hover:-translate-y-1'}`}
                 >
@@ -1896,12 +1903,10 @@ export default function App() {
                 </div>
               </div>
               
-              {/* تم السماح للمحتوى بالتمدد واستخدام سكرول داخلي */}
               <div className="flex-grow flex flex-col pt-2 pb-4 overflow-y-auto custom-scrollbar overscroll-contain max-h-[50vh]">
                   {modalTab === 'compat' && (
                       <div className="flex flex-col gap-6 p-1 h-fit">
                           
-                          {/* المنتجات المتوافقة تحديداً */}
                           <div>
                               <h4 className={`font-bold text-xs sm:text-sm mb-3 flex items-center gap-2 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>
                                   <i className="fa-solid fa-puzzle-piece"></i> المنتجات المتوافقة تحديداً
@@ -1925,7 +1930,6 @@ export default function App() {
                                                       setModalTab('compat');
                                                       setModalQty(1);
                                                       setModalQtyWarning('');
-                                                      resetInactivityTimer();
                                                   }}
                                                   className={`cursor-pointer flex flex-col items-center border rounded-xl p-3 transition-all shadow-sm w-28 sm:w-32 shrink-0 group ${isDarkMode ? 'bg-slate-800/60 border-teal-500/20 hover:border-teal-400 hover:bg-slate-800' : 'bg-white border-gray-200 hover:border-teal-400 hover:shadow-md'}`}
                                                   title={`عرض ${compProd.name}`}
@@ -1941,7 +1945,6 @@ export default function App() {
                               </div>
                           </div>
 
-                          {/* منتجات ذات صلة من نفس القائمة */}
                           <div className={`pt-4 border-t ${isDarkMode ? 'border-teal-500/20' : 'border-gray-200'}`}>
                               <h4 className={`font-bold text-xs sm:text-sm mb-3 flex items-center gap-2 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>
                                   <i className="fa-solid fa-layer-group"></i> منتجات ذات صلة (نفس القائمة)
@@ -1964,7 +1967,6 @@ export default function App() {
                                                       setModalTab('compat');
                                                       setModalQty(1);
                                                       setModalQtyWarning('');
-                                                      resetInactivityTimer();
                                                   }}
                                                   className={`cursor-pointer flex flex-col items-center border rounded-xl p-3 transition-all shadow-sm w-28 sm:w-32 shrink-0 group ${isDarkMode ? 'bg-slate-800/60 border-teal-500/20 hover:border-teal-400 hover:bg-slate-800' : 'bg-white border-gray-200 hover:border-teal-400 hover:shadow-md'}`}
                                                   title={`عرض ${compProd.name}`}
