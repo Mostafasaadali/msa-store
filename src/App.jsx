@@ -149,7 +149,7 @@ const normalizeText = (text) => {
 let globalAudioCtx = null;
 
 // ==========================================
-
+// مكون البطاقة الذكي المعزول لتسريع الأداء
 // ==========================================
 const ProductCard = React.memo(({
   prod, prodInCartQty, isDarkMode, lang, t,
@@ -707,6 +707,7 @@ export default function App() {
   };
 
 // -------------------------------------------------------------
+
   // -------------------------------------------------------------
   useEffect(() => {
     fetchProducts(); 
@@ -719,6 +720,7 @@ export default function App() {
     let vid = localStorage.getItem('msa_vid');
     if (!vid) { vid = Math.random().toString(36).substring(2, 15); localStorage.setItem('msa_vid', vid); }
     const visitorRef = doc(db, "active_visitors", vid);
+
 
     const pingPresence = () => setDoc(visitorRef, { lastPing: Date.now() }, { merge: true }).catch((e)=>{ console.error("Firebase Blocked Visitor Ping:", e) });
     
@@ -750,6 +752,7 @@ export default function App() {
   }, [fetchProjectsData]);
 
   // -------------------------------------------------------------
+
   // -------------------------------------------------------------
   useEffect(() => {
       let unsub;
@@ -1044,6 +1047,13 @@ export default function App() {
     addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock, 1, prod.enableWholesale, prod.discount10, prod.discount20);
   }, [addToCart]);
 
+  const handleProjectsClick = useCallback(() => {
+      if (projectsFetchTimerRef.current) clearTimeout(projectsFetchTimerRef.current);
+      fetchProjectsData(); 
+      setIsProjectsModalOpen(true);
+      setIsSideMenuOpen(false);
+      playSynthSound(600, 'sine', 0.1);
+  }, [fetchProjectsData, playSynthSound]);
 
   const observer = useRef();
   const lastElementRef = useCallback(node => {
