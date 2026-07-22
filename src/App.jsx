@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense, useDeferredValue } from 'react';
 import './App.css';
 
 import {ADMIN_UID, db, auth, provider } from './firebase';
@@ -148,6 +148,107 @@ const normalizeText = (text) => {
 
 let globalAudioCtx = null;
 
+// ==========================================
+
+// ==========================================
+const ProductCard = React.memo(({
+  prod, prodInCartQty, isDarkMode, lang, t,
+  onCardMove, onCardLeave, onMouseEnter, onSelect, onAddToCart
+}) => {
+  const stockCount = parseInt(prod.stock) || 0;
+  const isOutOfStock = stockCount <= 0;
+
+  return (
+    <div className="card-perspective h-full w-full min-w-0">
+      <div 
+        onMouseMove={(e) => onCardMove(e, e.currentTarget)}
+        onMouseLeave={(e) => onCardLeave(e.currentTarget)}
+        onMouseEnter={onMouseEnter} 
+        onClick={() => onSelect(prod)}
+        className={`card-tilt cursor-pointer h-full w-full flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-5 relative group transition-all duration-300 border overflow-hidden break-words min-w-0 ${isDarkMode ? (isOutOfStock ? 'bg-neutral-900/40 border-red-500/20 hover:border-red-400/60' : 'bg-neutral-900/40 border-teal-500/20 hover:border-teal-400/60') : (isOutOfStock ? 'bg-white border-red-200 hover:border-red-400 shadow-md' : 'bg-white border-gray-100 hover:border-teal-300 shadow-xl hover:shadow-2xl')}`}
+      >
+        <div className="gloss-effect"></div>
+        
+        <div 
+          onClick={(e) => { e.stopPropagation(); onSelect(prod); }}
+          className={`flex-shrink-0 h-28 sm:h-48 w-full rounded-lg sm:rounded-xl overflow-hidden mb-3 sm:mb-5 flex items-center justify-center border transition-all duration-300 relative cursor-pointer bg-white ${isOutOfStock ? (isDarkMode ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-red-100') : (isDarkMode ? 'border-teal-500/10 group-hover:border-teal-500/30' : 'border-gray-100')}`}
+          title={t.viewDetails}
+        >
+          <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} loading="lazy" decoding="async" alt={prod.name} className={`object-contain h-full w-full max-h-full max-w-full mix-blend-multiply transition-all duration-500 p-2 ${isOutOfStock ? 'opacity-50 grayscale' : 'group-hover:scale-110 group-hover:rotate-3'}`} />
+          
+          {prod.images && prod.images.length > 1 && (
+             <div className={`absolute bottom-1 sm:bottom-2 ${lang === 'en' ? 'left-1 sm:left-2' : 'right-1 sm:right-2'} px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-xs font-mono shadow-md backdrop-blur-sm ${isDarkMode ? 'bg-slate-900/80 text-white' : 'bg-white/90 text-slate-800 border border-gray-200'}`}>
+                <i className="fas fa-images"></i> +{prod.images.length - 1}
+             </div>
+          )}
+
+          <div className={`absolute top-1 sm:top-2 ${lang === 'en' ? 'right-1 sm:right-2' : 'left-1 sm:left-2'} px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-xs font-mono font-bold border ${isDarkMode ? 'bg-teal-500/20 text-teal-600 border-teal-500/30' : 'bg-teal-50 text-teal-700 border-teal-200'}`}>{prod.chip || 'NEW MCU'}</div>
+          
+          {isOutOfStock && (
+             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center backdrop-blur-[2px] bg-slate-900/60">
+                <span className="bg-red-600 text-white font-bold px-2 py-1 sm:px-6 sm:py-2 rounded border border-red-400 shadow-[0_0_15px_rgba(220,38,38,0.5)] transform -rotate-12 text-[10px] sm:text-lg uppercase tracking-widest">
+                  نافذ
+                </span>
+             </div>
+          )}
+
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[1px] bg-teal-500/10">
+              <span className={`font-bold text-[10px] sm:text-xs px-2 py-1 sm:px-4 sm:py-2 rounded-full tracking-widest shadow-md ${isDarkMode ? 'bg-slate-900/80 text-white' : 'bg-teal-500 text-white'}`}><i className="fas fa-eye"></i> {t.viewDetails}</span>
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center mb-2 flex-shrink-0 min-w-0 gap-1 w-full overflow-hidden">
+          <span className={`font-mono text-[9px] sm:text-[10px] tracking-widest font-bold truncate ${isDarkMode ? 'text-teal-500' : 'text-teal-600'}`}>// {prod.code || 'GENERIC'}</span>
+          {prod.category && (
+            <span className={`font-mono text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full border truncate ${prod.category === 'ادوات مشروع' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : (isDarkMode ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-teal-50 text-teal-700 border-teal-200')}`}>{prod.category}</span>
+          )}
+        </div>
+
+        <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer transition-colors break-words min-w-0 w-full ${isDarkMode ? 'text-white hover:text-teal-400' : 'text-slate-800 hover:text-teal-600'}`} onClick={(e) => { e.stopPropagation(); onSelect(prod); }}>{prod.name}</h3>
+        
+        <p className={`text-[9px] sm:text-sm mb-3 sm:mb-5 leading-relaxed line-clamp-2 flex-grow break-words min-w-0 w-full ${isDarkMode ? 'text-gray-300' : 'text-slate-500'}`}>{prod.desc || t.noDesc}</p>
+        
+        <div className={`mt-auto flex flex-col justify-between items-stretch sm:items-end pt-2 sm:pt-4 border-t gap-2 sm:gap-0 flex-shrink-0 w-full z-10 min-w-0 ${isOutOfStock ? (isDarkMode ? 'border-red-500/10' : 'border-red-100') : (isDarkMode ? 'border-teal-500/10' : 'border-gray-100')}`}>
+          <div className="w-full text-center sm:text-right min-w-0 flex justify-between items-end">
+             <div>
+                 <span className={`block text-[8px] sm:text-[10px] font-mono font-bold truncate ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>{t.price}</span>
+                 <span className={`text-xs sm:text-xl font-bold font-mono truncate block ${isOutOfStock ? 'text-red-400 opacity-60' : (isDarkMode ? 'text-teal-400' : 'text-teal-600')}`}>{prod.price?.toLocaleString() || 0}</span>
+             </div>
+             {prod.enableWholesale && (
+                 <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isDarkMode ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-yellow-100 text-yellow-700 border border-yellow-300'}`}>يتوفر خصم جملة</span>
+             )}
+          </div>
+          <button 
+            type="button" 
+            disabled={isOutOfStock}
+            onClick={(e) => { e.stopPropagation(); onAddToCart(prod); }} 
+            className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 mt-2 rounded-full font-bold text-[9px] sm:text-xs transition-all relative overflow-hidden z-20 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-white hover:bg-teal-400'}`}
+          >
+            <i className="fas fa-cart-arrow-down"></i> <span className="truncate">{isOutOfStock ? 'نافذ' : t.addToCart}</span>
+            
+            {prodInCartQty > 0 && (
+                <span className={`absolute left-1 text-[10px] font-mono px-2 py-0.5 rounded-full shadow-md animate-pulse ${isDarkMode ? 'bg-slate-900 text-teal-400' : 'bg-white text-teal-600'}`}>
+                    {prodInCartQty}
+                </span>
+            )}
+          </button>
+        </div>
+        
+      </div>
+    </div>
+  );
+}, (prev, next) => {
+  return prev.prod.id === next.prod.id &&
+         prev.prod.stock === next.prod.stock &&
+         prev.prod.price === next.prod.price &&
+         prev.prod.name === next.prod.name &&
+         prev.prodInCartQty === next.prodInCartQty &&
+         prev.isDarkMode === next.isDarkMode &&
+         prev.lang === next.lang;
+});
+
+// ==========================================
+
 export default function App() {
   const [lang, setLang] = useState('ar');
   const t = translations[lang]; 
@@ -174,6 +275,8 @@ export default function App() {
   const [user, setUser] = useState(null);
   
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   const [selectedCatFilter, setSelectedCatFilter] = useState(''); 
   const [visitorCount, setVisitorCount] = useState(0); 
   const [cartAnnouncement, setCartAnnouncement] = useState(''); 
@@ -215,6 +318,9 @@ export default function App() {
   const [modalQtyWarning, setModalQtyWarning] = useState('');
 
   const [deferredPrompt, setDeferredPrompt] = useState(null);
+  
+
+  const [displayCount, setDisplayCount] = useState(20);
 
   const cursorOuterRef = useRef(null);
   const cursorInnerRef = useRef(null);
@@ -223,6 +329,11 @@ export default function App() {
   
   const projectsFetchedRef = useRef(false);
   const projectsFetchTimerRef = useRef(null);
+
+
+  useEffect(() => {
+    setDisplayCount(20);
+  }, [deferredSearchQuery, selectedCatFilter]);
 
   useEffect(() => {
     localStorage.setItem('msa_theme', isDarkMode ? 'dark' : 'light');
@@ -338,15 +449,10 @@ export default function App() {
       }
     } else {
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-      
       if (isIOS) {
-         alert(lang === 'ar' 
-           ? "لتثبيت التطبيق على أجهزة آيفون (iOS):\n\n1. اضغط على زر المشاركة (المربع الذي يخرج منه سهم أعلى أو أسفل الشاشة).\n2. اختر من القائمة 'إضافة إلى الصفحة الرئيسية' (Add to Home Screen)." 
-           : "To install on iOS:\n\n1. Tap the Share button at the bottom/top.\n2. Select 'Add to Home Screen'.");
+         alert(lang === 'ar' ? "لتثبيت التطبيق على أجهزة آيفون (iOS):\n\n1. اضغط على زر المشاركة.\n2. اختر 'إضافة إلى الصفحة الرئيسية'." : "To install on iOS:\n\n1. Tap the Share button.\n2. Select 'Add to Home Screen'.");
       } else {
-         alert(lang === 'ar' 
-           ? "لتثبيت التطبيق على جهازك:\n\n- افتح قائمة المتصفح (الثلاث نقاط أعلى الشاشة).\n- اختر 'إضافة إلى الشاشة الرئيسية' أو 'تثبيت التطبيق' (Install App / Add to Home Screen).\n\n(ملاحظة: إذا لم يظهر الخيار فقد يكون التطبيق مثبتاً بالفعل)" 
-           : "To install the app:\n\n- Open the browser menu (three dots).\n- Select 'Add to Home Screen' or 'Install App'.");
+         alert(lang === 'ar' ? "لتثبيت التطبيق:\n\n- افتح قائمة المتصفح.\n- اختر 'إضافة إلى الشاشة الرئيسية' أو 'تثبيت التطبيق'." : "To install the app:\n\n- Open the browser menu.\n- Select 'Add to Home Screen'.");
       }
     }
   };
@@ -370,18 +476,7 @@ export default function App() {
         govId = userDoc.data().govId || '';
       }
 
-      const userData = {
-        uid: loggedInUser.uid,
-        name: loggedInUser.displayName,
-        email: loggedInUser.email,
-        photoURL: loggedInUser.photoURL,
-        phone: phone,
-        phone2: phone2,
-        address: address,
-        govId: govId,
-        lastLogin: new Date().toISOString()
-      };
-
+      const userData = { uid: loggedInUser.uid, name: loggedInUser.displayName, email: loggedInUser.email, photoURL: loggedInUser.photoURL, phone: phone, phone2: phone2, address: address, govId: govId, lastLogin: new Date().toISOString() };
       await setDoc(userDocRef, userData, { merge: true });
       localStorage.setItem("msa_store_customer", JSON.stringify(userData));
       setUser(userData);
@@ -393,12 +488,8 @@ export default function App() {
       if(govId) setSelectedGovId(govId);
       
       playSuccessBeep();
-      
-      if(loggedInUser.uid === ADMIN_UID) {
-        alert(`مرحباً بك سيادة المدير MSA STORE! تم تفعيل صلاحيات الإدارة حالياً.`);
-      } else {
-        alert(`مرحباً بك : ${loggedInUser.displayName} `);
-      }
+      if(loggedInUser.uid === ADMIN_UID) alert(`مرحباً بك سيادة المدير MSA STORE!`);
+      else alert(`مرحباً بك : ${loggedInUser.displayName} `);
     } catch (error) {
       playErrorBuzz();
       alert("فشل الاتصال بخوادم المصادقة.");
@@ -411,12 +502,7 @@ export default function App() {
       await signOut(auth);
       localStorage.removeItem("msa_store_customer");
       setUser(null);
-      setCustomerName('');
-      setCustomerPhone('');
-      setCustomerPhone2('');
-      setDetailedAddress('');
-      setSelectedGovId('');
-      setIsAdminMode(false);
+      setCustomerName(''); setCustomerPhone(''); setCustomerPhone2(''); setDetailedAddress(''); setSelectedGovId(''); setIsAdminMode(false);
       alert("تم قطع الاتصال بنجاح.");
     } catch (error) {
       console.error(error);
@@ -431,7 +517,6 @@ export default function App() {
           setVisitorCount(0);
           playSuccessBeep();
        } catch(e) {
-          console.error(e);
           playErrorBuzz();
        }
     }
@@ -443,7 +528,6 @@ export default function App() {
       playSuccessBeep();
       alert("تم حفظ إعلان السلة ونشره بنجاح!");
     } catch(e) {
-      console.error(e);
       playErrorBuzz();
       alert("حدث خطأ أثناء حفظ الإعلان.");
     }
@@ -455,9 +539,7 @@ export default function App() {
       const querySnapshot = await getDocs(q);
       const ordersData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setOrders(ordersData);
-    } catch (error) {
-      console.error("خطأ في جلب الطلبات:", error);
-    }
+    } catch (error) {}
   };
 
   const handleCompleteOrder = async (orderToComplete) => {
@@ -465,11 +547,9 @@ export default function App() {
         playSynthSound(400, 'sawtooth', 0.2);
         const orderRef = doc(db, "orders", String(orderToComplete.id));
         await updateDoc(orderRef, { status: 'completed' });
-        
         setOrders(prev => prev.map(o => o.id === orderToComplete.id ? { ...o, status: 'completed' } : o));
         alert("تم إنجاز الطلب ونقله إلى قسم الطلبات المكتملة.");
     } catch (err) {
-        console.error("Complete order error:", err);
         alert("حدث خطأ أثناء إنجاز الطلب.");
     }
   };
@@ -479,75 +559,71 @@ export default function App() {
 
     try {
       playSynthSound(400, 'sawtooth', 0.2);
-      
       if (orderToCancel.items && Array.isArray(orderToCancel.items)) {
          for (const item of orderToCancel.items) {
              try {
                  const prodRef = doc(db, "products", String(item.id));
-                 await updateDoc(prodRef, { 
-                     stock: increment(item.qty),
-                     sales: increment(-item.qty)
-                 });
+                 await updateDoc(prodRef, { stock: increment(item.qty), sales: increment(-item.qty) });
              } catch(e) {}
          }
       }
       
       await deleteDoc(doc(db, "orders", String(orderToCancel.id)));
-      
       setOrders(prev => prev.filter(o => o.id !== orderToCancel.id));
       
       const guestOrders = JSON.parse(localStorage.getItem('msa_guest_orders') || '[]');
-      const updatedGuestOrders = guestOrders.filter(id => id !== orderToCancel.id);
-      localStorage.setItem('msa_guest_orders', JSON.stringify(updatedGuestOrders));
+      localStorage.setItem('msa_guest_orders', JSON.stringify(guestOrders.filter(id => id !== orderToCancel.id)));
 
       fetchProducts(); 
       alert(lang === 'ar' ? "تم إلغاء الطلب واسترجاع المخزون بنجاح." : "Order cancelled and stock returned successfully.");
     } catch (err) {
-      console.error("Cancel order error:", err);
       alert(lang === 'ar' ? "حدث خطأ أثناء إلغاء الطلب." : "Error cancelling order.");
     }
   };
 
   const fetchDeliveryLocations = async () => {
     try {
+      const cached = localStorage.getItem("msa_delivery_cache");
+      if (cached) setDeliveryLocations(JSON.parse(cached));
+
       const snap = await getDocs(collection(db, "delivery_locations"));
       if (!snap.empty) {
         const fetched = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setDeliveryLocations(fetched);
         localStorage.setItem("msa_delivery_cache", JSON.stringify(fetched));
       }
-    } catch (e) {
-      const localCache = localStorage.getItem("msa_delivery_cache");
-      if (localCache) setDeliveryLocations(JSON.parse(localCache));
-    }
+    } catch (e) {}
   };
 
   const fetchCategories = async () => {
     try {
+      const cached = localStorage.getItem("msa_categories_cache");
+      if (cached) setCategories(JSON.parse(cached));
+
       const querySnapshot = await getDocs(collection(db, "categories"));
       if (!querySnapshot.empty) {
         const fetched = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setCategories(fetched);
         localStorage.setItem("msa_categories_cache", JSON.stringify(fetched));
       }
-    } catch (error) {
-      const localCache = localStorage.getItem("msa_categories_cache");
-      if (localCache) setCategories(JSON.parse(localCache));
-    }
+    } catch (error) {}
   };
   
   const fetchProjectsData = useCallback(async () => {
       if (projectsFetchedRef.current) return;
       projectsFetchedRef.current = true;
       try {
+          const cached = localStorage.getItem("msa_projects_cache");
+          if (cached) setProjectsList(JSON.parse(cached));
+
           const q = query(collection(db, "projects"), limit(50));
           const querySnapshot = await getDocs(q);
           if (!querySnapshot.empty) {
               const projData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
               setProjectsList(projData);
+              localStorage.setItem("msa_projects_cache", JSON.stringify(projData));
           }
       } catch (error) {
-          console.error("خطأ في جلب المشاريع", error);
           projectsFetchedRef.current = false;
       }
   }, []);
@@ -556,12 +632,29 @@ export default function App() {
     try {
       const q = query(collection(db, "external_links"));
       const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        setExternalLinks(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      if (!querySnapshot.empty) setExternalLinks(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (error) {}
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const cached = localStorage.getItem('msa_products_cache');
+      const cacheTime = localStorage.getItem('msa_products_time');
+      const now = Date.now();
+      
+      if (cached && cacheTime && (now - parseInt(cacheTime) < 24 * 60 * 60 * 1000)) {
+         setProducts(JSON.parse(cached));
       }
-    } catch (error) {
-      console.error("خطأ في جلب الروابط الخارجية", error);
-    }
+
+      const q = query(collection(db, "products"), limit(1000));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const productsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setProducts(productsData);
+        localStorage.setItem('msa_products_cache', JSON.stringify(productsData));
+        localStorage.setItem('msa_products_time', now.toString());
+      }
+    } catch (error) {}
   };
 
   const handleAddCategory = async (catName) => {
@@ -613,68 +706,34 @@ export default function App() {
     }
   };
 
-  const fetchProducts = async () => {
-    try {
-      const q = query(collection(db, "products"), limit(1000));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const productsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setProducts(productsData);
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  // -------------------------------------------------------------
-
-  // -------------------------------------------------------------
   useEffect(() => {
     fetchProducts(); 
     fetchCategories();
     fetchDeliveryLocations();
     fetchExternalLinks();
 
-    projectsFetchTimerRef.current = setTimeout(() => {
-        fetchProjectsData();
-    }, 8000); 
-
+    projectsFetchTimerRef.current = setTimeout(() => fetchProjectsData(), 8000); 
 
     let vid = localStorage.getItem('msa_vid');
-    if (!vid) {
-        vid = Math.random().toString(36).substring(2, 15);
-        localStorage.setItem('msa_vid', vid);
-    }
+    if (!vid) { vid = Math.random().toString(36).substring(2, 15); localStorage.setItem('msa_vid', vid); }
     const visitorRef = doc(db, "active_visitors", vid);
 
-    const pingPresence = () => {
-        setDoc(visitorRef, { lastPing: Date.now() }, { merge: true }).catch(()=>{});
-    };
-
+    const pingPresence = () => setDoc(visitorRef, { lastPing: Date.now() }, { merge: true }).catch(()=>{});
     pingPresence();
-    const pingInterval = setInterval(pingPresence, 20000); // إرسال نبضة كل 20 ثانية
+    const pingInterval = setInterval(pingPresence, 20000); 
 
-    const handleVisibility = () => {
-        if (document.visibilityState === 'visible') pingPresence();
-    };
-
-    const handleUnload = () => {
-        deleteDoc(visitorRef).catch(()=>{});
-    };
+    const handleVisibility = () => { if (document.visibilityState === 'visible') pingPresence(); };
+    const handleUnload = () => deleteDoc(visitorRef).catch(()=>{});
 
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('beforeunload', handleUnload);
-
 
     const statsRef = doc(db, "system", "stats");
     const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
       if (docSnap.exists()) setCartAnnouncement(docSnap.data().cartAnnouncement || '');
     });
 
-    const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
+    const handleBeforeInstallPrompt = (e) => { e.preventDefault(); setDeferredPrompt(e); };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     return () => {
@@ -687,16 +746,11 @@ export default function App() {
     };
   }, [fetchProjectsData]);
 
-  // -------------------------------------------------------------
-
-  // -------------------------------------------------------------
   useEffect(() => {
       let unsub;
       let intervalId;
-      
       if (isAdminMode) {
           fetchOrders();
-          
           const q = query(collection(db, "active_visitors"));
           let currentDocs = [];
 
@@ -705,13 +759,8 @@ export default function App() {
               const now = Date.now();
               currentDocs.forEach(docSnap => {
                   const data = docSnap.data();
-
-                  if (now - data.lastPing <= 45000) { 
-                      activeCount++;
-                  } else if (now - data.lastPing > 60000) { 
-
-                      deleteDoc(docSnap.ref).catch(()=>{});
-                  }
+                  if (now - data.lastPing <= 45000) activeCount++;
+                  else if (now - data.lastPing > 60000) deleteDoc(docSnap.ref).catch(()=>{});
               });
               setVisitorCount(activeCount);
           };
@@ -720,11 +769,8 @@ export default function App() {
               currentDocs = snap.docs;
               updateCount();
           });
-
-
           intervalId = setInterval(updateCount, 5000);
       }
-      
       return () => {
           if (unsub) unsub();
           if (intervalId) clearInterval(intervalId);
@@ -746,64 +792,40 @@ export default function App() {
         if (storedUser) {
           const parsed = JSON.parse(storedUser);
           setUser(parsed);
-          setCustomerName(parsed.name || '');
-          setCustomerPhone(parsed.phone || '');
-          setCustomerPhone2(parsed.phone2 || '');
-          setDetailedAddress(parsed.address || '');
+          setCustomerName(parsed.name || ''); setCustomerPhone(parsed.phone || ''); setCustomerPhone2(parsed.phone2 || ''); setDetailedAddress(parsed.address || '');
           if(parsed.govId) setSelectedGovId(parsed.govId);
         } else {
           const userData = { uid: firebaseUser.uid, name: firebaseUser.displayName, email: firebaseUser.email, photoURL: firebaseUser.photoURL };
           setUser(userData);
           setCustomerName(firebaseUser.displayName || '');
         }
-      } else {
-        setUser(null);
-      }
+      } else setUser(null);
     });
 
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    
-    let mouseX = 0, mouseY = 0;
-    let outerX = 0, outerY = 0;
-    let throttleTimer = null;
-    let cursorAnimFrame = null;
+    let mouseX = 0, mouseY = 0, outerX = 0, outerY = 0, throttleTimer = null, cursorAnimFrame = null;
 
     if (!isTouchDevice) {
       const handleMouseMove = (e) => {
         if(throttleTimer) return;
         throttleTimer = setTimeout(() => {
-          mouseX = e.clientX;
-          mouseY = e.clientY;
-          if (cursorInnerRef.current) {
-            cursorInnerRef.current.style.left = `${mouseX}px`;
-            cursorInnerRef.current.style.top = `${mouseY}px`;
-          }
+          mouseX = e.clientX; mouseY = e.clientY;
+          if (cursorInnerRef.current) { cursorInnerRef.current.style.left = `${mouseX}px`; cursorInnerRef.current.style.top = `${mouseY}px`; }
           throttleTimer = null;
         }, 16); 
       };
       window.addEventListener('mousemove', handleMouseMove);
 
       const updateCursor = () => {
-        outerX += (mouseX - outerX) * 0.15;
-        outerY += (mouseY - outerY) * 0.15;
-        if (cursorOuterRef.current) {
-          cursorOuterRef.current.style.left = `${outerX}px`;
-          cursorOuterRef.current.style.top = `${outerY}px`;
-        }
+        outerX += (mouseX - outerX) * 0.15; outerY += (mouseY - outerY) * 0.15;
+        if (cursorOuterRef.current) { cursorOuterRef.current.style.left = `${outerX}px`; cursorOuterRef.current.style.top = `${outerY}px`; }
         cursorAnimFrame = requestAnimationFrame(updateCursor);
       };
       cursorAnimFrame = requestAnimationFrame(updateCursor);
 
-      return () => {
-        unsubscribe();
-        window.removeEventListener('mousemove', handleMouseMove);
-        if(cursorAnimFrame) cancelAnimationFrame(cursorAnimFrame);
-      };
+      return () => { unsubscribe(); window.removeEventListener('mousemove', handleMouseMove); if(cursorAnimFrame) cancelAnimationFrame(cursorAnimFrame); };
     }
-
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -821,16 +843,11 @@ export default function App() {
       gsap.to(mBtn, { x: x * 0.45, y: y * 0.45, duration: 0.1, ease: "power2.out" });
     };
 
-    const onLeave = () => {
-      gsap.to(mBtn, { x: 0, y: 0, duration: 0.5, ease: "elastic.out(1, 0.3)" });
-    };
+    const onLeave = () => gsap.to(mBtn, { x: 0, y: 0, duration: 0.5, ease: "elastic.out(1, 0.3)" });
 
     mContainer.addEventListener('mousemove', onMove);
     mContainer.addEventListener('mouseleave', onLeave);
-    return () => {
-      mContainer.removeEventListener('mousemove', onMove);
-      mContainer.removeEventListener('mouseleave', onLeave);
-    };
+    return () => { mContainer.removeEventListener('mousemove', onMove); mContainer.removeEventListener('mouseleave', onLeave); };
   }, [isAdminMode]);
 
   const handleMouseEnterInteractive = useCallback(() => {
@@ -847,14 +864,10 @@ export default function App() {
   const handleCardMove = useCallback((e, card) => {
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
     const rect = card.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    card.style.setProperty('--mouse-x', `${(x / rect.width) * 100}%`);
-    card.style.setProperty('--mouse-y', `${(y / rect.height) * 100}%`);
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-    const rotateX = ((centerY - y) / centerY) * 12;
-    const rotateY = ((x - centerX) / centerX) * 12;
+    const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+    card.style.setProperty('--mouse-x', `${(x / rect.width) * 100}%`); card.style.setProperty('--mouse-y', `${(y / rect.height) * 100}%`);
+    const centerX = rect.width / 2; const centerY = rect.height / 2;
+    const rotateX = ((centerY - y) / centerY) * 12; const rotateY = ((x - centerX) / centerX) * 12;
     card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`;
   }, []);
 
@@ -863,7 +876,7 @@ export default function App() {
     card.style.transform = `rotateX(0deg) rotateY(0deg) scale(1)`;
   }, []);
 
-  const addToCart = (id, name, price, image, stock, qtyToAdd = 1, enableWholesale = false, discount10 = 250, discount20 = 500) => {
+  const addToCart = useCallback((id, name, price, image, stock, qtyToAdd = 1, enableWholesale = false, discount10 = 250, discount20 = 500) => {
     const stockVal = parseInt(stock) || 0;
     if (stockVal <= 0) {
        playErrorBuzz();
@@ -882,49 +895,34 @@ export default function App() {
       }
 
       playSuccessBeep();
-      if (existing) {
-        return prevCart.map((item) => item.id === id ? { ...item, qty: item.qty + qtyToAdd } : item);
-      }
+      if (existing) return prevCart.map((item) => item.id === id ? { ...item, qty: item.qty + qtyToAdd } : item);
       return [...prevCart, { id, name, price, image, qty: qtyToAdd, enableWholesale, discount10, discount20 }];
     });
-  };
+  }, [playErrorBuzz, playSuccessBeep]);
 
   const updateQty = (id, delta) => {
     playSynthSound(1000, 'triangle', 0.05);
     setCart((prevCart) => prevCart.map((item) => {
-      if (item.id === id) {
-        const newQty = (parseInt(item.qty) || 0) + delta;
-        return { ...item, qty: newQty };
-      }
+      if (item.id === id) return { ...item, qty: (parseInt(item.qty) || 0) + delta };
       return item;
     }).filter((item) => item.qty > 0));
   };
 
   const setItemQty = (id, newQty) => {
-    if (newQty === '') {
-       setCart(prev => prev.map(item => item.id === id ? { ...item, qty: '' } : item));
-       return;
-    }
+    if (newQty === '') { setCart(prev => prev.map(item => item.id === id ? { ...item, qty: '' } : item)); return; }
     const val = parseInt(newQty, 10);
     if (isNaN(val) || val < 0) return;
     
-    if (val === 0) {
-        setCart(prev => prev.filter(item => item.id !== id));
-    } else {
-        playSynthSound(1000, 'triangle', 0.05);
-        setCart(prev => prev.map(item => item.id === id ? { ...item, qty: val } : item));
-    }
+    if (val === 0) setCart(prev => prev.filter(item => item.id !== id));
+    else { playSynthSound(1000, 'triangle', 0.05); setCart(prev => prev.map(item => item.id === id ? { ...item, qty: val } : item)); }
   };
 
   const subtotal = useMemo(() => cart.reduce((acc, item) => {
       let effectivePrice = Number(item.price) || 0;
       const qty = parseInt(item.qty) || 0;
       if (item.enableWholesale) {
-          if (qty >= 20) {
-              effectivePrice = Math.max(0, effectivePrice - (Number(item.discount20) || 500));
-          } else if (qty >= 10) {
-              effectivePrice = Math.max(0, effectivePrice - (Number(item.discount10) || 250));
-          }
+          if (qty >= 20) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount20) || 500));
+          else if (qty >= 10) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount10) || 250));
       }
       return acc + (effectivePrice * qty);
   }, 0), [cart]);
@@ -937,12 +935,9 @@ export default function App() {
   const handleCheckout = async () => {
     const finalCart = cart.map(item => ({...item, qty: parseInt(item.qty) || 1})).filter(item => item.qty > 0);
 
-    if (finalCart.length === 0) {
-      alert(lang === 'ar' ? 'سلة المشتريات فارغة حالياً!' : 'Cart is empty!');
-      return;
-    }
+    if (finalCart.length === 0) { alert(lang === 'ar' ? 'سلة المشتريات فارغة حالياً!' : 'Cart is empty!'); return; }
     if(!customerName || !customerPhone || !selectedGovId || !detailedAddress) {
-        alert(lang === 'ar' ? 'الرجاء إكمال جميع بيانات المستلم الأساسية (الاسم، الهاتف، المحافظة، العنوان الدقيق)!' : 'Please fill all required recipient info!');
+        alert(lang === 'ar' ? 'الرجاء إكمال جميع بيانات المستلم الأساسية!' : 'Please fill all required recipient info!');
         return;
     }
     
@@ -962,14 +957,7 @@ export default function App() {
               if (item.qty >= 20) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount20) || 500));
               else if (item.qty >= 10) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount10) || 250));
           }
-          return {
-              id: String(item.id || ''),
-              name: String(item.name || ''),
-              price: Number(effectivePrice) || 0,
-              originalPrice: Number(item.price) || 0,
-              image: String(item.image || ''),
-              qty: Number(item.qty) || 1
-          };
+          return { id: String(item.id || ''), name: String(item.name || ''), price: Number(effectivePrice) || 0, originalPrice: Number(item.price) || 0, image: String(item.image || ''), qty: Number(item.qty) || 1 };
       }),
       subtotalAmount: Number(subtotal) || 0,
       deliveryFee: Number(currentDeliveryFee) || 0,
@@ -1004,130 +992,50 @@ export default function App() {
               const currentStock = parseInt(productInState.stock) || 0;
               const newStock = Math.max(0, currentStock - item.qty); 
               const prodRef = doc(db, "products", String(item.id));
-              await updateDoc(prodRef, { 
-                  stock: newStock,
-                  sales: increment(item.qty)
-              });
+              await updateDoc(prodRef, { stock: newStock, sales: increment(item.qty) });
             }
         }
       } catch (errStock) {}
 
       alert(lang === 'ar' ? `تم استلام طلبك بنجاح! سيتم التوصيل خلال: ${activeGov.time || 'يحدد لاحقاً'}` : `Order received successfully!`);
-      setCart([]); 
-      setIsCartOpen(false);
-      fetchProducts();
+      setCart([]); setIsCartOpen(false); fetchProducts();
     } catch (errOrder) {
-      console.error("الفايربيس رفض الطلب:", errOrder);
-      alert("حدث خطأ أثناء إرسال الطلب. يرجى المحاولة لاحقاً أو التحقق من صحة البيانات.");
+      alert("حدث خطأ أثناء إرسال الطلب. يرجى المحاولة لاحقاً.");
     }
   };
 
   const handleSaveProduct = async () => {
-    if(!newProdName || !newProdPrice) {
-        alert("الرجاء إدخال اسم وسعر المنتج على الأقل!");
-        return;
-    }
-    if(newProdImages.length > 10) {
-        alert("الحد الأقصى المسموح به هو 10 صور للمنتج الواحد.");
-        return;
-    }
+    if(!newProdName || !newProdPrice) { alert("الرجاء إدخال اسم وسعر المنتج على الأقل!"); return; }
+    if(newProdImages.length > 10) { alert("الحد الأقصى المسموح به هو 10 صور للمنتج الواحد."); return; }
     playSuccessBeep();
 
     try {
       if (editProdId) {
         const productRef = doc(db, "products", String(editProdId));
         const updatedData = {
-          name: newProdName,
-          price: parseInt(newProdPrice),
-          stock: parseInt(newProdStock) || 0, 
-          orderIndex: newProdOrderIndex !== '' ? parseInt(newProdOrderIndex) : 999,
-          category: newProdCategory || '', 
-          chip: newProdChip || 'NEW MCU', 
-          code: newProdCode || 'GENERIC', 
-          desc: newProdDesc || 'منتج معدّل.', 
-          img: newProdImages.length > 0 ? newProdImages[0] : (newProdImg || products.find(p => p.id === editProdId).img), 
-          images: newProdImages,
-          compatLink: newProdCompatLink || '',
-          compatProdIds: newProdCompatIds || [], 
-          libLink: newProdLibLink || '',
-          codeSnippet: newProdCodeSnippet || '',
-          enableWholesale: newProdEnableWholesale || false,
-          discount10: newProdDiscount10 !== '' ? parseInt(newProdDiscount10) : 250,
-          discount20: newProdDiscount20 !== '' ? parseInt(newProdDiscount20) : 500
+          name: newProdName, price: parseInt(newProdPrice), stock: parseInt(newProdStock) || 0, orderIndex: newProdOrderIndex !== '' ? parseInt(newProdOrderIndex) : 999, category: newProdCategory || '', chip: newProdChip || 'NEW MCU', code: newProdCode || 'GENERIC', desc: newProdDesc || 'منتج معدّل.', img: newProdImages.length > 0 ? newProdImages[0] : (newProdImg || products.find(p => p.id === editProdId).img), images: newProdImages, compatLink: newProdCompatLink || '', compatProdIds: newProdCompatIds || [], libLink: newProdLibLink || '', codeSnippet: newProdCodeSnippet || '', enableWholesale: newProdEnableWholesale || false, discount10: newProdDiscount10 !== '' ? parseInt(newProdDiscount10) : 250, discount20: newProdDiscount20 !== '' ? parseInt(newProdDiscount20) : 500
         };
         await updateDoc(productRef, updatedData);
         setProducts(products.map(p => p.id === editProdId ? { ...p, ...updatedData } : p));
         alert('تم حفظ التعديلات في السحابة بنجاح!');
       } else {
         const newP = {
-          name: newProdName,
-          price: parseInt(newProdPrice),
-          stock: parseInt(newProdStock) || 0, 
-          sales: 0,
-          orderIndex: newProdOrderIndex !== '' ? parseInt(newProdOrderIndex) : 999,
-          category: newProdCategory || '', 
-          chip: newProdChip || 'NEW MCU', 
-          code: newProdCode || 'GENERIC', 
-          desc: newProdDesc || 'منتج مضاف حديثاً بواسطة لوحة تحكم الإدارة المتقدمة.', 
-          img: newProdImages.length > 0 ? newProdImages[0] : (newProdImg || 'http://googleusercontent.com/image_collection/image_retrieval/10232467606554598834_0'),
-          images: newProdImages,
-          compatLink: newProdCompatLink || '',
-          compatProdIds: newProdCompatIds || [], 
-          libLink: newProdLibLink || '',
-          codeSnippet: newProdCodeSnippet || '',
-          enableWholesale: newProdEnableWholesale || false,
-          discount10: newProdDiscount10 !== '' ? parseInt(newProdDiscount10) : 250,
-          discount20: newProdDiscount20 !== '' ? parseInt(newProdDiscount20) : 500
+          name: newProdName, price: parseInt(newProdPrice), stock: parseInt(newProdStock) || 0, sales: 0, orderIndex: newProdOrderIndex !== '' ? parseInt(newProdOrderIndex) : 999, category: newProdCategory || '', chip: newProdChip || 'NEW MCU', code: newProdCode || 'GENERIC', desc: newProdDesc || 'منتج مضاف حديثاً بواسطة لوحة تحكم الإدارة المتقدمة.', img: newProdImages.length > 0 ? newProdImages[0] : (newProdImg || 'http://googleusercontent.com/image_collection/image_retrieval/10232467606554598834_0'), images: newProdImages, compatLink: newProdCompatLink || '', compatProdIds: newProdCompatIds || [], libLink: newProdLibLink || '', codeSnippet: newProdCodeSnippet || '', enableWholesale: newProdEnableWholesale || false, discount10: newProdDiscount10 !== '' ? parseInt(newProdDiscount10) : 250, discount20: newProdDiscount20 !== '' ? parseInt(newProdDiscount20) : 500
         };
         const docRef = await addDoc(collection(db, "products"), newP);
         setProducts([...products, { id: docRef.id, ...newP }]);
         alert('تم حفظ القطعة في قاعدة البيانات السحابية الدائمة!');
       }
 
-      setNewProdName('');
-      setNewProdPrice('');
-      setNewProdImg('');
-      setNewProdDesc('');
-      setNewProdStock('');
-      setNewProdOrderIndex('');
-      setNewProdCategory(''); 
-      setNewProdChip(''); 
-      setNewProdCode(''); 
-      setNewProdImages([]);
-      setNewProdCompatLink('');
-      setNewProdCompatIds([]);
-      setNewProdLibLink('');
-      setNewProdCodeSnippet('');
-      setNewProdEnableWholesale(false);
-      setNewProdDiscount10('');
-      setNewProdDiscount20('');
-      setEditProdId(null);
+      setNewProdName(''); setNewProdPrice(''); setNewProdImg(''); setNewProdDesc(''); setNewProdStock(''); setNewProdOrderIndex(''); setNewProdCategory(''); setNewProdChip(''); setNewProdCode(''); setNewProdImages([]); setNewProdCompatLink(''); setNewProdCompatIds([]); setNewProdLibLink(''); setNewProdCodeSnippet(''); setNewProdEnableWholesale(false); setNewProdDiscount10(''); setNewProdDiscount20(''); setEditProdId(null);
     } catch (error) {
       playErrorBuzz();
-      console.error("Error saving product:", error);
       alert("حدث خطأ أثناء حفظ المنتج في قاعدة البيانات. تأكد من صلاحيات الإدارة.");
     }
   };
 
   const handleEditClick = (prod) => {
-    setNewProdName(prod.name);
-    setNewProdPrice(prod.price);
-    setNewProdImg(prod.img);
-    setNewProdDesc(prod.desc || ''); 
-    setNewProdStock(prod.stock || ''); 
-    setNewProdOrderIndex(prod.orderIndex !== undefined ? prod.orderIndex : '');
-    setNewProdCategory(prod.category || ''); 
-    setNewProdChip(prod.chip || ''); 
-    setNewProdCode(prod.code || ''); 
-    setNewProdImages(prod.images || (prod.img ? [prod.img] : [])); 
-    setNewProdCompatLink(prod.compatLink || '');
-    setNewProdCompatIds(prod.compatProdIds || (prod.compatProdId ? [prod.compatProdId] : []));
-    setNewProdLibLink(prod.libLink || '');
-    setNewProdCodeSnippet(prod.codeSnippet || '');
-    setNewProdEnableWholesale(prod.enableWholesale || false);
-    setNewProdDiscount10(prod.discount10 !== undefined ? prod.discount10 : 250);
-    setNewProdDiscount20(prod.discount20 !== undefined ? prod.discount20 : 500);
-    setEditProdId(prod.id);
+    setNewProdName(prod.name); setNewProdPrice(prod.price); setNewProdImg(prod.img); setNewProdDesc(prod.desc || ''); setNewProdStock(prod.stock || ''); setNewProdOrderIndex(prod.orderIndex !== undefined ? prod.orderIndex : ''); setNewProdCategory(prod.category || ''); setNewProdChip(prod.chip || ''); setNewProdCode(prod.code || ''); setNewProdImages(prod.images || (prod.img ? [prod.img] : [])); setNewProdCompatLink(prod.compatLink || ''); setNewProdCompatIds(prod.compatProdIds || (prod.compatProdId ? [prod.compatProdId] : [])); setNewProdLibLink(prod.libLink || ''); setNewProdCodeSnippet(prod.codeSnippet || ''); setNewProdEnableWholesale(prod.enableWholesale || false); setNewProdDiscount10(prod.discount10 !== undefined ? prod.discount10 : 250); setNewProdDiscount20(prod.discount20 !== undefined ? prod.discount20 : 500); setEditProdId(prod.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -1137,10 +1045,7 @@ export default function App() {
         playErrorBuzz();
         await deleteDoc(doc(db, "products", String(id)));
         setProducts(products.filter(p => p.id !== id));
-      } catch (error) {
-        console.error("Error deleting product:", error);
-        alert("حدث خطأ أثناء محاولة الحذف من السحابة.");
-      }
+      } catch (error) { alert("حدث خطأ أثناء محاولة الحذف من السحابة."); }
     }
   };
 
@@ -1149,14 +1054,12 @@ export default function App() {
       playErrorBuzz();
       await deleteDoc(doc(db, "orders", String(orderId)));
       setOrders(orders.filter(o => o.id !== orderId));
-    } catch (error) {
-      console.error("Error deleting order:", error);
-      alert("حدث خطأ أثناء محاولة حذف الطلب.");
-    }
+    } catch (error) { alert("حدث خطأ أثناء محاولة حذف الطلب."); }
   };
 
+
   const filteredProducts = useMemo(() => {
-    const normalizedQuery = normalizeText(searchQuery);
+    const normalizedQuery = normalizeText(deferredSearchQuery);
     return products.filter(prod => {
       const normName = normalizeText(prod.name);
       const normDesc = normalizeText(prod.desc);
@@ -1165,20 +1068,11 @@ export default function App() {
       const normCode = normalizeText(prod.code);
       const priceStr = prod.price ? prod.price.toString() : '';
 
-      const matchSearch = normalizedQuery === '' ||
-        normName.includes(normalizedQuery) ||
-        normDesc.includes(normalizedQuery) ||
-        normCat.includes(normalizedQuery) ||
-        normChip.includes(normalizedQuery) ||
-        normCode.includes(normalizedQuery) ||
-        priceStr.includes(normalizedQuery);
+      const matchSearch = normalizedQuery === '' || normName.includes(normalizedQuery) || normDesc.includes(normalizedQuery) || normCat.includes(normalizedQuery) || normChip.includes(normalizedQuery) || normCode.includes(normalizedQuery) || priceStr.includes(normalizedQuery);
 
       let matchCat = true;
-      if (selectedCatFilter === '') {
-          matchCat = prod.category !== 'ادوات مشروع';
-      } else {
-          matchCat = prod.category === selectedCatFilter;
-      }
+      if (selectedCatFilter === '') matchCat = prod.category !== 'ادوات مشروع';
+      else matchCat = prod.category === selectedCatFilter;
 
       return matchSearch && matchCat;
     }).sort((a, b) => {
@@ -1186,7 +1080,7 @@ export default function App() {
        const indexB = b.orderIndex !== undefined && b.orderIndex !== null && b.orderIndex !== '' ? parseInt(b.orderIndex) : 999;
        return indexA - indexB;
     });
-  }, [products, searchQuery, selectedCatFilter]);
+  }, [products, deferredSearchQuery, selectedCatFilter]);
 
   const handleModalQtyChange = (delta, availableStock) => {
     const newVal = modalQty + delta;
@@ -1196,11 +1090,28 @@ export default function App() {
         setTimeout(() => setModalQtyWarning(''), 3000);
         return;
     }
-    if (newVal >= 1) {
-        setModalQty(newVal);
-        setModalQtyWarning('');
-    }
+    if (newVal >= 1) { setModalQty(newVal); setModalQtyWarning(''); }
   };
+
+  const handleProductSelect = useCallback((prod) => {
+    setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1);
+  }, [playSynthSound]);
+
+  const handleAddToCartCard = useCallback((prod) => {
+    addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock, 1, prod.enableWholesale, prod.discount10, prod.discount20);
+  }, [addToCart]);
+
+
+  const observer = useRef();
+  const lastElementRef = useCallback(node => {
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && displayCount < filteredProducts.length) {
+        setDisplayCount(prev => prev + 20);
+      }
+    }, { rootMargin: '300px' });
+    if (node) observer.current.observe(node);
+  }, [displayCount, filteredProducts.length]);
 
   return (
     <div className={`tech-grid relative min-h-screen font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 flex flex-col w-full ${isDarkMode ? 'bg-[#0f172a] text-gray-100' : 'bg-[#f4f7f6] text-slate-800'}`} dir={lang === 'en' ? 'ltr' : 'rtl'}>
@@ -1456,90 +1367,28 @@ export default function App() {
                   <p className={`text-xs sm:text-sm mt-2 ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>{t.notFoundDesc}</p>
                 </div>
               ) : (
-                filteredProducts.map((prod) => {
-                  const stockCount = parseInt(prod.stock) || 0;
-                  const isOutOfStock = stockCount <= 0;
-                  const prodInCartQty = cart.find(item => item.id === prod.id)?.qty || 0;
-
-                  return (
-                  <div key={prod.id} className="card-perspective h-full w-full min-w-0">
-                    <div 
-                      onMouseMove={(e) => handleCardMove(e, e.currentTarget)}
-                      onMouseLeave={(e) => handleCardLeave(e.currentTarget)}
-                      onMouseEnter={handleMouseEnterInteractive} 
-                      onClick={() => { setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); }}
-                      className={`card-tilt cursor-pointer h-full w-full flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-5 relative group transition-all duration-300 border overflow-hidden break-words min-w-0 ${isDarkMode ? (isOutOfStock ? 'bg-neutral-900/40 border-red-500/20 hover:border-red-400/60' : 'bg-neutral-900/40 border-teal-500/20 hover:border-teal-400/60') : (isOutOfStock ? 'bg-white border-red-200 hover:border-red-400 shadow-md' : 'bg-white border-gray-100 hover:border-teal-300 shadow-xl hover:shadow-2xl')}`}
-                    >
-                      <div className="gloss-effect"></div>
-                      
-                      <div 
-                        onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); }}
-                        className={`flex-shrink-0 h-28 sm:h-48 w-full rounded-lg sm:rounded-xl overflow-hidden mb-3 sm:mb-5 flex items-center justify-center border transition-all duration-300 relative cursor-pointer bg-white ${isOutOfStock ? (isDarkMode ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-red-100') : (isDarkMode ? 'border-teal-500/10 group-hover:border-teal-500/30' : 'border-gray-100')}`}
-                        title={t.viewDetails}
-                      >
-                        <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} loading="lazy" decoding="async" alt={prod.name} className={`object-contain h-full w-full max-h-full max-w-full mix-blend-multiply transition-all duration-500 p-2 ${isOutOfStock ? 'opacity-50 grayscale' : 'group-hover:scale-110 group-hover:rotate-3'}`} />
-                        
-                        {prod.images && prod.images.length > 1 && (
-                           <div className={`absolute bottom-1 sm:bottom-2 ${lang === 'en' ? 'left-1 sm:left-2' : 'right-1 sm:right-2'} px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-xs font-mono shadow-md backdrop-blur-sm ${isDarkMode ? 'bg-slate-900/80 text-white' : 'bg-white/90 text-slate-800 border border-gray-200'}`}>
-                              <i className="fas fa-images"></i> +{prod.images.length - 1}
-                           </div>
-                        )}
-
-                        <div className={`absolute top-1 sm:top-2 ${lang === 'en' ? 'right-1 sm:right-2' : 'left-1 sm:left-2'} px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-xs font-mono font-bold border ${isDarkMode ? 'bg-teal-500/20 text-teal-600 border-teal-500/30' : 'bg-teal-50 text-teal-700 border-teal-200'}`}>{prod.chip || 'NEW MCU'}</div>
-                        
-                        {isOutOfStock && (
-                           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center backdrop-blur-[2px] bg-slate-900/60">
-                              <span className="bg-red-600 text-white font-bold px-2 py-1 sm:px-6 sm:py-2 rounded border border-red-400 shadow-[0_0_15px_rgba(220,38,38,0.5)] transform -rotate-12 text-[10px] sm:text-lg uppercase tracking-widest">
-                                نافذ
-                              </span>
-                           </div>
-                        )}
-
-                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[1px] bg-teal-500/10">
-                            <span className={`font-bold text-[10px] sm:text-xs px-2 py-1 sm:px-4 sm:py-2 rounded-full tracking-widest shadow-md ${isDarkMode ? 'bg-slate-900/80 text-white' : 'bg-teal-500 text-white'}`}><i className="fas fa-eye"></i> {t.viewDetails}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between items-center mb-2 flex-shrink-0 min-w-0 gap-1 w-full overflow-hidden">
-                        <span className={`font-mono text-[9px] sm:text-[10px] tracking-widest font-bold truncate ${isDarkMode ? 'text-teal-500' : 'text-teal-600'}`}>// {prod.code || 'GENERIC'}</span>
-                        {prod.category && (
-                          <span className={`font-mono text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full border truncate ${prod.category === 'ادوات مشروع' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : (isDarkMode ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-teal-50 text-teal-700 border-teal-200')}`}>{prod.category}</span>
-                        )}
-                      </div>
-
-                      <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer transition-colors break-words min-w-0 w-full ${isDarkMode ? 'text-white hover:text-teal-400' : 'text-slate-800 hover:text-teal-600'}`} onClick={(e) => { e.stopPropagation(); setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1); }}>{prod.name}</h3>
-                      
-                      <p className={`text-[9px] sm:text-sm mb-3 sm:mb-5 leading-relaxed line-clamp-2 flex-grow break-words min-w-0 w-full ${isDarkMode ? 'text-gray-300' : 'text-slate-500'}`}>{prod.desc || t.noDesc}</p>
-                      
-                      <div className={`mt-auto flex flex-col justify-between items-stretch sm:items-end pt-2 sm:pt-4 border-t gap-2 sm:gap-0 flex-shrink-0 w-full z-10 min-w-0 ${isOutOfStock ? (isDarkMode ? 'border-red-500/10' : 'border-red-100') : (isDarkMode ? 'border-teal-500/10' : 'border-gray-100')}`}>
-                        <div className="w-full text-center sm:text-right min-w-0 flex justify-between items-end">
-                           <div>
-                               <span className={`block text-[8px] sm:text-[10px] font-mono font-bold truncate ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>{t.price}</span>
-                               <span className={`text-xs sm:text-xl font-bold font-mono truncate block ${isOutOfStock ? 'text-red-400 opacity-60' : (isDarkMode ? 'text-teal-400' : 'text-teal-600')}`}>{prod.price?.toLocaleString() || 0}</span>
-                           </div>
-                           {prod.enableWholesale && (
-                               <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isDarkMode ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-yellow-100 text-yellow-700 border border-yellow-300'}`}>يتوفر خصم جملة</span>
-                           )}
-                        </div>
-                        <button 
-                          type="button" 
-                          disabled={isOutOfStock}
-                          onClick={(e) => { e.stopPropagation(); addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock, 1, prod.enableWholesale, prod.discount10, prod.discount20); }} 
-                          className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 mt-2 rounded-full font-bold text-[9px] sm:text-xs transition-all relative overflow-hidden z-20 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-white hover:bg-teal-400'}`}
-                        >
-                          <i className="fas fa-cart-arrow-down"></i> <span className="truncate">{isOutOfStock ? 'نافذ' : t.addToCart}</span>
-                          
-                          {prodInCartQty > 0 && (
-                              <span className={`absolute left-1 text-[10px] font-mono px-2 py-0.5 rounded-full shadow-md animate-pulse ${isDarkMode ? 'bg-slate-900 text-teal-400' : 'bg-white text-teal-600'}`}>
-                                  {prodInCartQty}
-                              </span>
-                          )}
-                        </button>
-                      </div>
-                      
-                    </div>
-                  </div>
-                )})
+                <>
+                  {filteredProducts.slice(0, displayCount).map((prod) => (
+                     <ProductCard 
+                        key={prod.id}
+                        prod={prod}
+                        prodInCartQty={cart.find(item => item.id === prod.id)?.qty || 0}
+                        isDarkMode={isDarkMode}
+                        lang={lang}
+                        t={t}
+                        onCardMove={handleCardMove}
+                        onCardLeave={handleCardLeave}
+                        onMouseEnter={handleMouseEnterInteractive}
+                        onSelect={handleProductSelect}
+                        onAddToCart={handleAddToCartCard}
+                     />
+                  ))}
+                  
+                  {/* حاوية وهمية لمراقب التمرير اللانهائي */}
+                  {displayCount < filteredProducts.length && (
+                     <div ref={lastElementRef} className="col-span-2 sm:col-span-3 lg:col-span-4 h-4 w-full"></div>
+                  )}
+                </>
               )}
             </div>
           </section>
@@ -2106,7 +1955,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Advanced Lightbox Gallery */}
+
       {activeGallery && (
         <div className="fixed inset-0 z-[9999999] bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-xl transition-opacity duration-300">
             <div className="absolute top-0 left-0 right-0 p-4 sm:p-6 flex justify-between items-center z-50 bg-gradient-to-b from-black/90 to-transparent">
