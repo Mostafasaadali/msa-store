@@ -440,6 +440,34 @@ export default function App() {
     }
   }, [cart]);
 
+  // الاحتفاظ بتسجيل الدخول عن طريق onAuthStateChanged
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (loggedInUser) => {
+      if (loggedInUser) {
+        const userDocRef = doc(db, "users", loggedInUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        let phone = '', phone2 = '', address = '', govId = '';
+        if (userDoc.exists()) {
+          phone = userDoc.data().phone || '';
+          phone2 = userDoc.data().phone2 || '';
+          address = userDoc.data().address || '';
+          govId = userDoc.data().govId || '';
+        }
+        const userData = { uid: loggedInUser.uid, name: loggedInUser.displayName, email: loggedInUser.email, photoURL: loggedInUser.photoURL, phone: phone, phone2: phone2, address: address, govId: govId, lastLogin: new Date().toISOString() };
+        
+        setUser(userData);
+        if (loggedInUser.displayName) setCustomerName(loggedInUser.displayName);
+        if (phone) setCustomerPhone(phone);
+        if (phone2) setCustomerPhone2(phone2);
+        if (address) setDetailedAddress(address);
+        if (govId) setSelectedGovId(govId);
+      } else {
+        setUser(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   const handleInstallApp = async () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
@@ -478,14 +506,6 @@ export default function App() {
 
       const userData = { uid: loggedInUser.uid, name: loggedInUser.displayName, email: loggedInUser.email, photoURL: loggedInUser.photoURL, phone: phone, phone2: phone2, address: address, govId: govId, lastLogin: new Date().toISOString() };
       await setDoc(userDocRef, userData, { merge: true });
-      localStorage.setItem("msa_store_customer", JSON.stringify(userData));
-      setUser(userData);
-      
-      if (loggedInUser.displayName) setCustomerName(loggedInUser.displayName);
-      setCustomerPhone(phone);
-      setCustomerPhone2(phone2);
-      setDetailedAddress(address);
-      if(govId) setSelectedGovId(govId);
       
       playSuccessBeep();
       if(loggedInUser.uid === ADMIN_UID) alert(`مرحباً بك سيادة المدير MSA STORE!`);
@@ -500,8 +520,6 @@ export default function App() {
     try {
       playSynthSound(400, 'sawtooth', 0.2);
       await signOut(auth);
-      localStorage.removeItem("msa_store_customer");
-      setUser(null);
       setCustomerName(''); setCustomerPhone(''); setCustomerPhone2(''); setDetailedAddress(''); setSelectedGovId(''); setIsAdminMode(false);
       alert("تم قطع الاتصال بنجاح.");
     } catch (error) {
@@ -706,8 +724,6 @@ export default function App() {
     }
   };
 
-// -------------------------------------------------------------
-
   // -------------------------------------------------------------
   useEffect(() => {
     fetchProducts(); 
@@ -716,22 +732,6 @@ export default function App() {
     fetchExternalLinks();
 
     projectsFetchTimerRef.current = setTimeout(() => fetchProjectsData(), 8000); 
-
-    let vid = localStorage.getItem('msa_vid');
-    if (!vid) { vid = Math.random().toString(36).substring(2, 15); localStorage.setItem('msa_vid', vid); }
-    const visitorRef = doc(db, "active_visitors", vid);
-
-
-    const pingPresence = () => setDoc(visitorRef, { lastPing: Date.now() }, { merge: true }).catch((e)=>{ console.error("Firebase Blocked Visitor Ping:", e) });
-    
-    pingPresence();
-    const pingInterval = setInterval(pingPresence, 20000); 
-
-    const handleVisibility = () => { if (document.visibilityState === 'visible') pingPresence(); };
-    const handleUnload = () => deleteDoc(visitorRef).catch(()=>{});
-
-    document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('beforeunload', handleUnload);
 
     const statsRef = doc(db, "system", "stats");
     const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
@@ -742,18 +742,40 @@ export default function App() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     return () => {
-      clearInterval(pingInterval);
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('beforeunload', handleUnload);
       unsubscribeStats();
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       if (projectsFetchTimerRef.current) clearTimeout(projectsFetchTimerRef.current);
     };
   }, [fetchProjectsData]);
 
-  // -------------------------------------------------------------
+  // فصل عداد التواجد (Presence) لتفعيل الـ UID عند تسجيل الدخول
+  useEffect(() => {
+    let vid = user && user.uid ? user.uid : localStorage.getItem('msa_vid');
+    if (!vid) { 
+      vid = Math.random().toString(36).substring(2, 15); 
+      localStorage.setItem('msa_vid', vid); 
+    }
+    const visitorRef = doc(db, "active_visitors", vid);
 
-  // -------------------------------------------------------------
+    const pingPresence = () => setDoc(visitorRef, { lastPing: Date.now() }, { merge: true }).catch((e)=>{ console.error("Firebase Blocked Visitor Ping:", e) });
+    
+    pingPresence();
+    const pingInterval = setInterval(pingPresence, 15000); // إرسال الإشارة كل 15 ثانية
+
+    const handleVisibility = () => { if (document.visibilityState === 'visible') pingPresence(); };
+    const handleUnload = () => deleteDoc(visitorRef).catch(()=>{});
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      clearInterval(pingInterval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('beforeunload', handleUnload);
+    };
+  }, [user]);
+
+  // تحديث عداد الزوار ليكون دقيقاً عند الإدارة (إزالة بعد 60 ثانية)
   useEffect(() => {
       let unsub;
       let intervalId;
@@ -768,15 +790,11 @@ export default function App() {
               currentDocs.forEach(docSnap => {
                   const data = docSnap.data();
                   const pingTime = data.lastPing || 0;
-                  
-
                   const timeDifference = Math.abs(now - pingTime);
 
-
-                  if (timeDifference <= 3 * 60 * 1000) {
+                  if (timeDifference <= 45 * 1000) { // فعال خلال 45 ثانية
                       activeCount++;
-                  } else if (timeDifference > 5 * 60 * 1000) { 
-
+                  } else if (timeDifference > 60 * 1000) { // إخفاء بعد 60 ثانية
                       deleteDoc(docSnap.ref).catch(()=>{});
                   }
               });
@@ -788,7 +806,7 @@ export default function App() {
               updateCount();
           });
           
-          intervalId = setInterval(updateCount, 5000);
+          intervalId = setInterval(updateCount, 15000);
       }
       return () => {
           if (unsub) unsub();
@@ -925,9 +943,6 @@ export default function App() {
         if (user && user.uid && user.uid !== "GUEST_USER") {
           const userDataRef = doc(db, "users", user.uid);
           await setDoc(userDataRef, { phone: customerPhone, phone2: customerPhone2, address: detailedAddress, govId: selectedGovId }, { merge: true });
-          const updatedUser = { ...user, phone: customerPhone, phone2: customerPhone2, address: detailedAddress, govId: selectedGovId };
-          localStorage.setItem("msa_store_customer", JSON.stringify(updatedUser));
-          setUser(updatedUser);
         }
       } catch (errUser) {}
 
