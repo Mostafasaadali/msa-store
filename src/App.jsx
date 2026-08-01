@@ -23,7 +23,7 @@ const translations = {
     heroDesc: "منفذك المتكامل للحصول على بوردات التحكم ومحركات السيرفو وعضلات التحكم الدقيقة. نوفر القطع بأعلى كفاءة لمشروع التخرج أو مشروعك البرمجي القادم.",
     browseCat: "تصفح كتالوج المنتجات",
     catTitle: "القطع المتاحة للفحص والطلب",
-    catDesc: "اضغط فوق الصورة للقطعة لعرضها ومعاينة تفاصيل المكونات بدقة",
+    catDesc: "نختار موادنا بعناية من الصين لضمان أعلى مستويات الجودة. في حال وجود أي عيوب تصنيعية عند الاستلام، يرجى التواصل معنا عبر واتساب (الرابط في القائمة) وتزويدنا بصور ومقاطع فيديو واضحة للمنتج لنتمكن من فحصه واتخاذ الإجراءات اللازمة لحماية حقوقكم.",
     searchPlaceholder: "  ابحث بالاسم، الوصف، بالمودل، أو حتى السعر...  ",
     notFoundTitle: "لم يتم العثور على قطع تطابق بحثك",
     notFoundDesc: "جرب استخدام كلمات مفتاحية أخرى أو تحقق من السعر.",
@@ -65,7 +65,7 @@ const translations = {
     heroDesc: "Your integrated portal for Control Boards, servo motors, and precision control muscles.",
     browseCat: "Browse Product Catalog",
     catTitle: "Available Parts for Inspection & Order",
-    catDesc: "Hover over the part to experience the 3D holographic effect",
+    catDesc: "We carefully select our materials from China to ensure the highest quality. If you find any manufacturing defects upon receipt, please contact us via WhatsApp (link in menu) and provide clear photos and videos of the product so we can inspect it and take the necessary steps to protect your rights.",
     searchPlaceholder: "  Search by name, description, code, or price...  ",
     notFoundTitle: "No matching parts found",
     notFoundDesc: "Try browsing other keywords.",
@@ -107,7 +107,7 @@ const translations = {
     heroDesc: "دەروازەی تەواوەتیت بۆ بۆردەکانی کۆنترۆڵ و مۆتۆڕەکان.",
     browseCat: "کەتەلۆگی بەرهەمەکان",
     catTitle: "پارچە بەردەستەکان",
-    catDesc: "ماوسەکە ببە سەر پارچەکە بۆ بینینی کاریگەری سێ دووری",
+    catDesc: "ئێمە بە وردی کەرەستەکانمان لە چینەوە هەڵدەبژێرین بۆ دڵنیابوون لە بەرزترین کوالێتی. ئەگەر لە کاتی وەرگرتنیدا هەر کەموکوڕییەکی بەرهەمهێنانت بینی، تکایە لە ڕێگەی واتسئەپەوە پەیوەندیمان پێوە بکە (لینکی ناو مینیو) و وێنە و ڤیدیۆی ڕوونی بەرهەمەکە دابین بکە بۆ ئەوەی بتوانین پشکنینی بۆ بکەین و هەنگاوی پێویست بنێین بۆ پاراستنی مافەکانت.",
     searchPlaceholder: "  گەڕان ...  ",
     notFoundTitle: "هیچ پارچەیەک نەدۆزرایەوە",
     notFoundDesc: "بەشەکان بپشکنە.",
@@ -153,7 +153,7 @@ let globalAudioCtx = null;
 // ==========================================
 const ProductCard = React.memo(({
   prod, prodInCartQty, isDarkMode, lang, t,
-  onCardMove, onCardLeave, onMouseEnter, onSelect, onAddToCart
+  onCardMove, onCardLeave, onMouseEnter, onMouseLeave, onSelect, onAddToCart
 }) => {
   const stockCount = parseInt(prod.stock) || 0;
   const isOutOfStock = stockCount <= 0;
@@ -162,7 +162,7 @@ const ProductCard = React.memo(({
     <div className="card-perspective h-full w-full min-w-0">
       <div 
         onMouseMove={(e) => onCardMove(e, e.currentTarget)}
-        onMouseLeave={(e) => onCardLeave(e.currentTarget)}
+        onMouseLeave={(e) => { onCardLeave(e.currentTarget); onMouseLeave(e); }}
         onMouseEnter={onMouseEnter} 
         onClick={() => onSelect(prod)}
         className={`card-tilt cursor-pointer h-full w-full flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-5 relative group transition-all duration-300 border overflow-hidden break-words min-w-0 ${isDarkMode ? (isOutOfStock ? 'bg-neutral-900/40 border-red-500/20 hover:border-red-400/60' : 'bg-neutral-900/40 border-teal-500/20 hover:border-teal-400/60') : (isOutOfStock ? 'bg-white border-red-200 hover:border-red-400 shadow-md' : 'bg-white border-gray-100 hover:border-teal-300 shadow-xl hover:shadow-2xl')}`}
@@ -319,7 +319,6 @@ export default function App() {
 
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   
-
   const [displayCount, setDisplayCount] = useState(20);
 
   const cursorOuterRef = useRef(null);
@@ -329,7 +328,6 @@ export default function App() {
   
   const projectsFetchedRef = useRef(false);
   const projectsFetchTimerRef = useRef(null);
-
 
   useEffect(() => {
     setDisplayCount(20);
@@ -343,6 +341,47 @@ export default function App() {
       document.body.classList.remove('light-mode');
     }
   }, [isDarkMode]);
+
+  // ==========================================
+  // تتبع إحداثيات الماوس بأسلوب القصور الذاتي (Inertia Tracker)
+  // مطابق تماماً لملف index مع إحداثيات left و top لحل التداخل
+  // ==========================================
+  useEffect(() => {
+    let animationFrameId;
+    let mouseX = window.innerWidth / 2;
+    let mouseY = window.innerHeight / 2;
+    let outerX = mouseX;
+    let outerY = mouseY;
+
+    const moveCursor = (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+        if (cursorInnerRef.current) {
+            cursorInnerRef.current.style.left = `${mouseX}px`;
+            cursorInnerRef.current.style.top = `${mouseY}px`;
+        }
+    };
+
+    const renderCursor = () => {
+        const ease = 0.15; // معامل النعومة والقصور الذاتي
+        outerX += (mouseX - outerX) * ease;
+        outerY += (mouseY - outerY) * ease;
+
+        if (cursorOuterRef.current) {
+            cursorOuterRef.current.style.left = `${outerX}px`;
+            cursorOuterRef.current.style.top = `${outerY}px`;
+        }
+        animationFrameId = requestAnimationFrame(renderCursor);
+    };
+
+    window.addEventListener('mousemove', moveCursor, { passive: true });
+    animationFrameId = requestAnimationFrame(renderCursor);
+
+    return () => {
+        window.removeEventListener('mousemove', moveCursor);
+        cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
 
   const playSynthSound = useCallback((freq, type, duration) => {
     try {
@@ -371,50 +410,44 @@ export default function App() {
   }, [playSynthSound]);
   const playErrorBuzz = useCallback(() => playSynthSound(150, 'sawtooth', 0.4), [playSynthSound]);
 
-  const isAnyModalOpen = !!(activeGallery || selectedProduct || isProjectsModalOpen || isCartOpen || isSideMenuOpen);
-  const wasModalOpen = useRef(false);
+  // ==========================================
+  // نظام إدارة النوافذ المنبثقة الذكي والرجوع السلس (Back Button Tracker)
+  // ==========================================
+  const historyDepth = useRef(0);
 
-  useEffect(() => {
-      if (isAnyModalOpen && !wasModalOpen.current) {
-          window.history.pushState({ modal: true }, '', '#view');
-          wasModalOpen.current = true;
-      } 
-      else if (!isAnyModalOpen && wasModalOpen.current) {
-          wasModalOpen.current = false;
-          if (window.location.hash === '#view') {
-              window.history.back();
-          }
+  const safeOpenModal = useCallback((setter, value = true) => {
+      window.history.pushState({ isModal: true }, '');
+      historyDepth.current += 1;
+      setter(value);
+  }, []);
+
+  const safeCloseModal = useCallback((setter, fallbackValue = false) => {
+      if (historyDepth.current > 0) {
+          window.history.back(); 
+      } else {
+          setter(fallbackValue);
       }
-  }, [isAnyModalOpen]);
+  }, []);
 
   useEffect(() => {
-      const handlePopState = () => {
-          if (window.location.hash !== '#view' && wasModalOpen.current) {
-              let closedSomething = false;
-
-              if (activeGallery) { setActiveGallery(null); closedSomething = true; }
-              else if (selectedProduct) { setSelectedProduct(null); closedSomething = true; }
-              else if (isProjectsModalOpen) { setIsProjectsModalOpen(false); closedSomething = true; }
-              else if (isSideMenuOpen) { setIsSideMenuOpen(false); closedSomething = true; }
-              else if (isCartOpen) { setIsCartOpen(false); closedSomething = true; }
-
-              const openModalsCount = [activeGallery, selectedProduct, isProjectsModalOpen, isCartOpen, isSideMenuOpen].filter(Boolean).length;
-              
-              if (openModalsCount > 1) {
-                  window.history.pushState({ modal: true }, '', '#view');
-              } else {
-                  wasModalOpen.current = false;
-              }
-              
-              if (closedSomething) {
-                  playSynthSound(400, 'sine', 0.1);
-              }
+      const handlePopState = (e) => {
+          if (historyDepth.current > 0) {
+              historyDepth.current -= 1;
           }
+          
+          if (activeGallery) { setActiveGallery(null); }
+          else if (isProjectsModalOpen) { setIsProjectsModalOpen(false); }
+          else if (selectedProduct) { setSelectedProduct(null); }
+          else if (isCartOpen) { setIsCartOpen(false); }
+          else if (isSideMenuOpen) { setIsSideMenuOpen(false); }
+          
+          playSynthSound(400, 'sine', 0.1);
       };
 
       window.addEventListener('popstate', handlePopState);
       return () => window.removeEventListener('popstate', handlePopState);
-  }, [activeGallery, selectedProduct, isProjectsModalOpen, isCartOpen, isSideMenuOpen, playSynthSound]);
+  }, [activeGallery, isProjectsModalOpen, selectedProduct, isCartOpen, isSideMenuOpen, playSynthSound]);
+  // ==========================================
 
   useEffect(() => {
     const savedCart = localStorage.getItem('msa_store_cart');
@@ -440,7 +473,6 @@ export default function App() {
     }
   }, [cart]);
 
-  // الاحتفاظ بتسجيل الدخول عن طريق onAuthStateChanged
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (loggedInUser) => {
       if (loggedInUser) {
@@ -724,7 +756,6 @@ export default function App() {
     }
   };
 
-  // -------------------------------------------------------------
   useEffect(() => {
     fetchProducts(); 
     fetchCategories();
@@ -748,7 +779,6 @@ export default function App() {
     };
   }, [fetchProjectsData]);
 
-  // فصل عداد التواجد (Presence) لتفعيل الـ UID عند تسجيل الدخول
   useEffect(() => {
     let vid = user && user.uid ? user.uid : localStorage.getItem('msa_vid');
     if (!vid) { 
@@ -760,7 +790,7 @@ export default function App() {
     const pingPresence = () => setDoc(visitorRef, { lastPing: Date.now() }, { merge: true }).catch((e)=>{ console.error("Firebase Blocked Visitor Ping:", e) });
     
     pingPresence();
-    const pingInterval = setInterval(pingPresence, 15000); // إرسال الإشارة كل 15 ثانية
+    const pingInterval = setInterval(pingPresence, 15000); 
 
     const handleVisibility = () => { if (document.visibilityState === 'visible') pingPresence(); };
     const handleUnload = () => deleteDoc(visitorRef).catch(()=>{});
@@ -775,7 +805,6 @@ export default function App() {
     };
   }, [user]);
 
-  // تحديث عداد الزوار ليكون دقيقاً عند الإدارة (إزالة بعد 60 ثانية)
   useEffect(() => {
       let unsub;
       let intervalId;
@@ -792,9 +821,9 @@ export default function App() {
                   const pingTime = data.lastPing || 0;
                   const timeDifference = Math.abs(now - pingTime);
 
-                  if (timeDifference <= 45 * 1000) { // فعال خلال 45 ثانية
+                  if (timeDifference <= 45 * 1000) { 
                       activeCount++;
-                  } else if (timeDifference > 60 * 1000) { // إخفاء بعد 60 ثانية
+                  } else if (timeDifference > 60 * 1000) { 
                       deleteDoc(docSnap.ref).catch(()=>{});
                   }
               });
@@ -881,20 +910,41 @@ export default function App() {
     else { playSynthSound(1000, 'triangle', 0.05); setCart(prev => prev.map(item => item.id === id ? { ...item, qty: val } : item)); }
   };
 
-  const subtotal = useMemo(() => cart.reduce((acc, item) => {
-      let effectivePrice = Number(item.price) || 0;
-      const qty = parseInt(item.qty) || 0;
-      if (item.enableWholesale) {
-          if (qty >= 20) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount20) || 500));
-          else if (qty >= 10) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount10) || 250));
+  // ==========================================
+  // احتساب المجموع الآمن (مُحصن ضد ثغرات الكسور وتصفير الأسعار)
+  // ==========================================
+  const { subtotal, autoDiscount, rawTotal } = useMemo(() => {
+      let raw = cart.reduce((acc, item) => {
+          let effectivePrice = Number(item.price) || 0;
+          const qty = parseInt(item.qty) || 0;
+          
+          if (item.enableWholesale) {
+              const safeDiscount10 = item.discount10 !== '' ? Number(item.discount10) : (effectivePrice * 0.10);
+              const safeDiscount20 = item.discount20 !== '' ? Number(item.discount20) : (effectivePrice * 0.15);
+              
+              if (qty >= 20) effectivePrice = Math.max(25, effectivePrice - safeDiscount20);
+              else if (qty >= 10) effectivePrice = Math.max(25, effectivePrice - safeDiscount10);
+          }
+          return acc + (effectivePrice * qty);
+      }, 0);
+
+      let discount = 0;
+      
+      // التخفيض التصاعدي 500 دينار لكل 10 الاف
+      if (raw >= 10000) {
+          const tensCount = Math.floor(raw / 10000);
+          discount = (tensCount * 500);  
       }
-      return acc + (effectivePrice * qty);
-  }, 0), [cart]);
+      
+      return { subtotal: raw - discount, autoDiscount: discount, rawTotal: raw };
+  }, [cart]);
 
   const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0), [cart]);
   
   const activeGov = useMemo(() => deliveryLocations.find(g => g.id === selectedGovId) || { price: 0, time: '', name: '' }, [deliveryLocations, selectedGovId]);
-  const currentDeliveryFee = Number(activeGov.price) || 0;
+  
+  // تصفير أجور التوصيل إذا كان المجموع يبلغ 100 ألف فما فوق
+  const currentDeliveryFee = rawTotal >= 100000 ? 0 : (Number(activeGov.price) || 0);
 
   const handleCheckout = async () => {
     const finalCart = cart.map(item => ({...item, qty: parseInt(item.qty) || 1})).filter(item => item.qty > 0);
@@ -924,6 +974,7 @@ export default function App() {
           return { id: String(item.id || ''), name: String(item.name || ''), price: Number(effectivePrice) || 0, originalPrice: Number(item.price) || 0, image: String(item.image || ''), qty: Number(item.qty) || 1 };
       }),
       subtotalAmount: Number(subtotal) || 0,
+      discountApplied: autoDiscount > 0 ? autoDiscount : 0,
       deliveryFee: Number(currentDeliveryFee) || 0,
       totalAmount: (Number(subtotal) || 0) + (Number(currentDeliveryFee) || 0),
       status: 'pending',
@@ -959,7 +1010,7 @@ export default function App() {
       } catch (errStock) {}
 
       alert(lang === 'ar' ? `تم استلام طلبك بنجاح! سيتم التوصيل خلال: ${activeGov.time || 'يحدد لاحقاً'}` : `Order received successfully!`);
-      setCart([]); setIsCartOpen(false); fetchProducts();
+      setCart([]); safeCloseModal(setIsCartOpen, false); fetchProducts();
     } catch (errOrder) {
       alert("حدث خطأ أثناء إرسال الطلب. يرجى المحاولة لاحقاً.");
     }
@@ -1018,7 +1069,6 @@ export default function App() {
     } catch (error) { alert("حدث خطأ أثناء محاولة حذف الطلب."); }
   };
 
-
   const filteredProducts = useMemo(() => {
     const normalizedQuery = normalizeText(deferredSearchQuery);
     return products.filter(prod => {
@@ -1055,8 +1105,9 @@ export default function App() {
   };
 
   const handleProductSelect = useCallback((prod) => {
-    setSelectedProduct(prod); setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1);
-  }, [playSynthSound]);
+    safeOpenModal(setSelectedProduct, prod); 
+    setActiveImageIndex(0); setModalTab('compat'); setModalQty(1); setModalQtyWarning(''); playSynthSound(800, 'sine', 0.1);
+  }, [playSynthSound, safeOpenModal]);
 
   const handleAddToCartCard = useCallback((prod) => {
     addToCart(prod.id, prod.name, prod.price, prod.images && prod.images.length > 0 ? prod.images[0] : prod.img, prod.stock, 1, prod.enableWholesale, prod.discount10, prod.discount20);
@@ -1065,10 +1116,10 @@ export default function App() {
   const handleProjectsClick = useCallback(() => {
       if (projectsFetchTimerRef.current) clearTimeout(projectsFetchTimerRef.current);
       fetchProjectsData(); 
-      setIsProjectsModalOpen(true);
-      setIsSideMenuOpen(false);
+      safeCloseModal(setIsSideMenuOpen, false); 
+      setTimeout(() => safeOpenModal(setIsProjectsModalOpen, true), 100);
       playSynthSound(600, 'sine', 0.1);
-  }, [fetchProjectsData, playSynthSound]);
+  }, [fetchProjectsData, playSynthSound, safeCloseModal, safeOpenModal]);
 
   const observer = useRef();
   const lastElementRef = useCallback(node => {
@@ -1084,8 +1135,47 @@ export default function App() {
   return (
     <div className={`tech-grid relative min-h-screen font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 flex flex-col w-full ${isDarkMode ? 'bg-[#0f172a] text-gray-100' : 'bg-[#f4f7f6] text-slate-800'}`} dir={lang === 'en' ? 'ltr' : 'rtl'}>
       
-      <div ref={cursorOuterRef} className={`custom-cursor hidden md:block fixed top-0 left-0 w-[30px] h-[30px] border rounded-full pointer-events-none -translate-x-1/2 -translate-y-1/2 z-[9999] border-teal-500/60`}></div>
-      <div ref={cursorInnerRef} className={`custom-cursor-dot hidden md:block fixed top-0 left-0 w-[6px] h-[6px] rounded-full pointer-events-none -translate-x-1/2 -translate-y-1/2 z-[9999] bg-teal-500`}></div>
+      {/* تضمين إستايل الماوس المخصص والسكرول بار الاحترافي لضمان عمله بسلاسة */}
+      <style>{`
+          .custom-cursor {
+              width: 30px;
+              height: 30px;
+              border: 1px solid rgba(20, 184, 166, 0.6);
+              border-radius: 50%;
+              position: fixed;
+              pointer-events: none;
+              z-index: 99999;
+              transition: width 0.3s, height 0.3s, background-color 0.3s, border-color 0.3s;
+              transform: translate(-50%, -50%);
+              left: 50%;
+              top: 50%;
+          }
+          .custom-cursor-dot {
+              width: 6px;
+              height: 6px;
+              background-color: #14b8a6;
+              border-radius: 50%;
+              position: fixed;
+              pointer-events: none;
+              z-index: 99999;
+              transform: translate(-50%, -50%);
+              left: 50%;
+              top: 50%;
+          }
+          body.hover-state .custom-cursor {
+              width: 50px;
+              height: 50px;
+              background-color: rgba(20, 184, 166, 0.1);
+              border-color: #14b8a6;
+          }
+          .cart-pro-scrollbar::-webkit-scrollbar { width: 5px; }
+          .cart-pro-scrollbar::-webkit-scrollbar-track { background: transparent; }
+          .cart-pro-scrollbar::-webkit-scrollbar-thumb { background: rgba(20, 184, 166, 0.3); border-radius: 10px; }
+          .cart-pro-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(20, 184, 166, 0.8); }
+      `}</style>
+      
+      <div ref={cursorOuterRef} className="custom-cursor hidden md:block"></div>
+      <div ref={cursorInnerRef} className="custom-cursor-dot hidden md:block"></div>
 
       <header className={`border-b fixed top-0 left-0 right-0 z-50 px-2 sm:px-6 py-2 sm:py-3 backdrop-blur-md transition-colors duration-500 shadow-lg ${isDarkMode ? 'border-teal-500/20 bg-slate-900/90' : 'border-teal-200 bg-white/90 shadow-sm'}`}>
         <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center w-full gap-y-2">
@@ -1096,7 +1186,8 @@ export default function App() {
             </div>
             
             <button 
-              onClick={() => setIsSideMenuOpen(true)} 
+              onClick={() => safeOpenModal(setIsSideMenuOpen, true)} 
+              onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors cursor-pointer shadow-sm ${isDarkMode ? 'text-teal-400 bg-teal-500/10 border border-teal-500/30 hover:bg-teal-500 hover:text-slate-900' : 'text-teal-700 bg-teal-50 border border-teal-200 hover:bg-teal-500 hover:text-white'}`}
             >
               <i className="fas fa-bars text-lg"></i> <span className={`font-mono text-xs font-bold tracking-widest hidden sm:inline`}>{t.menu}</span>
@@ -1107,6 +1198,7 @@ export default function App() {
             
             <button
               onClick={() => { setIsDarkMode(!isDarkMode); playSynthSound(isDarkMode ? 800 : 400, 'sine', 0.1); }}
+              onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
               className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full transition-all shadow-md ${isDarkMode ? 'bg-slate-800 text-yellow-400 border border-slate-700 hover:bg-slate-700' : 'bg-teal-50 text-teal-600 border border-teal-200 hover:bg-teal-100 hover:scale-105'}`}
               title={isDarkMode ? 'تفعيل الوضع الفاتح' : 'تفعيل الوضع الداكن'}
             >
@@ -1114,9 +1206,9 @@ export default function App() {
             </button>
 
             <div className={`flex items-center rounded-full p-1 backdrop-blur-sm shadow-inner border ${isDarkMode ? 'bg-slate-900/80 border-teal-500/30' : 'bg-slate-100 border-teal-200'}`}>
-              <button type="button" onClick={() => setLang('ar')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'ar' ? 'bg-teal-500 text-white shadow-md' : 'text-gray-400 hover:text-teal-500'}`}>AR</button>
-              <button type="button" onClick={() => setLang('ku')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'ku' ? 'bg-teal-500 text-white shadow-md' : 'text-gray-400 hover:text-teal-500'}`}>KU</button>
-              <button type="button" onClick={() => setLang('en')} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'en' ? 'bg-teal-500 text-white shadow-md' : 'text-gray-400 hover:text-teal-500'}`}>EN</button>
+              <button type="button" onClick={() => setLang('ar')} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'ar' ? 'bg-teal-500 text-white shadow-md' : 'text-gray-400 hover:text-teal-500'}`}>AR</button>
+              <button type="button" onClick={() => setLang('ku')} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'ku' ? 'bg-teal-500 text-white shadow-md' : 'text-gray-400 hover:text-teal-500'}`}>KU</button>
+              <button type="button" onClick={() => setLang('en')} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-8 h-8 flex items-center justify-center rounded-full text-[10px] sm:text-xs font-bold transition-all ${lang === 'en' ? 'bg-teal-500 text-white shadow-md' : 'text-gray-400 hover:text-teal-500'}`}>EN</button>
             </div>
 
             {user && user.uid === ADMIN_UID && (
@@ -1138,7 +1230,7 @@ export default function App() {
               <div className={`flex items-center gap-1 sm:gap-2 rounded-full p-1 sm:px-2 shadow-inner border ${isDarkMode ? 'bg-slate-900/80 border-teal-500/30' : 'bg-slate-100 border-teal-200'}`}>
                 <img src={user.photoURL} alt="pfp" className="w-8 h-8 rounded-full border border-teal-400" />
                 <span className={`hidden lg:inline text-xs font-bold ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>{user.name}</span>
-                <button type="button" onClick={handleLogout} className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-500/20 rounded-full transition-colors" title={t.adminLeave}>
+                <button type="button" onClick={handleLogout} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-500/20 rounded-full transition-colors" title={t.adminLeave}>
                    <i className="fas fa-power-off"></i>
                 </button>
               </div>
@@ -1148,7 +1240,7 @@ export default function App() {
               </button>
             )}
 
-            <button type="button" onClick={() => { setIsCartOpen(true); playSynthSound(800, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`relative flex items-center justify-center w-10 h-10 sm:w-auto sm:px-5 sm:py-2 rounded-full transition-all shadow-[0_0_15px_rgba(20,184,166,0.5)] bg-teal-500 text-white hover:bg-teal-400 hover:scale-105 flex-shrink-0`}>
+            <button type="button" onClick={() => { safeOpenModal(setIsCartOpen, true); playSynthSound(800, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`relative flex items-center justify-center w-10 h-10 sm:w-auto sm:px-5 sm:py-2 rounded-full transition-all shadow-[0_0_15px_rgba(20,184,166,0.5)] bg-teal-500 text-white hover:bg-teal-400 hover:scale-105 flex-shrink-0`}>
               <i className={`fas fa-shopping-cart text-lg`}></i>
               <span className="font-mono text-sm hidden sm:inline font-bold ml-2 mr-2">{totalQty.toString().padStart(2, '0')}</span>
               <span className={`absolute -top-1.5 -right-1.5 w-6 h-6 font-mono text-xs font-bold rounded-full flex items-center justify-center shadow-lg bg-red-600 text-white border-2 ${isDarkMode ? 'border-[#0f172a]' : 'border-white'}`}>{totalQty}</span>
@@ -1160,37 +1252,37 @@ export default function App() {
       <div className={`fixed inset-y-0 ${lang === 'en' ? 'left-0' : 'right-0'} w-72 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[100] transform transition-transform duration-300 flex flex-col ${isSideMenuOpen ? 'translate-x-0' : (lang === 'en' ? '-translate-x-full' : 'translate-x-full')} ${isDarkMode ? 'bg-[#1e293b] border-teal-500/20' : 'bg-white border-teal-200'}`}>
         <div className={`p-5 border-b flex justify-between items-center ${isDarkMode ? 'border-teal-500/20 bg-slate-900/50' : 'border-teal-100 bg-slate-50'}`}>
           <h3 className={`font-bold text-lg flex items-center gap-2 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}><i className="fas fa-list-ul"></i> {t.menu}</h3>
-          <button type="button" onClick={() => setIsSideMenuOpen(false)} className={`w-8 h-8 flex items-center justify-center rounded-full border transition-all ${isDarkMode ? 'border-teal-500/20 text-teal-400 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30' : 'border-teal-200 text-teal-600 hover:bg-red-50 hover:text-red-500 hover:border-red-200'}`}>
+          <button type="button" onClick={() => { safeCloseModal(setIsSideMenuOpen, false); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-8 h-8 flex items-center justify-center rounded-full border transition-all ${isDarkMode ? 'border-teal-500/20 text-teal-400 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30' : 'border-teal-200 text-teal-600 hover:bg-red-50 hover:text-red-500 hover:border-red-200'}`}>
             <i className="fas fa-times text-lg"></i>
           </button>
         </div>
         
         <div className="p-5 flex flex-col gap-4 flex-grow overflow-y-auto custom-scrollbar">
           
-          <button onClick={handleProjectsClick} className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500 hover:text-slate-900' : 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-500 hover:text-white'}`}>
+          <button onClick={handleProjectsClick} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500 hover:text-slate-900' : 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-500 hover:text-white'}`}>
             <i className="fa-solid fa-diagram-project text-2xl"></i> 
             <span className="text-sm">{t.projects}</span>
           </button>
 
-          <button onClick={() => { handleInstallApp(); setIsSideMenuOpen(false); }} className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-teal-500/10 border-teal-500/30 text-teal-400 hover:bg-teal-500 hover:text-slate-900' : 'bg-teal-50 border-teal-200 text-teal-600 hover:bg-teal-500 hover:text-white'}`}>
+          <button onClick={() => { handleInstallApp(); safeCloseModal(setIsSideMenuOpen, false); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-teal-500/10 border-teal-500/30 text-teal-400 hover:bg-teal-500 hover:text-slate-900' : 'bg-teal-50 border-teal-200 text-teal-600 hover:bg-teal-500 hover:text-white'}`}>
             <i className="fas fa-download text-2xl"></i> 
             <span className="text-sm">{t.installApp}</span>
           </button>
           
-          <a href="https://wa.me/9647760599953" target="_blank" rel="noopener noreferrer" className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500 hover:text-slate-900' : 'bg-green-50 border-green-200 text-green-600 hover:bg-green-500 hover:text-white'}`}>
+          <a href="https://wa.me/9647760599953" target="_blank" rel="noopener noreferrer" onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500 hover:text-slate-900' : 'bg-green-50 border-green-200 text-green-600 hover:bg-green-500 hover:text-white'}`}>
             <i className="fab fa-whatsapp text-2xl"></i> 
             <span className="text-sm">{t.whatsappSupport}</span>
           </a>
 
           {externalLinks.map(link => (
-            <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500 hover:text-slate-900' : 'bg-purple-50 border-purple-200 text-purple-600 hover:bg-purple-500 hover:text-white'}`}>
+            <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500 hover:text-slate-900' : 'bg-purple-50 border-purple-200 text-purple-600 hover:bg-purple-500 hover:text-white'}`}>
                <i className="fa-solid fa-arrow-up-right-from-square text-2xl"></i>
                <span className="text-sm">{link.title}</span>
             </a>
           ))}
 
           <div className={`mt-auto pt-4 border-t ${isDarkMode ? 'border-teal-500/20' : 'border-teal-100'}`}>
-             <button onClick={() => { alert('الحمد لله الذي علّم بالقلم، والشكر موصول لرسوله الأعظم وعترته الطاهرة، ينابيع الحكمة وأصل كل علم، من أشرقت بأنوار معارفهم عقول البشر، وقامت على فيض علومهم حضارات الأمم'); setIsSideMenuOpen(false); playSynthSound(600, 'sine', 0.1); }} className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500 hover:text-slate-900' : 'bg-yellow-50 border-yellow-200 text-yellow-600 hover:bg-yellow-500 hover:text-white'}`}>
+             <button onClick={() => { alert('الحمد لله الذي علّم بالقلم، والشكر موصول لرسوله الأعظم وعترته الطاهرة، ينابيع الحكمة وأصل كل علم، من أشرقت بأنوار معارفهم عقول البشر، وقامت على فيض علومهم حضارات الأمم'); safeCloseModal(setIsSideMenuOpen, false); playSynthSound(600, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500 hover:text-slate-900' : 'bg-yellow-50 border-yellow-200 text-yellow-600 hover:bg-yellow-500 hover:text-white'}`}>
                 <i className="fa-solid fa-hands-praying text-2xl"></i>
                 <span className="text-sm">شكرا</span>
              </button>
@@ -1199,7 +1291,7 @@ export default function App() {
       </div>
       
       {isSideMenuOpen && (
-        <div onClick={() => setIsSideMenuOpen(false)} className={`fixed inset-0 z-[90] transition-opacity ${isDarkMode ? 'bg-slate-900/80 backdrop-blur-sm' : 'bg-slate-800/40 backdrop-blur-sm'}`}></div>
+        <div onClick={() => { safeCloseModal(setIsSideMenuOpen, false); }} className={`fixed inset-0 z-[90] transition-opacity ${isDarkMode ? 'bg-slate-900/80 backdrop-blur-sm' : 'bg-slate-800/40 backdrop-blur-sm'}`}></div>
       )}
 
       {isAdminMode && user?.uid === ADMIN_UID ? (
@@ -1266,7 +1358,7 @@ export default function App() {
               {t.heroDesc}
             </p>
             <div ref={magneticContainerRef} className="p-4 sm:p-10 cursor-pointer">
-              <button type="button" ref={magneticBtnRef} onClick={() => document.getElementById('productsSection').scrollIntoView({ behavior: 'smooth' })} className={`relative px-6 py-3 sm:px-10 sm:py-5 bg-transparent border rounded-full text-sm uppercase tracking-widest overflow-hidden group transition-all duration-300 shadow-sm ${isDarkMode ? 'border-teal-500/30 text-teal-400 hover:border-teal-400 hover:text-slate-900' : 'border-teal-500 text-teal-600 hover:text-white'}`}>
+              <button type="button" ref={magneticBtnRef} onClick={() => document.getElementById('productsSection').scrollIntoView({ behavior: 'smooth' })} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`relative px-6 py-3 sm:px-10 sm:py-5 bg-transparent border rounded-full text-sm uppercase tracking-widest overflow-hidden group transition-all duration-300 shadow-sm ${isDarkMode ? 'border-teal-500/30 text-teal-400 hover:border-teal-400 hover:text-slate-900' : 'border-teal-500 text-teal-600 hover:text-white'}`}>
                 <span className="relative z-10 font-bold flex items-center gap-3 transition-colors duration-300">
                   <i className="fas fa-arrow-down animate-bounce"></i> {t.browseCat}
                 </span>
@@ -1301,6 +1393,7 @@ export default function App() {
             <div className={`flex flex-wrap gap-2 mb-6 px-2 justify-center md:justify-start custom-scrollbar ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
                <button 
                   onClick={() => setSelectedCatFilter('')} 
+                  onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                   className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
                >
                   All / الكل
@@ -1308,6 +1401,7 @@ export default function App() {
 
                <button 
                   onClick={() => setSelectedCatFilter('ادوات مشروع')} 
+                  onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                   className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-md flex items-center gap-2 ${selectedCatFilter === 'ادوات مشروع' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold border-transparent shadow-[0_0_15px_rgba(147,51,234,0.5)] scale-105' : (isDarkMode ? 'bg-[#1e1136] text-purple-400 border-purple-500/30 hover:border-purple-400 hover:text-purple-300' : 'bg-purple-50 text-purple-700 border-purple-200 hover:border-purple-400 hover:text-purple-600')}`}
                >
                   <i className="fa-solid fa-toolbox"></i> ادوات مشروع
@@ -1319,6 +1413,7 @@ export default function App() {
                        <button 
                           key={c.id} 
                           onClick={() => setSelectedCatFilter(c.name)} 
+                          onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                           className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
                        >
                           {c.name}
@@ -1347,12 +1442,12 @@ export default function App() {
                         onCardMove={handleCardMove}
                         onCardLeave={handleCardLeave}
                         onMouseEnter={handleMouseEnterInteractive}
+                        onMouseLeave={handleMouseLeaveInteractive}
                         onSelect={handleProductSelect}
                         onAddToCart={handleAddToCartCard}
                      />
                   ))}
                   
-
                   {displayCount < filteredProducts.length && (
                      <div ref={lastElementRef} className="col-span-2 sm:col-span-3 lg:col-span-4 h-4 w-full"></div>
                   )}
@@ -1369,152 +1464,225 @@ export default function App() {
          </div>
       </footer>
 
-      <div className={`fixed inset-y-0 ${lang === 'en' ? 'right-0' : 'left-0'} w-full md:w-[850px] border-${lang === 'en' ? 'l' : 'r'} shadow-2xl z-50 transform transition-transform duration-500 flex flex-col ${isCartOpen ? 'translate-x-0' : (lang === 'en' ? 'translate-x-full' : '-translate-x-full')} ${isDarkMode ? 'bg-[#0f172a] border-teal-500/20' : 'bg-white border-teal-200'}`}>
-        <div className={`p-5 border-b flex justify-between items-center ${isDarkMode ? 'bg-slate-900/60 border-teal-500/20' : 'bg-slate-50 border-teal-100'}`}>
-          <div className="flex items-center gap-5">
-            <i className={`fas fa-shopping-cart text-xl ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}></i>
-            <div><h3 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{t.cartTitle}</h3></div>
+      {/* ========================================== */}
+      {/* سلة الطلبات الرقمية (تصميم احترافي مطابق للصورة) */}
+      {/* ========================================== */}
+      <div className={`fixed inset-y-0 ${lang === 'en' ? 'right-0' : 'left-0'} w-full xl:w-[950px] shadow-[0_0_60px_rgba(0,0,0,0.9)] z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] flex flex-col ${isCartOpen ? 'translate-x-0' : (lang === 'en' ? 'translate-x-full' : '-translate-x-full')} ${isDarkMode ? 'bg-[#080c14] border-teal-500/30' : 'bg-white border-teal-200'}`}>
+        
+        {/* Header السلة */}
+        <div className={`h-20 px-6 flex justify-between items-center shrink-0 border-b relative z-10 ${isDarkMode ? 'bg-[#0b101a] border-teal-500/20' : 'bg-slate-50 border-teal-100'}`}>
+          <div className="flex items-center gap-4">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDarkMode ? 'bg-teal-500/10 text-teal-400 border border-teal-500/30' : 'bg-teal-50 text-teal-600 border border-teal-200'}`}>
+                <i className="fa-solid fa-cart-flatbed text-xl"></i>
+            </div>
+            <div>
+                <h3 className={`text-lg font-black ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{t.cartTitle}</h3>
+                <span className={`text-[10px] font-mono font-bold tracking-widest ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>// SECURE_CHECKOUT</span>
+            </div>
           </div>
-          <button type="button" onClick={() => { setIsCartOpen(false); playSynthSound(400, 'sine', 0.1); }} className={`w-10 h-10 rounded-full border flex items-center justify-center transition-colors ${isDarkMode ? 'border-teal-500/20 hover:bg-slate-800 text-teal-400' : 'border-teal-200 hover:bg-teal-50 text-teal-600'}`}>
-            <i className={`fas fa-times text-lg`}></i>
+          <button type="button" onClick={() => { safeCloseModal(setIsCartOpen, false); playSynthSound(400, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${isDarkMode ? 'border-teal-500/20 hover:bg-red-500/20 hover:border-red-500/40 hover:text-red-400 text-gray-400' : 'border-gray-200 hover:bg-red-50 hover:text-red-500 text-gray-500'}`}>
+            <i className={`fas fa-xmark text-lg`}></i>
           </button>
         </div>
 
-        {cartAnnouncement && (
-          <div className={`bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-b border-yellow-500/30 p-3 sm:p-4 flex items-center gap-3 shrink-0`}>
-            <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center shrink-0 border border-yellow-500/30">
-                <i className="fa-solid fa-bullhorn text-yellow-500 text-sm animate-pulse"></i>
-            </div>
-            <p className={`text-xs sm:text-sm font-bold whitespace-pre-wrap leading-relaxed flex-grow ${isDarkMode ? 'text-yellow-400' : 'text-yellow-700'}`}>
-               {cartAnnouncement}
-            </p>
-          </div>
-        )}
-
-        <div className="flex flex-col-reverse md:flex-row flex-grow overflow-y-auto overflow-x-hidden md:overflow-hidden custom-scrollbar">
-          
-          <div className={`w-full md:w-2/5 flex flex-col flex-shrink-0 h-auto md:h-full md:border-${lang === 'en' ? 'l' : 'r'} ${isDarkMode ? 'border-teal-500/10 bg-slate-800/30' : 'border-teal-100 bg-slate-50'}`}>
-            <div className="p-6 space-y-6 flex-grow overflow-y-auto custom-scrollbar">
-              <h4 className={`font-bold text-sm mb-4 ${isDarkMode ? 'text-teal-400' : 'text-teal-700'}`}><i className="fas fa-user-astronaut"></i> {t.cartInfo}</h4>
-              <input type="text" placeholder={t.cartName} value={customerName} onChange={(e) => setCustomerName(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all ${isDarkMode ? 'bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400' : 'bg-white border-gray-200 text-slate-800 focus:border-teal-500'}`} />
-              <input type="tel" placeholder={t.cartPhone} value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all ${isDarkMode ? 'bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400' : 'bg-white border-gray-200 text-slate-800 focus:border-teal-500'}`} />
-              <input type="tel" placeholder={t.cartPhone2} value={customerPhone2} onChange={(e) => setCustomerPhone2(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all ${isDarkMode ? 'bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400' : 'bg-white border-gray-200 text-slate-800 focus:border-teal-500'}`} />
-              
-              <select 
-                 value={selectedGovId} 
-                 onChange={e => setSelectedGovId(e.target.value)} 
-                 className={`w-full p-3 border rounded-xl text-sm outline-none transition-all ${isDarkMode ? 'bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400' : 'bg-white border-gray-200 text-slate-800 focus:border-teal-500'}`}
-              >
-                 <option value="" disabled>اختر المحافظة</option>
-                 {deliveryLocations.map(gov => (
-                    <option key={gov.id} value={gov.id}>{gov.name} ({Number(gov.price).toLocaleString()} د.ع)</option>
-                 ))}
-              </select>
-
-              <textarea placeholder={t.cartAddress} value={detailedAddress} onChange={(e) => setDetailedAddress(e.target.value)} className={`w-full p-3 border rounded-xl text-sm outline-none transition-all min-h-[80px] resize-none ${isDarkMode ? 'bg-slate-900/80 border-teal-500/20 text-white focus:border-teal-400' : 'bg-white border-gray-200 text-slate-800 focus:border-teal-500'}`}></textarea>
-            </div>
-
-            <div className={`p-4 border-t space-y-4 ${isDarkMode ? 'bg-slate-800/40 border-teal-500/20' : 'bg-white border-gray-200 shadow-[0_-10px_20px_rgba(0,0,0,0.02)]'}`}>
-              <div className={`flex justify-between font-mono text-sm font-bold ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}><span>{t.cartSub}</span><span>{subtotal.toLocaleString()} {t.currency}</span></div>
-              <div className={`flex justify-between font-mono text-sm font-bold ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}><span>{t.cartDelivery}</span><span>{currentDeliveryFee.toLocaleString()} {t.currency}</span></div>
-              
-              {selectedGovId && (
-                 <div className={`flex justify-between font-mono text-xs ${isDarkMode ? 'text-teal-300' : 'text-teal-600'}`}>
-                    <span>{t.cartTime}</span><span>{activeGov.time}</span>
-                 </div>
-              )}
-
-              <div className={`flex justify-between text-xl font-bold pt-2 border-t ${isDarkMode ? 'text-white border-teal-500/10' : 'text-slate-800 border-gray-200'}`}>
-                 <span>{t.cartTotal}</span>
-                 <span className={`font-mono ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>{(subtotal + currentDeliveryFee).toLocaleString()} {t.currency}</span>
-              </div>
-              
-              <div className="flex gap-2 mt-2 w-full">
-                <button type="button" onClick={handleCheckout} className="flex-grow py-3 sm:py-4 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-extrabold tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 text-xs sm:text-sm hover:scale-[1.02]">
-                  <i className="fas fa-check-double text-base sm:text-lg"></i> {t.cartCheckout}
-                </button>
-                <button type="button" onClick={() => { 
-                    if(window.confirm(lang === 'ar' ? 'هل أنت متأكد من إلغاء الطلب وإفراغ السلة؟' : 'Are you sure you want to clear the cart?')) {
-                        setCart([]); 
-                        setIsCartOpen(false); 
-                        playSynthSound(400, 'sawtooth', 0.2); 
-                    }
-                }} className={`shrink-0 px-4 sm:px-6 py-3 sm:py-4 rounded-xl font-extrabold tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 text-xs sm:text-sm ${isDarkMode ? 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/30' : 'bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border border-red-200'}`}>
-                  <i className="fa-solid fa-trash-can text-base sm:text-lg"></i> {t.cancelOrder}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className={`w-full md:w-3/5 flex flex-col flex-shrink-0 h-auto md:h-full bg-transparent border-b md:border-b-0 ${isDarkMode ? 'border-teal-500/20' : 'border-teal-100'}`}>
-            <div className={`p-4 border-b flex justify-between items-center ${isDarkMode ? 'border-teal-500/10 bg-slate-800/40' : 'border-gray-200 bg-white'}`}>
-              <span className={`font-bold text-sm ${isDarkMode ? 'text-teal-400' : 'text-teal-700'}`}><i className="fas fa-box-open"></i> {t.cartItems}</span>
-              <span className={`font-mono text-xs px-2 py-1 rounded border ${isDarkMode ? 'bg-teal-500/20 text-teal-400 border-teal-500/30' : 'bg-teal-50 text-teal-700 border-teal-200'}`}>{cart.length} {t.itemCount}</span>
-            </div>
+        {/* Content Body للسلة (مقسم لعمودين للشاشات الكبيرة) - تم التعديل للسكرول في الموبايل */}
+        <div className="flex flex-col md:flex-row flex-grow overflow-y-auto md:overflow-hidden relative z-0 cart-pro-scrollbar">
             
-            <div className="flex-grow overflow-y-auto p-4 sm:p-6 space-y-4 custom-scrollbar max-h-[45vh] md:max-h-none">
-              {cart.length === 0 ? (
-                <div className={`h-full flex flex-col justify-center items-center text-center font-mono ${isDarkMode ? 'text-gray-400' : 'text-slate-400'}`}>
-                  <i className={`fas fa-ghost text-4xl mb-4 animate-bounce ${isDarkMode ? 'text-teal-500/20' : 'text-teal-200'}`}></i>
-                  <p>{t.cartEmpty}</p>
-                </div>
-              ) : (
-                cart.map((item, i) => {
-                  let effectivePrice = Number(item.price) || 0;
-                  if (item.enableWholesale) {
-                      if (item.qty >= 20) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount20) || 500));
-                      else if (item.qty >= 10) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount10) || 250));
-                  }
-                  
-                  return (
-                  <div key={item.id || i} className={`border rounded-xl p-3 sm:p-4 flex gap-3 sm:gap-4 items-center shadow-sm transition-colors ${isDarkMode ? 'bg-slate-800/60 border-teal-500/10 hover:border-teal-500/40' : 'bg-white border-gray-100 hover:border-teal-300'}`}>
-                    <div className={`w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-lg p-1 flex-shrink-0 border flex items-center justify-center overflow-hidden ${isDarkMode ? 'border-teal-500/20' : 'border-gray-200'}`}>
-                      <img src={item.image} loading="lazy" decoding="async" alt="" className="max-w-full max-h-full object-contain mix-blend-multiply" />
+            {/* Right Column: قائمة المواد المطلوبة */}
+            <div className={`w-full md:w-[55%] flex flex-col h-auto md:h-full shrink-0 border-b md:border-b-0 ${isDarkMode ? 'bg-transparent border-teal-500/20 md:border-l' : 'bg-slate-50/50 border-gray-200 md:border-r'}`}>
+               
+               <div className="px-6 py-4 flex justify-between items-center shrink-0">
+                  <h4 className={`font-bold text-sm flex items-center gap-2 ${isDarkMode ? 'text-teal-400' : 'text-teal-700'}`}>
+                      <i className="fa-solid fa-layer-group"></i> {t.cartItems}
+                  </h4>
+                  <span className={`font-mono text-[11px] font-bold px-3 py-1 rounded-full border ${isDarkMode ? 'bg-teal-500/10 text-teal-300 border-teal-500/20' : 'bg-white text-teal-700 border-teal-200 shadow-sm'}`}>
+                      {cart.length} {t.itemCount}
+                  </span>
+               </div>
+
+               {/* إعلان السلة (إن وجد) */}
+               {cartAnnouncement && (
+                 <div className={`mx-6 mb-4 px-4 py-3 rounded-2xl border flex items-start gap-3 shadow-sm ${isDarkMode ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-yellow-50 border-yellow-200'}`}>
+                    <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center shrink-0 border border-yellow-500/30 mt-0.5">
+                        <i className="fa-solid fa-bullhorn text-yellow-500 text-xs animate-pulse"></i>
                     </div>
-                    <div className="flex-grow min-w-0">
-                      <h4 className={`font-bold text-xs sm:text-sm line-clamp-1 truncate break-words ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{item.name}</h4>
-                      <div className={`font-mono text-[10px] sm:text-xs font-bold mt-1 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>
-                         {effectivePrice.toLocaleString()} {t.currency}
-                         {effectivePrice < Number(item.price) && (
-                            <span className="text-yellow-500 text-[9px] mr-2 line-through font-light opacity-80">{Number(item.price).toLocaleString()}</span>
-                         )}
+                    <p className={`text-xs font-bold whitespace-pre-wrap leading-relaxed pt-1 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-800'}`}>
+                       {cartAnnouncement}
+                    </p>
+                 </div>
+               )}
+
+               <div className="flex-grow overflow-y-auto px-6 pb-6 space-y-3 cart-pro-scrollbar max-h-[45vh] md:max-h-none">
+                  {cart.length === 0 ? (
+                    <div className={`h-full flex flex-col justify-center items-center text-center font-mono ${isDarkMode ? 'text-gray-500' : 'text-slate-400'}`}>
+                      <div className={`w-20 h-20 rounded-full mb-6 flex items-center justify-center border-2 border-dashed ${isDarkMode ? 'border-teal-500/20 bg-teal-500/5' : 'border-gray-300 bg-gray-100'}`}>
+                          <i className={`fas fa-box-open text-3xl opacity-50`}></i>
                       </div>
+                      <p className="font-bold text-sm mb-1">{t.cartEmpty}</p>
+                      <p className="text-[10px] tracking-widest uppercase">// AWAITING_ITEMS</p>
                     </div>
-                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                      <div className={`flex items-center gap-1 border rounded-lg px-1 py-1 ${isDarkMode ? 'bg-slate-900/60 border-teal-500/30' : 'bg-slate-50 border-gray-200'}`}>
-                        <button type="button" onClick={() => updateQty(item.id, 1)} className={`w-6 h-6 sm:w-7 sm:h-7 rounded text-xs font-bold transition-colors ${isDarkMode ? 'text-teal-400 hover:bg-teal-500/20' : 'text-teal-600 hover:bg-teal-100'}`}>+</button>
-                        <input 
-                          type="number" 
-                          min="0"
-                          value={item.qty}
-                          onChange={(e) => setItemQty(item.id, e.target.value)}
-                          className={`w-8 sm:w-10 text-center font-mono text-xs sm:text-sm font-bold outline-none bg-transparent ${isDarkMode ? 'text-white' : 'text-slate-800'}`}
-                          style={{ MozAppearance: 'textfield', WebkitAppearance: 'none' }}
-                        />
-                        <button type="button" onClick={() => updateQty(item.id, -1)} className={`w-6 h-6 sm:w-7 sm:h-7 rounded text-xs font-bold transition-colors ${isDarkMode ? 'text-red-400 hover:bg-red-500/20' : 'text-red-600 hover:bg-red-100'}`}>-</button>
-                      </div>
-                    </div>
-                  </div>
-                )})
-              )}
+                  ) : (
+                    cart.map((item) => {
+                        let effectivePrice = Number(item.price) || 0;
+                        if (item.enableWholesale) {
+                            if (item.qty >= 20) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount20) || 500));
+                            else if (item.qty >= 10) effectivePrice = Math.max(0, effectivePrice - (Number(item.discount10) || 250));
+                        }
+                        
+                        return (
+                           <div key={item.id} className={`p-4 rounded-2xl border flex flex-row items-center gap-4 transition-all shadow-md group ${isDarkMode ? 'bg-[#121926] border-teal-500/10 hover:border-teal-500/30 hover:bg-[#161f30]' : 'bg-white border-gray-200 hover:border-teal-300 hover:shadow-lg'}`}>
+                              
+                              {/* الصورة */}
+                              <div className={`w-16 h-16 rounded-xl p-1.5 flex-shrink-0 flex items-center justify-center overflow-hidden border bg-white ${isDarkMode ? 'border-teal-500/20 shadow-[inset_0_0_10px_rgba(0,0,0,0.1)]' : 'border-gray-200'}`}>
+                                  <img src={item.image} loading="lazy" alt="" className="max-w-full max-h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500" />
+                              </div>
+
+                              {/* المعلومات */}
+                              <div className="flex-grow flex flex-col items-start min-w-0">
+                                  <h4 className={`font-bold text-[13px] sm:text-sm line-clamp-2 break-words w-full ${isDarkMode ? 'text-gray-100 group-hover:text-teal-400 transition-colors' : 'text-slate-800'}`}>{item.name}</h4>
+                                  <div className={`font-mono text-xs mt-1.5 flex items-center gap-2 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>
+                                     <span className="font-bold">{effectivePrice.toLocaleString()} {t.currency}</span>
+                                     {effectivePrice < Number(item.price) && (
+                                        <span className="text-yellow-500/70 text-[9px] line-through font-light">{Number(item.price).toLocaleString()}</span>
+                                     )}
+                                  </div>
+                              </div>
+
+                              {/* أزرار التحكم بالكمية */}
+                              <div className={`flex items-center justify-between w-24 h-10 rounded-full border px-1 shadow-inner shrink-0 ${isDarkMode ? 'bg-[#080c14] border-teal-500/20' : 'bg-slate-100 border-gray-300'}`} dir="ltr">
+                                  <button onClick={() => updateQty(item.id, -1)} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-7 h-7 rounded-full flex items-center justify-center font-bold transition-colors ${isDarkMode ? 'text-red-400 hover:bg-red-500/20' : 'text-red-600 hover:bg-red-100'}`}>-</button>
+                                  <span className={`font-mono text-xs font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{item.qty}</span>
+                                  <button onClick={() => updateQty(item.id, 1)} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-7 h-7 rounded-full flex items-center justify-center font-bold transition-colors ${isDarkMode ? 'text-teal-400 hover:bg-teal-500/20' : 'text-teal-600 hover:bg-teal-100'}`}>+</button>
+                              </div>
+                           </div>
+                        );
+                    })
+                  )}
+               </div>
             </div>
-          </div>
+
+            {/* Left Column: إدخال البيانات والملخص */}
+            <div className={`w-full md:w-[45%] flex flex-col h-auto md:h-full shrink-0 ${isDarkMode ? 'bg-[#060910]' : 'bg-white'}`}>
+               <div className="flex-grow overflow-y-auto p-6 space-y-6 cart-pro-scrollbar">
+                   <div className="space-y-4">
+                        <h4 className={`font-bold text-sm mb-3 flex items-center gap-2 ${isDarkMode ? 'text-gray-300' : 'text-slate-700'}`}>
+                            <i className="fa-solid fa-id-card text-teal-500"></i> {t.cartInfo}
+                        </h4>
+                        <input type="text" placeholder={t.cartName} value={customerName} onChange={(e) => setCustomerName(e.target.value)} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-full p-3.5 border rounded-2xl text-sm font-bold outline-none transition-all shadow-inner ${isDarkMode ? 'bg-[#0b101a] border-teal-500/20 text-white focus:border-teal-400 focus:bg-[#0f172a]' : 'bg-gray-50 border-gray-200 text-slate-800 focus:border-teal-500 focus:bg-white'}`} />
+                        <input type="tel" placeholder={t.cartPhone} value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-full p-3.5 border rounded-2xl text-sm font-bold outline-none transition-all shadow-inner ${isDarkMode ? 'bg-[#0b101a] border-teal-500/20 text-white focus:border-teal-400 focus:bg-[#0f172a]' : 'bg-gray-50 border-gray-200 text-slate-800 focus:border-teal-500 focus:bg-white'}`} />
+                        <input type="tel" placeholder={t.cartPhone2} value={customerPhone2} onChange={(e) => setCustomerPhone2(e.target.value)} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-full p-3.5 border rounded-2xl text-sm font-bold outline-none transition-all shadow-inner ${isDarkMode ? 'bg-[#0b101a] border-teal-500/20 text-white focus:border-teal-400 focus:bg-[#0f172a]' : 'bg-gray-50 border-gray-200 text-slate-800 focus:border-teal-500 focus:bg-white'}`} />
+                        
+                        <div className="relative">
+                            <select value={selectedGovId} onChange={e => setSelectedGovId(e.target.value)} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-full p-3.5 border rounded-2xl text-sm font-bold outline-none transition-all shadow-inner appearance-none cursor-pointer ${isDarkMode ? 'bg-[#0b101a] border-teal-500/20 text-white focus:border-teal-400 focus:bg-[#0f172a]' : 'bg-gray-50 border-gray-200 text-slate-800 focus:border-teal-500 focus:bg-white'}`}>
+                                <option value="" disabled>اختر المحافظة (التوصيل)</option>
+                                {deliveryLocations.map(gov => (
+                                <option key={gov.id} value={gov.id}>{gov.name} ({Number(gov.price).toLocaleString()} د.ع)</option>
+                                ))}
+                            </select>
+                            <i className={`fa-solid fa-chevron-down absolute top-1/2 -translate-y-1/2 ${lang === 'en' ? 'right-4' : 'left-4'} pointer-events-none ${isDarkMode ? 'text-teal-500' : 'text-gray-400'}`}></i>
+                        </div>
+
+                        <textarea placeholder={t.cartAddress} value={detailedAddress} onChange={(e) => setDetailedAddress(e.target.value)} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-full p-3.5 border rounded-2xl text-sm font-bold outline-none transition-all shadow-inner min-h-[90px] resize-none ${isDarkMode ? 'bg-[#0b101a] border-teal-500/20 text-white focus:border-teal-400 focus:bg-[#0f172a]' : 'bg-gray-50 border-gray-200 text-slate-800 focus:border-teal-500 focus:bg-white'}`}></textarea>
+                   </div>
+               </div>
+
+               {/* ملخص الفاتورة */}
+               <div className={`p-6 border-t ${isDarkMode ? 'bg-[#080d16] border-teal-500/20' : 'bg-white border-gray-200'} shrink-0 space-y-4 shadow-[0_-10px_30px_rgba(0,0,0,0.2)]`}>
+                    
+                    <div className={`flex justify-between items-center font-tech text-sm font-bold px-1 ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
+                        <span>المجموع الفرعي الأصلي:</span>
+                        <span className={isDarkMode ? 'text-gray-100' : 'text-slate-800'}>{rawTotal.toLocaleString()} {t.currency}</span>
+                    </div>
+
+                    {/* صندوق إشعار الخصم الاحترافي */}
+                    {(autoDiscount > 0 || rawTotal >= 100000) && (
+                        <div className={`relative overflow-hidden flex flex-col gap-2 p-4 rounded-2xl border shadow-sm ${isDarkMode ? 'bg-[#061811] border-[#10b981]/30' : 'bg-green-50 border-green-200'}`}>
+                            <div className="absolute top-0 right-0 w-20 h-20 bg-[#10b981]/20 rounded-full blur-2xl pointer-events-none"></div>
+                            
+                            {autoDiscount > 0 && (
+                                <div className={`flex justify-between items-center font-tech text-sm font-bold z-10 ${isDarkMode ? 'text-[#10b981]' : 'text-green-600'}`}>
+                                    <span className="flex items-center gap-2">
+                                        <i className="fa-solid fa-gift text-lg animate-bounce"></i> خصم تراكمي:
+                                    </span>
+                                    <span className="bg-[#10b981]/10 px-2 py-1 rounded-lg border border-[#10b981]/20">
+                                        - {autoDiscount.toLocaleString()} {t.currency}
+                                    </span>
+                                </div>
+                            )}
+
+                            {rawTotal >= 100000 && (
+                                <div className={`flex justify-between items-center font-tech text-sm font-bold z-10 ${isDarkMode ? 'text-[#10b981]' : 'text-green-600'}`}>
+                                    <span className="flex items-center gap-2">
+                                        <i className="fa-solid fa-truck-fast text-lg animate-bounce"></i> أجور النقل:
+                                    </span>
+                                    <span className="bg-[#10b981]/10 px-2 py-1 rounded-lg border border-[#10b981]/20">
+                                        توصيل مجاني 🎁
+                                    </span>
+                                </div>
+                            )}
+
+                            <p className={`text-[11px] sm:text-xs font-bold mt-1 z-10 leading-relaxed ${isDarkMode ? 'text-[#10b981]/80' : 'text-green-700'}`}>
+                                {rawTotal >= 100000 
+                                  ? "مبروك! طلبك تجاوز 100 ألف، حصلت على توصيل مجاني وخصم تراكمي رائع! 🎉"
+                                  : "تم تفعيل خصم 500 دينار لكل 10 آلاف! أضف المزيد للوصول للتوصيل المجاني عند 100 ألف! 🚀"}
+                            </p>
+                        </div>
+                    )}
+
+                    <div className={`flex justify-between items-center font-tech text-sm font-bold px-1 ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
+                        <span>أجور النقل:</span>
+                        <div className="flex flex-col items-end">
+                            <span className={isDarkMode ? 'text-gray-100' : 'text-slate-800'}>
+                                {rawTotal >= 100000 ? <span className="text-green-500 font-black">مجاني</span> : `${currentDeliveryFee.toLocaleString()} ${t.currency}`}
+                            </span>
+                            {selectedGovId && <span className={`text-[10px] mt-0.5 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>{activeGov.time}</span>}
+                        </div>
+                    </div>
+
+                    <div className={`flex justify-between items-center text-xl font-black pt-4 border-t px-1 ${isDarkMode ? 'text-white border-teal-500/10' : 'text-slate-800 border-gray-200'}`}>
+                        <span>الإجمالي الكلي المطلوب:</span>
+                        <span className={`font-mono text-2xl tracking-tight ${isDarkMode ? 'text-teal-400 drop-shadow-[0_0_10px_rgba(20,184,166,0.3)]' : 'text-teal-600'}`}>
+                            {(subtotal + currentDeliveryFee).toLocaleString()} <span className="text-sm">د.ع</span>
+                        </span>
+                    </div>
+
+                    <div className="flex gap-3 mt-6 pt-2">
+                        <button type="button" onClick={() => { 
+                            if(window.confirm(lang === 'ar' ? 'هل أنت متأكد من إلغاء الطلب وإفراغ السلة؟' : 'Are you sure you want to clear the cart?')) {
+                                setCart([]); 
+                                safeCloseModal(setIsCartOpen, false); 
+                                playSynthSound(400, 'sawtooth', 0.2); 
+                            }
+                        }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`shrink-0 w-14 h-14 rounded-2xl font-extrabold transition-all shadow-md flex items-center justify-center ${isDarkMode ? 'bg-[#1a0f14] text-red-500 hover:bg-red-500 hover:text-white border border-red-500/30 hover:shadow-red-500/20' : 'bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border border-red-200'}`} title={t.cancelOrder}>
+                            <i className="fa-solid fa-trash-can text-xl"></i>
+                        </button>
+                        <button type="button" onClick={handleCheckout} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className="flex-grow h-14 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-black text-sm tracking-wider transition-all shadow-lg shadow-teal-500/20 flex items-center justify-center gap-3 hover:scale-[1.02] hover:shadow-teal-500/40">
+                            <i className="fa-solid fa-square-check text-xl"></i> {t.cartCheckout}
+                        </button>
+                    </div>
+               </div>
+            </div>
         </div>
       </div>
 
-      {isCartOpen && <div onClick={() => setIsCartOpen(false)} className={`fixed inset-0 z-40 transition-opacity ${isDarkMode ? 'bg-slate-900/80 backdrop-blur-sm' : 'bg-slate-800/40 backdrop-blur-sm'}`}></div>}
+      {isCartOpen && <div onClick={() => { safeCloseModal(setIsCartOpen, false); }} className={`fixed inset-0 z-40 transition-opacity ${isDarkMode ? 'bg-slate-900/80 backdrop-blur-sm' : 'bg-slate-800/40 backdrop-blur-sm'}`}></div>}
+
+      {/* ========================================== */}
+      {/* باقي واجهات النظام (نوافذ وتفاصيل القطع والمشاريع) */}
+      {/* ========================================== */}
 
       {selectedProduct && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
           <div 
             className={`absolute inset-0 backdrop-blur-sm ${isDarkMode ? 'bg-slate-900/90' : 'bg-slate-800/70'}`} 
-            onClick={() => { setSelectedProduct(null); playSynthSound(400, 'sine', 0.1); }}
+            onClick={() => { safeCloseModal(setSelectedProduct, null); playSynthSound(400, 'sine', 0.1); }}
           ></div>
           
           <div className={`relative w-full max-w-5xl max-h-[95vh] overflow-y-auto md:overflow-hidden rounded-3xl shadow-2xl flex flex-col md:flex-row transform transition-transform duration-300 scale-100 border ${isDarkMode ? 'bg-[#0f172a] border-teal-500/30' : 'bg-white border-teal-200'}`}>
             <button 
               type="button"
-              onClick={() => { setSelectedProduct(null); playSynthSound(400, 'sine', 0.1); }} 
+              onClick={() => { safeCloseModal(setSelectedProduct, null); playSynthSound(400, 'sine', 0.1); }} 
+              onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
               className={`absolute top-4 ${lang === 'en' ? 'left-4' : 'right-4'} z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border transition-all ${isDarkMode ? 'bg-slate-900/60 border-teal-500/30 text-teal-400 hover:bg-teal-500 hover:text-slate-900' : 'bg-white border-gray-200 text-slate-500 hover:bg-teal-50 hover:text-teal-600 shadow-sm'}`}
             >
               <i className="fas fa-times text-sm sm:text-lg"></i>
@@ -1532,10 +1700,11 @@ export default function App() {
                           allImgs = [selectedProduct.img];
                       }
                       if (allImgs.length > 0) {
-                          setActiveGallery({ list: allImgs, index: activeImageIndex, title: selectedProduct.name });
+                          safeOpenModal(setActiveGallery, { list: allImgs, index: activeImageIndex, title: selectedProduct.name });
                           playSynthSound(800, 'sine', 0.1);
                       }
                   }}
+                  onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
               >
                   {selectedProduct.images?.length > 1 && (
                       <button 
@@ -1544,6 +1713,7 @@ export default function App() {
                               setActiveImageIndex(prev => prev === 0 ? selectedProduct.images.length - 1 : prev - 1); 
                               playSynthSound(1000, 'triangle', 0.05);
                           }} 
+                          onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                           className="absolute left-2 sm:left-4 z-20 w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-slate-900/40 text-white flex items-center justify-center hover:bg-teal-500 hover:text-white transition-all backdrop-blur-md"
                       >
                           <i className="fas fa-chevron-left text-lg"></i>
@@ -1565,6 +1735,7 @@ export default function App() {
                               setActiveImageIndex(prev => prev === selectedProduct.images.length - 1 ? 0 : prev + 1); 
                               playSynthSound(1000, 'triangle', 0.05);
                           }} 
+                          onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                           className="absolute right-2 sm:right-4 z-0 w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-slate-900/40 text-white flex items-center justify-center hover:bg-teal-500 hover:text-white transition-all backdrop-blur-md"
                       >
                           <i className="fas fa-chevron-right text-lg"></i>
@@ -1597,6 +1768,7 @@ export default function App() {
                         type="button"
                         key={idx} 
                         onClick={() => { setActiveImageIndex(idx); playSynthSound(1000, 'triangle', 0.05); }}
+                        onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                         className={`flex-shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-white border-2 p-1 overflow-hidden transition-all duration-300 ${activeImageIndex === idx ? 'border-teal-500 scale-110 shadow-lg' : 'border-transparent opacity-60 hover:opacity-100 hover:border-teal-300'}`}
                       >
                         <img src={img} loading="lazy" decoding="async" alt="" className="object-contain w-full h-full mix-blend-multiply" />
@@ -1669,6 +1841,7 @@ export default function App() {
                                         type="button" 
                                         disabled={availableStock <= 0}
                                         onClick={() => handleModalQtyChange(1, availableStock)} 
+                                        onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                                         className={`w-10 h-10 rounded-lg transition-colors font-bold text-xl flex items-center justify-center disabled:cursor-not-allowed ${isDarkMode ? 'bg-teal-500/20 text-teal-400 hover:bg-teal-500 hover:text-slate-900' : 'bg-teal-50 text-teal-600 hover:bg-teal-100'}`}
                                     >+</button>
                                     
@@ -1683,6 +1856,7 @@ export default function App() {
                                         type="button" 
                                         disabled={availableStock <= 0 || modalQty <= 1}
                                         onClick={() => handleModalQtyChange(-1, availableStock)} 
+                                        onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                                         className={`w-10 h-10 rounded-lg transition-colors font-bold text-xl flex items-center justify-center disabled:cursor-not-allowed ${isDarkMode ? 'bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-slate-900' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
                                     >-</button>
                                 </div>
@@ -1699,6 +1873,7 @@ export default function App() {
                         addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock, modalQty, selectedProduct.enableWholesale, selectedProduct.discount10, selectedProduct.discount20); 
                         setModalQty(1);
                     }} 
+                    onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                     className={`relative overflow-hidden w-full py-3 sm:py-4 rounded-xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0 ? 'bg-slate-300 text-gray-500 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-white hover:scale-[1.02] hover:shadow-lg hover:-translate-y-1'}`}
                 >
                     <i className="fas fa-cart-plus text-2xl"></i> 
@@ -1749,12 +1924,13 @@ export default function App() {
                                                   key={id}
                                                   onClick={(e) => {
                                                       e.stopPropagation();
-                                                      setSelectedProduct(compProd);
+                                                      safeOpenModal(setSelectedProduct, compProd);
                                                       setActiveImageIndex(0);
                                                       setModalTab('compat');
                                                       setModalQty(1);
                                                       setModalQtyWarning('');
                                                   }}
+                                                  onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                                                   className={`cursor-pointer flex flex-col items-center border rounded-xl p-3 transition-all shadow-sm w-28 sm:w-32 shrink-0 group ${isDarkMode ? 'bg-slate-800/60 border-teal-500/20 hover:border-teal-400 hover:bg-slate-800' : 'bg-white border-gray-200 hover:border-teal-400 hover:shadow-md'}`}
                                                   title={`عرض ${compProd.name}`}
                                               >
@@ -1786,12 +1962,13 @@ export default function App() {
                                                   key={compProd.id}
                                                   onClick={(e) => {
                                                       e.stopPropagation();
-                                                      setSelectedProduct(compProd);
+                                                      safeOpenModal(setSelectedProduct, compProd);
                                                       setActiveImageIndex(0);
                                                       setModalTab('compat');
                                                       setModalQty(1);
                                                       setModalQtyWarning('');
                                                   }}
+                                                  onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                                                   className={`cursor-pointer flex flex-col items-center border rounded-xl p-3 transition-all shadow-sm w-28 sm:w-32 shrink-0 group ${isDarkMode ? 'bg-slate-800/60 border-teal-500/20 hover:border-teal-400 hover:bg-slate-800' : 'bg-white border-gray-200 hover:border-teal-400 hover:shadow-md'}`}
                                                   title={`عرض ${compProd.name}`}
                                               >
@@ -1826,14 +2003,14 @@ export default function App() {
                   {modalTab === 'links' && (
                       <div className="flex flex-col gap-4 h-fit">
                           {selectedProduct.compatLink && (
-                              <a href={selectedProduct.compatLink} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm group">
+                              <a href={selectedProduct.compatLink} target="_blank" rel="noreferrer" onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className="flex items-center justify-between p-4 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl hover:bg-blue-500 hover:text-white transition-all shadow-sm group">
                                   <span className="font-bold text-sm"><i className="fa-solid fa-link ml-2"></i> مادة تتوافق معه (رابط خارجي)</span>
                                   <i className="fa-solid fa-arrow-up-right-from-square group-hover:scale-110 transition-transform"></i>
                               </a>
                           )}
                           
                           {selectedProduct.libLink && (
-                              <a href={selectedProduct.libLink} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-orange-50 text-orange-600 border border-orange-200 rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm group">
+                              <a href={selectedProduct.libLink} target="_blank" rel="noreferrer" onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className="flex items-center justify-between p-4 bg-orange-50 text-orange-600 border border-orange-200 rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm group">
                                   <span className="font-bold text-sm"><i className="fa-solid fa-book-bookmark ml-2"></i> تحميل مكتبة الحساس / القطعة</span>
                                   <i className="fa-solid fa-arrow-up-right-from-square group-hover:scale-110 transition-transform"></i>
                               </a>
@@ -1853,13 +2030,13 @@ export default function App() {
 
       {isProjectsModalOpen && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
-           <div className={`absolute inset-0 backdrop-blur-sm ${isDarkMode ? 'bg-slate-900/90' : 'bg-slate-800/70'}`} onClick={() => setIsProjectsModalOpen(false)}></div>
+           <div className={`absolute inset-0 backdrop-blur-sm ${isDarkMode ? 'bg-slate-900/90' : 'bg-slate-800/70'}`} onClick={() => { safeCloseModal(setIsProjectsModalOpen, false); }}></div>
            <div className={`relative w-full max-w-6xl h-[90vh] flex flex-col border rounded-3xl shadow-2xl overflow-hidden ${isDarkMode ? 'bg-[#0f172a] border-teal-500/30' : 'bg-slate-50 border-teal-200'}`}>
                <div className={`flex justify-between items-center p-5 border-b ${isDarkMode ? 'border-teal-500/20 bg-slate-800/50' : 'border-gray-200 bg-white'}`}>
                   <h2 className={`text-2xl font-black flex items-center gap-3 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>
                      <i className="fa-solid fa-diagram-project text-blue-500"></i> معرض المشاريع المنجزة
                   </h2>
-                  <button onClick={() => setIsProjectsModalOpen(false)} className={`w-10 h-10 rounded-full border transition-all flex justify-center items-center ${isDarkMode ? 'border-teal-500/30 bg-slate-900/60 text-teal-400 hover:bg-red-500 hover:text-white hover:border-red-500' : 'border-gray-200 bg-white text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200'}`}>
+                  <button onClick={() => { safeCloseModal(setIsProjectsModalOpen, false); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-10 h-10 rounded-full border transition-all flex justify-center items-center ${isDarkMode ? 'border-teal-500/30 bg-slate-900/60 text-teal-400 hover:bg-red-500 hover:text-white hover:border-red-500' : 'border-gray-200 bg-white text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200'}`}>
                      <i className="fa-solid fa-xmark text-xl"></i>
                   </button>
                </div>
@@ -1885,10 +2062,11 @@ export default function App() {
                                             allImgs = [...allImgs, ...proj.images];
                                         }
                                         if (allImgs.length > 0) {
-                                            setActiveGallery({ list: allImgs, index: 0, title: proj.name });
+                                            safeOpenModal(setActiveGallery, { list: allImgs, index: 0, title: proj.name });
                                             playSynthSound(800, 'sine', 0.1);
                                         }
                                     }}
+                                    onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                                 >
                                   <img src={proj.img} decoding="async" alt={proj.name} loading="lazy" className="w-full h-full object-contain mix-blend-multiply group-hover/img:scale-110 transition-transform duration-700 p-2" />
                                   <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-transparent to-transparent opacity-60 pointer-events-none"></div>
@@ -1923,12 +2101,11 @@ export default function App() {
         </div>
       )}
 
-
       {activeGallery && (
         <div className="fixed inset-0 z-[9999999] bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-xl transition-opacity duration-300">
             <div className="absolute top-0 left-0 right-0 p-4 sm:p-6 flex justify-between items-center z-50 bg-gradient-to-b from-black/90 to-transparent">
                 <h3 className="text-white font-bold text-lg sm:text-xl drop-shadow-md truncate max-w-[80%] pr-2">{activeGallery.title}</h3>
-                <button onClick={() => { setActiveGallery(null); playSynthSound(400, 'sine', 0.1); }} className="text-white hover:text-red-500 transition-colors bg-white/10 p-2 sm:p-3 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center backdrop-blur-md hover:bg-red-500/20 flex-shrink-0">
+                <button onClick={() => { safeCloseModal(setActiveGallery, null); playSynthSound(400, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className="text-white hover:text-red-500 transition-colors bg-white/10 p-2 sm:p-3 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center backdrop-blur-md hover:bg-red-500/20 flex-shrink-0">
                     <i className="fas fa-times text-xl sm:text-2xl"></i>
                 </button>
             </div>
@@ -1939,7 +2116,7 @@ export default function App() {
                         e.stopPropagation();
                         setActiveGallery(prev => ({...prev, index: prev.index === 0 ? prev.list.length - 1 : prev.index - 1}));
                         playSynthSound(1000, 'triangle', 0.05);
-                    }} className="absolute left-2 sm:left-10 z-10 w-10 h-10 sm:w-16 sm:h-16 flex items-center justify-center bg-black/50 text-white rounded-full border border-teal-500/30 hover:bg-teal-500 hover:text-black transition-all hover:scale-110">
+                    }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className="absolute left-2 sm:left-10 z-10 w-10 h-10 sm:w-16 sm:h-16 flex items-center justify-center bg-black/50 text-white rounded-full border border-teal-500/30 hover:bg-teal-50 hover:text-black transition-all hover:scale-110">
                         <i className="fas fa-chevron-left text-lg sm:text-2xl"></i>
                     </button>
                 )}
@@ -1957,7 +2134,7 @@ export default function App() {
                         e.stopPropagation();
                         setActiveGallery(prev => ({...prev, index: prev.index === prev.list.length - 1 ? 0 : prev.index + 1}));
                         playSynthSound(1000, 'triangle', 0.05);
-                    }} className="absolute right-2 sm:right-10 z-10 w-10 h-10 sm:w-16 sm:h-16 flex items-center justify-center bg-black/50 text-white rounded-full border border-teal-500/30 hover:bg-teal-500 hover:text-black transition-all hover:scale-110">
+                    }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className="absolute right-2 sm:right-10 z-10 w-10 h-10 sm:w-16 sm:h-16 flex items-center justify-center bg-black/50 text-white rounded-full border border-teal-500/30 hover:bg-teal-500 hover:text-black transition-all hover:scale-110">
                         <i className="fas fa-chevron-right text-lg sm:text-2xl"></i>
                     </button>
                 )}
@@ -1976,6 +2153,7 @@ export default function App() {
                                     setActiveGallery(prev => ({...prev, index: idx}));
                                     playSynthSound(1200, 'triangle', 0.05);
                                 }}
+                                onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                                 className={`flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-lg sm:rounded-xl overflow-hidden border-2 transition-all duration-300 p-1 ${activeGallery.index === idx ? 'border-teal-400 scale-105 sm:scale-110 shadow-[0_0_20px_rgba(20,184,166,0.4)]' : 'border-transparent opacity-50 hover:opacity-100 hover:border-teal-500/50'}`}
                             >
                                 <img src={img} className="w-full h-full object-contain mix-blend-multiply" alt={`thumb ${idx}`} />
