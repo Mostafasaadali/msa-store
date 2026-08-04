@@ -343,8 +343,7 @@ export default function App() {
   }, [isDarkMode]);
 
   // ==========================================
-  // تتبع إحداثيات الماوس بأسلوب القصور الذاتي (Inertia Tracker)
-  // مطابق تماماً لملف index مع إحداثيات left و top لحل التداخل
+  // تتبع إحداثيات الماوس بأسلوب القصور الذاتي
   // ==========================================
   useEffect(() => {
     let animationFrameId;
@@ -363,7 +362,7 @@ export default function App() {
     };
 
     const renderCursor = () => {
-        const ease = 0.15; // معامل النعومة والقصور الذاتي
+        const ease = 0.15;
         outerX += (mouseX - outerX) * ease;
         outerY += (mouseY - outerY) * ease;
 
@@ -411,7 +410,7 @@ export default function App() {
   const playErrorBuzz = useCallback(() => playSynthSound(150, 'sawtooth', 0.4), [playSynthSound]);
 
   // ==========================================
-  // نظام إدارة النوافذ المنبثقة الذكي والرجوع السلس (Back Button Tracker)
+  // نظام إدارة النوافذ المنبثقة الذكي والتخلص من ثغرات الرجوع
   // ==========================================
   const historyDepth = useRef(0);
 
@@ -422,10 +421,9 @@ export default function App() {
   }, []);
 
   const safeCloseModal = useCallback((setter, fallbackValue = false) => {
+      setter(fallbackValue); 
       if (historyDepth.current > 0) {
           window.history.back(); 
-      } else {
-          setter(fallbackValue);
       }
   }, []);
 
@@ -888,30 +886,69 @@ export default function App() {
       }
 
       playSuccessBeep();
-      if (existing) return prevCart.map((item) => item.id === id ? { ...item, qty: item.qty + qtyToAdd } : item);
-      return [...prevCart, { id, name, price, image, qty: qtyToAdd, enableWholesale, discount10, discount20 }];
+      let newCart;
+      if (existing) {
+          newCart = prevCart.map((item) => item.id === id ? { ...item, qty: item.qty + qtyToAdd } : item);
+      } else {
+          newCart = [...prevCart, { id, name, price, image, qty: qtyToAdd, enableWholesale, discount10, discount20 }];
+      }
+      
+      // حفظ متزامن فوري لمنع الضياع أثناء الرجوع المفاجئ للمتصفح
+      localStorage.setItem('msa_store_cart', JSON.stringify(newCart));
+      localStorage.setItem('msa_store_cart_time', Date.now().toString());
+      
+      return newCart;
     });
   }, [playErrorBuzz, playSuccessBeep]);
 
   const updateQty = (id, delta) => {
     playSynthSound(1000, 'triangle', 0.05);
-    setCart((prevCart) => prevCart.map((item) => {
-      if (item.id === id) return { ...item, qty: (parseInt(item.qty) || 0) + delta };
-      return item;
-    }).filter((item) => item.qty > 0));
+    setCart((prevCart) => {
+       const newCart = prevCart.map((item) => {
+         if (item.id === id) return { ...item, qty: (parseInt(item.qty) || 0) + delta };
+         return item;
+       }).filter((item) => item.qty > 0);
+       
+       localStorage.setItem('msa_store_cart', JSON.stringify(newCart));
+       localStorage.setItem('msa_store_cart_time', Date.now().toString());
+       return newCart;
+    });
   };
 
   const setItemQty = (id, newQty) => {
-    if (newQty === '') { setCart(prev => prev.map(item => item.id === id ? { ...item, qty: '' } : item)); return; }
+    if (newQty === '') {
+       setCart(prev => {
+          const newCart = prev.map(item => item.id === id ? { ...item, qty: '' } : item);
+          localStorage.setItem('msa_store_cart', JSON.stringify(newCart));
+          localStorage.setItem('msa_store_cart_time', Date.now().toString());
+          return newCart;
+       });
+       return;
+    }
     const val = parseInt(newQty, 10);
     if (isNaN(val) || val < 0) return;
     
-    if (val === 0) setCart(prev => prev.filter(item => item.id !== id));
-    else { playSynthSound(1000, 'triangle', 0.05); setCart(prev => prev.map(item => item.id === id ? { ...item, qty: val } : item)); }
+    if (val === 0) {
+       setCart(prev => {
+          const newCart = prev.filter(item => item.id !== id);
+          localStorage.setItem('msa_store_cart', JSON.stringify(newCart));
+          localStorage.setItem('msa_store_cart_time', Date.now().toString());
+          return newCart;
+       });
+    }
+    else { 
+       playSynthSound(1000, 'triangle', 0.05); 
+       setCart(prev => {
+          const newCart = prev.map(item => item.id === id ? { ...item, qty: val } : item);
+          localStorage.setItem('msa_store_cart', JSON.stringify(newCart));
+          localStorage.setItem('msa_store_cart_time', Date.now().toString());
+          return newCart;
+       });
+    }
   };
 
   // ==========================================
-  // احتساب المجموع الآمن (مُحصن ضد ثغرات الكسور وتصفير الأسعار)
+  // احتساب المجموع الآمن
   // ==========================================
   const { subtotal, autoDiscount, rawTotal } = useMemo(() => {
       let raw = cart.reduce((acc, item) => {
@@ -929,8 +966,6 @@ export default function App() {
       }, 0);
 
       let discount = 0;
-      
-      // التخفيض التصاعدي 500 دينار لكل 10 الاف
       if (raw >= 10000) {
           const tensCount = Math.floor(raw / 10000);
           discount = (tensCount * 500);  
@@ -943,7 +978,6 @@ export default function App() {
   
   const activeGov = useMemo(() => deliveryLocations.find(g => g.id === selectedGovId) || { price: 0, time: '', name: '' }, [deliveryLocations, selectedGovId]);
   
-  // تصفير أجور التوصيل إذا كان المجموع يبلغ 100 ألف فما فوق
   const currentDeliveryFee = rawTotal >= 100000 ? 0 : (Number(activeGov.price) || 0);
 
   const handleCheckout = async () => {
@@ -1010,7 +1044,11 @@ export default function App() {
       } catch (errStock) {}
 
       alert(lang === 'ar' ? `تم استلام طلبك بنجاح! سيتم التوصيل خلال: ${activeGov.time || 'يحدد لاحقاً'}` : `Order received successfully!`);
-      setCart([]); safeCloseModal(setIsCartOpen, false); fetchProducts();
+      setCart([]);
+      localStorage.removeItem('msa_store_cart');
+      localStorage.removeItem('msa_store_cart_time');
+      safeCloseModal(setIsCartOpen, false); 
+      fetchProducts();
     } catch (errOrder) {
       alert("حدث خطأ أثناء إرسال الطلب. يرجى المحاولة لاحقاً.");
     }
@@ -1485,7 +1523,7 @@ export default function App() {
           </button>
         </div>
 
-        {/* Content Body للسلة (مقسم لعمودين للشاشات الكبيرة) - تم التعديل للسكرول في الموبايل */}
+        {/* Content Body للسلة (مقسم لعمودين للشاشات الكبيرة) */}
         <div className="flex flex-col md:flex-row flex-grow overflow-y-auto md:overflow-hidden relative z-0 cart-pro-scrollbar">
             
             {/* Right Column: قائمة المواد المطلوبة */}
@@ -1650,6 +1688,8 @@ export default function App() {
                         <button type="button" onClick={() => { 
                             if(window.confirm(lang === 'ar' ? 'هل أنت متأكد من إلغاء الطلب وإفراغ السلة؟' : 'Are you sure you want to clear the cart?')) {
                                 setCart([]); 
+                                localStorage.removeItem('msa_store_cart');
+                                localStorage.removeItem('msa_store_cart_time');
                                 safeCloseModal(setIsCartOpen, false); 
                                 playSynthSound(400, 'sawtooth', 0.2); 
                             }
@@ -1683,7 +1723,7 @@ export default function App() {
               type="button"
               onClick={() => { safeCloseModal(setSelectedProduct, null); playSynthSound(400, 'sine', 0.1); }} 
               onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-              className={`absolute top-4 ${lang === 'en' ? 'left-4' : 'right-4'} z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border transition-all ${isDarkMode ? 'bg-slate-900/60 border-teal-500/30 text-teal-400 hover:bg-teal-500 hover:text-slate-900' : 'bg-white border-gray-200 text-slate-500 hover:bg-teal-50 hover:text-teal-600 shadow-sm'}`}
+              className={`absolute top-4 ${lang === 'en' ? 'left-4' : 'right-4'} z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border transition-all ${isDarkMode ? 'bg-slate-900/60 border-teal-500/30 text-teal-400 hover:bg-teal-500 hover:text-slate-900' : 'bg-white border-gray-200 text-slate-50 hover:bg-teal-50 hover:text-teal-600 shadow-sm'}`}
             >
               <i className="fas fa-times text-sm sm:text-lg"></i>
             </button>
