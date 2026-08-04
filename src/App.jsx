@@ -1266,7 +1266,7 @@ export default function App() {
           
                     .orb-green {
               width: 40vw; height: 40vw;
-              background-color: #02ffd5; 
+              background-color: #02ddff; 
               top: -5%; right: -10%;
               animation: floatGreen 14s infinite alternate ease-in-out;
           }
@@ -1282,7 +1282,7 @@ export default function App() {
 
                     .orb-yellow {
               width: 42vw; height: 42vw;
-              background-color: #f56702;
+              background-color: #e01f09;
               bottom: -10%; right: -5%;
               animation: floatYellow 13s infinite alternate ease-in-out;
           }
