@@ -1282,7 +1282,7 @@ export default function App() {
 
                     .orb-yellow {
               width: 42vw; height: 42vw;
-              background-color: #e01f09;
+              background-color: #059985;
               bottom: -10%; right: -5%;
               animation: floatYellow 13s infinite alternate ease-in-out;
           }
