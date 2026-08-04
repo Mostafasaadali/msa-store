@@ -1257,7 +1257,7 @@ export default function App() {
 
                     .orb-red {
               width: 45vw; height: 45vw;
-              background-color: #f05023;
+              background-color: #1c22d9;
               top: -10%; left: -10%;
               animation: floatRed 12s infinite alternate ease-in-out;
           }
