@@ -149,40 +149,46 @@ const normalizeText = (text) => {
 let globalAudioCtx = null;
 
 // ==========================================
-// مكون البطاقة الذكي المعزول لتسريع الأداء
+// مكون البطاقة الذكي المعزول لتسريع الأداء (مُحدّث بالتحكم السريع ووضع القائمة)
 // ==========================================
 const ProductCard = React.memo(({
-  prod, prodInCartQty, isDarkMode, lang, t,
-  onCardMove, onCardLeave, onMouseEnter, onMouseLeave, onSelect, onAddToCart
+  prod, prodInCartQty, isDarkMode, lang, t, viewMode,
+  onCardMove, onCardLeave, onMouseEnter, onMouseLeave, onSelect, onAddToCart, onUpdateQty
 }) => {
   const stockCount = parseInt(prod.stock) || 0;
   const isOutOfStock = stockCount <= 0;
 
   return (
-    <div className="card-perspective h-full w-full min-w-0">
+    <div className={`card-perspective w-full min-w-0 ${viewMode === 'list' ? 'col-span-full' : 'h-full'}`}>
       <div 
         onMouseMove={(e) => onCardMove(e, e.currentTarget)}
         onMouseLeave={(e) => { onCardLeave(e.currentTarget); onMouseLeave(e); }}
         onMouseEnter={onMouseEnter} 
         onClick={() => onSelect(prod)}
-        className={`card-tilt cursor-pointer h-full w-full flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-5 relative group transition-all duration-300 border overflow-hidden break-words min-w-0 ${isDarkMode ? (isOutOfStock ? 'bg-neutral-900/40 border-red-500/20 hover:border-red-400/60' : 'bg-neutral-900/40 border-teal-500/20 hover:border-teal-400/60') : (isOutOfStock ? 'bg-white border-red-200 hover:border-red-400 shadow-md' : 'bg-white border-gray-100 hover:border-teal-300 shadow-xl hover:shadow-2xl')}`}
+        className={`card-tilt cursor-pointer w-full flex rounded-xl sm:rounded-2xl p-3 sm:p-5 relative group transition-all duration-300 border overflow-hidden break-words min-w-0 
+        ${viewMode === 'list' ? 'flex-row items-center sm:items-stretch h-auto gap-3 sm:gap-5' : 'flex-col h-full'}
+        ${isDarkMode ? (isOutOfStock ? 'bg-neutral-900/60 border-red-500/20 hover:border-red-400/60' : 'bg-slate-900/60 backdrop-blur-md border-teal-500/20 hover:border-teal-400/60') : (isOutOfStock ? 'bg-white border-red-200 hover:border-red-400 shadow-md' : 'bg-white/80 border-gray-100 hover:border-teal-300 shadow-xl hover:shadow-2xl backdrop-blur-sm')}`}
       >
         <div className="gloss-effect"></div>
         
         <div 
           onClick={(e) => { e.stopPropagation(); onSelect(prod); }}
-          className={`flex-shrink-0 h-28 sm:h-48 w-full rounded-lg sm:rounded-xl overflow-hidden mb-3 sm:mb-5 flex items-center justify-center border transition-all duration-300 relative cursor-pointer bg-white ${isOutOfStock ? (isDarkMode ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-red-100') : (isDarkMode ? 'border-teal-500/10 group-hover:border-teal-500/30' : 'border-gray-100')}`}
+          className={`flex-shrink-0 rounded-lg sm:rounded-xl overflow-hidden flex items-center justify-center border transition-all duration-300 relative cursor-pointer bg-white 
+          ${viewMode === 'list' ? 'w-24 h-24 sm:w-40 sm:h-40 mb-0' : 'h-28 sm:h-48 w-full mb-3 sm:mb-5'}
+          ${isOutOfStock ? (isDarkMode ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-red-100') : (isDarkMode ? 'border-teal-500/10 group-hover:border-teal-500/30' : 'border-gray-100')}`}
           title={t.viewDetails}
         >
           <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} loading="lazy" decoding="async" alt={prod.name} className={`object-contain h-full w-full max-h-full max-w-full mix-blend-multiply transition-all duration-500 p-2 ${isOutOfStock ? 'opacity-50 grayscale' : 'group-hover:scale-110 group-hover:rotate-3'}`} />
           
-          {prod.images && prod.images.length > 1 && (
+          {prod.images && prod.images.length > 1 && viewMode !== 'list' && (
              <div className={`absolute bottom-1 sm:bottom-2 ${lang === 'en' ? 'left-1 sm:left-2' : 'right-1 sm:right-2'} px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-xs font-mono shadow-md backdrop-blur-sm ${isDarkMode ? 'bg-slate-900/80 text-white' : 'bg-white/90 text-slate-800 border border-gray-200'}`}>
                 <i className="fas fa-images"></i> +{prod.images.length - 1}
              </div>
           )}
 
-          <div className={`absolute top-1 sm:top-2 ${lang === 'en' ? 'right-1 sm:right-2' : 'left-1 sm:left-2'} px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-xs font-mono font-bold border ${isDarkMode ? 'bg-teal-500/20 text-teal-600 border-teal-500/30' : 'bg-teal-50 text-teal-700 border-teal-200'}`}>{prod.chip || 'NEW MCU'}</div>
+          {viewMode !== 'list' && (
+            <div className={`absolute top-1 sm:top-2 ${lang === 'en' ? 'right-1 sm:right-2' : 'left-1 sm:left-2'} px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-xs font-mono font-bold border ${isDarkMode ? 'bg-teal-500/20 text-teal-600 border-teal-500/30' : 'bg-teal-50 text-teal-700 border-teal-200'}`}>{prod.chip || 'NEW MCU'}</div>
+          )}
           
           {isOutOfStock && (
              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center backdrop-blur-[2px] bg-slate-900/60">
@@ -197,43 +203,59 @@ const ProductCard = React.memo(({
           </div>
         </div>
 
-        <div className="flex justify-between items-center mb-2 flex-shrink-0 min-w-0 gap-1 w-full overflow-hidden">
-          <span className={`font-mono text-[9px] sm:text-[10px] tracking-widest font-bold truncate ${isDarkMode ? 'text-teal-500' : 'text-teal-600'}`}>// {prod.code || 'GENERIC'}</span>
-          {prod.category && (
-            <span className={`font-mono text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full border truncate ${prod.category === 'ادوات مشروع' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : (isDarkMode ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-teal-50 text-teal-700 border-teal-200')}`}>{prod.category}</span>
-          )}
-        </div>
-
-        <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer transition-colors break-words min-w-0 w-full ${isDarkMode ? 'text-white hover:text-teal-400' : 'text-slate-800 hover:text-teal-600'}`} onClick={(e) => { e.stopPropagation(); onSelect(prod); }}>{prod.name}</h3>
-        
-        <p className={`text-[9px] sm:text-sm mb-3 sm:mb-5 leading-relaxed line-clamp-2 flex-grow break-words min-w-0 w-full ${isDarkMode ? 'text-gray-300' : 'text-slate-500'}`}>{prod.desc || t.noDesc}</p>
-        
-        <div className={`mt-auto flex flex-col justify-between items-stretch sm:items-end pt-2 sm:pt-4 border-t gap-2 sm:gap-0 flex-shrink-0 w-full z-10 min-w-0 ${isOutOfStock ? (isDarkMode ? 'border-red-500/10' : 'border-red-100') : (isDarkMode ? 'border-teal-500/10' : 'border-gray-100')}`}>
-          <div className="w-full text-center sm:text-right min-w-0 flex justify-between items-end">
-             <div>
-                 <span className={`block text-[8px] sm:text-[10px] font-mono font-bold truncate ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>{t.price}</span>
-                 <span className={`text-xs sm:text-xl font-bold font-mono truncate block ${isOutOfStock ? 'text-red-400 opacity-60' : (isDarkMode ? 'text-teal-400' : 'text-teal-600')}`}>{prod.price?.toLocaleString() || 0}</span>
-             </div>
-             {prod.enableWholesale && (
-                 <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isDarkMode ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-yellow-100 text-yellow-700 border border-yellow-300'}`}>يتوفر خصم جملة</span>
-             )}
-          </div>
-          <button 
-            type="button" 
-            disabled={isOutOfStock}
-            onClick={(e) => { e.stopPropagation(); onAddToCart(prod); }} 
-            className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 mt-2 rounded-full font-bold text-[9px] sm:text-xs transition-all relative overflow-hidden z-20 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-white hover:bg-teal-400'}`}
-          >
-            <i className="fas fa-cart-arrow-down"></i> <span className="truncate">{isOutOfStock ? 'نافذ' : t.addToCart}</span>
-            
-            {prodInCartQty > 0 && (
-                <span className={`absolute left-1 text-[10px] font-mono px-2 py-0.5 rounded-full shadow-md animate-pulse ${isDarkMode ? 'bg-slate-900 text-teal-400' : 'bg-white text-teal-600'}`}>
-                    {prodInCartQty}
-                </span>
+        {/* Content Wrapper for Layout Adjustments */}
+        <div className={`flex flex-col flex-grow min-w-0 ${viewMode === 'list' ? 'justify-between' : 'w-full'}`}>
+          <div className="flex justify-between items-center mb-1.5 sm:mb-2 flex-shrink-0 min-w-0 gap-1 w-full overflow-hidden">
+            <span className={`font-mono text-[9px] sm:text-[10px] tracking-widest font-bold truncate ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>// {prod.code || 'GENERIC'}</span>
+            {prod.category && (
+              <span className={`font-mono text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full border truncate ${prod.category === 'ادوات مشروع' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : (isDarkMode ? 'bg-teal-500/10 text-teal-300 border-teal-500/20' : 'bg-teal-50 text-teal-700 border-teal-200')}`}>{prod.category}</span>
             )}
-          </button>
+          </div>
+
+          <h3 className={`text-[11px] sm:text-lg font-bold leading-snug mb-1 sm:mb-2 line-clamp-2 flex-shrink-0 cursor-pointer transition-colors break-words min-w-0 w-full ${isDarkMode ? 'text-white hover:text-teal-300' : 'text-slate-800 hover:text-teal-600'}`} onClick={(e) => { e.stopPropagation(); onSelect(prod); }}>{prod.name}</h3>
+          
+          <p className={`text-[9px] sm:text-sm mb-2 sm:mb-5 leading-relaxed flex-grow break-words min-w-0 w-full ${viewMode === 'list' ? 'line-clamp-3 sm:line-clamp-2' : 'line-clamp-2'} ${isDarkMode ? 'text-gray-200' : 'text-slate-500'}`}>{prod.desc || t.noDesc}</p>
+          
+          <div className={`mt-auto flex ${viewMode === 'list' ? 'flex-row items-center justify-between gap-4 pt-2 border-t' : 'flex-col justify-between items-stretch sm:items-end pt-2 sm:pt-4 border-t gap-2 sm:gap-0'} flex-shrink-0 w-full z-10 min-w-0 ${isOutOfStock ? (isDarkMode ? 'border-red-500/20' : 'border-red-100') : (isDarkMode ? 'border-teal-500/20' : 'border-gray-100')}`}>
+            
+            <div className={`text-center sm:text-right min-w-0 flex ${viewMode === 'list' ? 'flex-col items-start gap-0.5' : 'w-full justify-between items-end'}`}>
+               <div>
+                   <span className={`block text-[8px] sm:text-[10px] font-mono font-bold truncate ${isDarkMode ? 'text-gray-300' : 'text-slate-500'}`}>{t.price}</span>
+                   <span className={`text-xs sm:text-xl font-bold font-mono truncate block ${isOutOfStock ? 'text-red-400 opacity-60' : (isDarkMode ? 'text-teal-300 drop-shadow-md' : 'text-teal-600')}`}>{prod.price?.toLocaleString() || 0}</span>
+               </div>
+               {prod.enableWholesale && viewMode !== 'list' && (
+                   <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isDarkMode ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-yellow-100 text-yellow-700 border border-yellow-300'}`}>يتوفر خصم جملة</span>
+               )}
+            </div>
+
+            <div className={`${viewMode === 'list' ? 'w-auto flex-shrink-0 min-w-[100px] sm:min-w-[140px]' : 'w-full mt-2'}`}>
+              {prodInCartQty > 0 ? (
+                <div className={`flex items-center justify-between w-full h-8 sm:h-10 rounded-full border px-1 shadow-inner ${isDarkMode ? 'bg-slate-900/80 border-teal-500/40' : 'bg-slate-100 border-gray-300'}`} dir="ltr" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={(e) => { e.stopPropagation(); onUpdateQty(prod.id, -1); }} className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold transition-colors ${isDarkMode ? 'text-red-400 hover:bg-red-500/30' : 'text-red-600 hover:bg-red-100'}`}>-</button>
+                    <span className={`font-mono text-xs sm:text-sm font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{prodInCartQty}</span>
+                    <button onClick={(e) => { 
+                        e.stopPropagation(); 
+                        if(prodInCartQty >= stockCount) {
+                            alert(`الكمية المطلوبة تتجاوز المخزون المتاح.`);
+                        } else {
+                            onUpdateQty(prod.id, 1); 
+                        }
+                    }} className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold transition-colors ${isDarkMode ? 'text-teal-300 hover:bg-teal-500/30' : 'text-teal-600 hover:bg-teal-100'}`}>+</button>
+                </div>
+              ) : (
+                <button 
+                  type="button" 
+                  disabled={isOutOfStock}
+                  onClick={(e) => { e.stopPropagation(); onAddToCart(prod); }} 
+                  className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 rounded-full font-bold text-[9px] sm:text-xs transition-all relative overflow-hidden z-20 shadow-md ${isOutOfStock ? 'bg-slate-700 text-gray-400 cursor-not-allowed border border-slate-600' : 'bg-teal-500 text-white hover:bg-teal-400'}`}
+                >
+                  <i className="fas fa-cart-arrow-down"></i> <span className="truncate">{isOutOfStock ? 'نافذ' : t.addToCart}</span>
+                </button>
+              )}
+            </div>
+          </div>
+          
         </div>
-        
       </div>
     </div>
   );
@@ -244,7 +266,8 @@ const ProductCard = React.memo(({
          prev.prod.name === next.prod.name &&
          prev.prodInCartQty === next.prodInCartQty &&
          prev.isDarkMode === next.isDarkMode &&
-         prev.lang === next.lang;
+         prev.lang === next.lang &&
+         prev.viewMode === next.viewMode;
 });
 
 // ==========================================
@@ -257,6 +280,8 @@ export default function App() {
     const saved = localStorage.getItem('msa_theme');
     return saved !== null ? saved === 'dark' : true;
   });
+
+  const [viewMode, setViewMode] = useState('grid'); 
 
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -318,6 +343,7 @@ export default function App() {
   const [modalQtyWarning, setModalQtyWarning] = useState('');
 
   const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [toast, setToast] = useState(null);
   
   const [displayCount, setDisplayCount] = useState(20);
 
@@ -342,9 +368,6 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  // ==========================================
-  // تتبع إحداثيات الماوس بأسلوب القصور الذاتي
-  // ==========================================
   useEffect(() => {
     let animationFrameId;
     let mouseX = window.innerWidth / 2;
@@ -409,9 +432,11 @@ export default function App() {
   }, [playSynthSound]);
   const playErrorBuzz = useCallback(() => playSynthSound(150, 'sawtooth', 0.4), [playSynthSound]);
 
-  // ==========================================
-  // نظام إدارة النوافذ المنبثقة الذكي والتخلص من ثغرات الرجوع
-  // ==========================================
+  const showToast = useCallback((msg) => {
+      setToast(msg);
+      setTimeout(() => setToast(null), 2500);
+  }, []);
+
   const historyDepth = useRef(0);
 
   const safeOpenModal = useCallback((setter, value = true) => {
@@ -445,7 +470,6 @@ export default function App() {
       window.addEventListener('popstate', handlePopState);
       return () => window.removeEventListener('popstate', handlePopState);
   }, [activeGallery, isProjectsModalOpen, selectedProduct, isCartOpen, isSideMenuOpen, playSynthSound]);
-  // ==========================================
 
   useEffect(() => {
     const savedCart = localStorage.getItem('msa_store_cart');
@@ -886,6 +910,8 @@ export default function App() {
       }
 
       playSuccessBeep();
+      showToast(lang === 'ar' ? `تمت إضافة ${name} للسلة` : `${name} added to cart`);
+      
       let newCart;
       if (existing) {
           newCart = prevCart.map((item) => item.id === id ? { ...item, qty: item.qty + qtyToAdd } : item);
@@ -893,15 +919,14 @@ export default function App() {
           newCart = [...prevCart, { id, name, price, image, qty: qtyToAdd, enableWholesale, discount10, discount20 }];
       }
       
-      // حفظ متزامن فوري لمنع الضياع أثناء الرجوع المفاجئ للمتصفح
       localStorage.setItem('msa_store_cart', JSON.stringify(newCart));
       localStorage.setItem('msa_store_cart_time', Date.now().toString());
       
       return newCart;
     });
-  }, [playErrorBuzz, playSuccessBeep]);
+  }, [playErrorBuzz, playSuccessBeep, showToast, lang]);
 
-  const updateQty = (id, delta) => {
+  const updateQty = useCallback((id, delta) => {
     playSynthSound(1000, 'triangle', 0.05);
     setCart((prevCart) => {
        const newCart = prevCart.map((item) => {
@@ -913,7 +938,7 @@ export default function App() {
        localStorage.setItem('msa_store_cart_time', Date.now().toString());
        return newCart;
     });
-  };
+  }, [playSynthSound]);
 
   const setItemQty = (id, newQty) => {
     if (newQty === '') {
@@ -947,9 +972,6 @@ export default function App() {
     }
   };
 
-  // ==========================================
-  // احتساب المجموع الآمن
-  // ==========================================
   const { subtotal, autoDiscount, rawTotal } = useMemo(() => {
       let raw = cart.reduce((acc, item) => {
           let effectivePrice = Number(item.price) || 0;
@@ -1171,9 +1193,8 @@ export default function App() {
   }, [displayCount, filteredProducts.length]);
 
   return (
-    <div className={`tech-grid relative min-h-screen font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 flex flex-col w-full ${isDarkMode ? 'bg-[#0f172a] text-gray-100' : 'bg-[#f4f7f6] text-slate-800'}`} dir={lang === 'en' ? 'ltr' : 'rtl'}>
+    <div className={`relative min-h-screen font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 flex flex-col w-full pb-20 md:pb-0 ${isDarkMode ? 'text-gray-100' : 'text-slate-800'}`} style={{ backgroundColor: isDarkMode ? '#0f172a' : '#f4f7f6' }} dir={lang === 'en' ? 'ltr' : 'rtl'}>
       
-      {/* تضمين إستايل الماوس المخصص والسكرول بار الاحترافي لضمان عمله بسلاسة */}
       <style>{`
           .custom-cursor {
               width: 30px;
@@ -1210,10 +1231,110 @@ export default function App() {
           .cart-pro-scrollbar::-webkit-scrollbar-track { background: transparent; }
           .cart-pro-scrollbar::-webkit-scrollbar-thumb { background: rgba(20, 184, 166, 0.3); border-radius: 10px; }
           .cart-pro-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(20, 184, 166, 0.8); }
+          
+          /* ========================================================
+             تأثير كرات بدء تشغيل Windows 7 الساحرة (ألوان مايكروسوفت)
+             ======================================================== */
+          .win7-bg-container {
+              position: fixed;
+              top: 0; left: 0;
+              width: 100vw; height: 100vh;
+              z-index: 0;
+              pointer-events: none;
+              overflow: hidden;
+              background-color: transparent;
+          }
+          
+          .win7-orb {
+              position: absolute;
+              border-radius: 50%;
+              filter: blur(70px);
+              opacity: 0.3; /* قوية وواضحة جداً في الوضع الداكن */
+              will-change: transform;
+              mix-blend-mode: screen; /* لدمج الألوان بلمعان وزجاجية رائعة */
+          }
+
+          body.light-mode .win7-orb {
+              opacity: 0.5; /* تخفيف التركيز قليلاً ليتناسب مع الخلفية البيضاء */
+              mix-blend-mode: multiply;
+          }
+
+          /* كرة مايكروسوفت الحمراء */
+          .orb-red {
+              width: 45vw; height: 45vw;
+              background-color: #f05023;
+              top: -10%; left: -10%;
+              animation: floatRed 12s infinite alternate ease-in-out;
+          }
+          
+          /* كرة مايكروسوفت الخضراء */
+          .orb-green {
+              width: 40vw; height: 40vw;
+              background-color: #7fba00; 
+              top: -5%; right: -10%;
+              animation: floatGreen 14s infinite alternate ease-in-out;
+          }
+          
+          /* كرة مايكروسوفت الزرقاء */
+          .orb-blue {
+              width: 50vw; height: 50vw;
+              background-color: #00a4ef; 
+              bottom: -15%; left: -5%;
+              animation: floatBlue 15s infinite alternate ease-in-out;
+          }
+          
+          /* كرة مايكروسوفت الصفراء */
+          .orb-yellow {
+              width: 42vw; height: 42vw;
+              background-color: #ffb900;
+              bottom: -10%; right: -5%;
+              animation: floatYellow 13s infinite alternate ease-in-out;
+          }
+
+          /* مسارات حركة الألوان بحيث تتداخل بمنتصف الشاشة باستمرار */
+          @keyframes floatRed {
+              0% { transform: translate(0, 0) scale(1); }
+              50% { transform: translate(30vw, 40vh) scale(1.2); }
+              100% { transform: translate(10vw, 60vh) scale(0.9); }
+          }
+          @keyframes floatGreen {
+              0% { transform: translate(0, 0) scale(1); }
+              50% { transform: translate(-30vw, 30vh) scale(1.3); }
+              100% { transform: translate(-10vw, 50vh) scale(1.1); }
+          }
+          @keyframes floatBlue {
+              0% { transform: translate(0, 0) scale(1); }
+              50% { transform: translate(40vw, -30vh) scale(1.1); }
+              100% { transform: translate(20vw, -50vh) scale(1.3); }
+          }
+          @keyframes floatYellow {
+              0% { transform: translate(0, 0) scale(1); }
+              50% { transform: translate(-40vw, -40vh) scale(1.4); }
+              100% { transform: translate(-20vw, -20vh) scale(1); }
+          }
       `}</style>
       
+      {/* طبقة الألوان المتحركة (Windows 7 Startup Style) */}
+      <div className="win7-bg-container">
+          <div className="win7-orb orb-red"></div>
+          <div className="win7-orb orb-green"></div>
+          <div className="win7-orb orb-blue"></div>
+          <div className="win7-orb orb-yellow"></div>
+      </div>
+
       <div ref={cursorOuterRef} className="custom-cursor hidden md:block"></div>
       <div ref={cursorInnerRef} className="custom-cursor-dot hidden md:block"></div>
+
+      {toast && (
+          <div className="fixed bottom-24 md:bottom-10 left-1/2 -translate-x-1/2 z-[999999] animate-[bounce_1s_infinite]">
+              <div className={`px-5 py-2.5 rounded-full shadow-[0_10px_40px_rgba(20,184,166,0.3)] font-bold text-xs sm:text-sm flex items-center gap-3 border ${isDarkMode ? 'bg-teal-900/90 text-teal-100 border-teal-500/50 backdrop-blur-md' : 'bg-teal-50 text-teal-800 border-teal-200'}`}>
+                  <div className="w-6 h-6 rounded-full bg-teal-500 text-white flex items-center justify-center shrink-0">
+                      <i className="fas fa-check"></i>
+                  </div>
+                  {toast}
+              </div>
+          </div>
+      )}
 
       <header className={`border-b fixed top-0 left-0 right-0 z-50 px-2 sm:px-6 py-2 sm:py-3 backdrop-blur-md transition-colors duration-500 shadow-lg ${isDarkMode ? 'border-teal-500/20 bg-slate-900/90' : 'border-teal-200 bg-white/90 shadow-sm'}`}>
         <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center w-full gap-y-2">
@@ -1226,7 +1347,7 @@ export default function App() {
             <button 
               onClick={() => safeOpenModal(setIsSideMenuOpen, true)} 
               onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors cursor-pointer shadow-sm ${isDarkMode ? 'text-teal-400 bg-teal-500/10 border border-teal-500/30 hover:bg-teal-500 hover:text-slate-900' : 'text-teal-700 bg-teal-50 border border-teal-200 hover:bg-teal-500 hover:text-white'}`}
+              className={`hidden md:flex items-center gap-2 px-3 py-2 rounded-lg transition-colors cursor-pointer shadow-sm ${isDarkMode ? 'text-teal-400 bg-teal-500/10 border border-teal-500/30 hover:bg-teal-500 hover:text-slate-900' : 'text-teal-700 bg-teal-50 border border-teal-200 hover:bg-teal-500 hover:text-white'}`}
             >
               <i className="fas fa-bars text-lg"></i> <span className={`font-mono text-xs font-bold tracking-widest hidden sm:inline`}>{t.menu}</span>
             </button>
@@ -1237,7 +1358,7 @@ export default function App() {
             <button
               onClick={() => { setIsDarkMode(!isDarkMode); playSynthSound(isDarkMode ? 800 : 400, 'sine', 0.1); }}
               onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-              className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full transition-all shadow-md ${isDarkMode ? 'bg-slate-800 text-yellow-400 border border-slate-700 hover:bg-slate-700' : 'bg-teal-50 text-teal-600 border border-teal-200 hover:bg-teal-100 hover:scale-105'}`}
+              className={`hidden md:flex w-8 h-8 sm:w-10 sm:h-10 items-center justify-center rounded-full transition-all shadow-md ${isDarkMode ? 'bg-slate-800 text-yellow-400 border border-slate-700 hover:bg-slate-700' : 'bg-teal-50 text-teal-600 border border-teal-200 hover:bg-teal-100 hover:scale-105'}`}
               title={isDarkMode ? 'تفعيل الوضع الفاتح' : 'تفعيل الوضع الداكن'}
             >
               <i className={`fas ${isDarkMode ? 'fa-moon' : 'fa-sun'} text-sm sm:text-lg`}></i>
@@ -1265,20 +1386,25 @@ export default function App() {
             )}
 
             {user ? (
-              <div className={`flex items-center gap-1 sm:gap-2 rounded-full p-1 sm:px-2 shadow-inner border ${isDarkMode ? 'bg-slate-900/80 border-teal-500/30' : 'bg-slate-100 border-teal-200'}`}>
-                <img src={user.photoURL} alt="pfp" className="w-8 h-8 rounded-full border border-teal-400" />
+              <div className={`hidden md:flex items-center gap-1 sm:gap-2 rounded-full p-1 sm:px-2 shadow-inner border ${isDarkMode ? 'bg-slate-900/80 border-teal-500/30' : 'bg-slate-100 border-teal-200'}`}>
+                <img 
+                   src={user?.photoURL || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'} 
+                   onError={(e) => { e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/149/149071.png'; }} 
+                   alt="pfp" 
+                   className="w-8 h-8 rounded-full border border-teal-400 object-cover" 
+                />
                 <span className={`hidden lg:inline text-xs font-bold ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>{user.name}</span>
                 <button type="button" onClick={handleLogout} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-500/20 rounded-full transition-colors" title={t.adminLeave}>
                    <i className="fas fa-power-off"></i>
                 </button>
               </div>
             ) : (
-              <button type="button" onClick={handleGoogleLogin} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-10 h-10 sm:w-auto sm:px-4 sm:py-2 flex items-center justify-center rounded-full font-bold transition-all shadow-md bg-gradient-to-r from-teal-500 to-emerald-500 text-white`}>
+              <button type="button" onClick={handleGoogleLogin} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`hidden md:flex w-10 h-10 sm:w-auto sm:px-4 sm:py-2 items-center justify-center rounded-full font-bold transition-all shadow-md bg-gradient-to-r from-teal-500 to-emerald-500 text-white`}>
                 <i className="fab fa-google text-sm"></i> <span className="hidden sm:inline font-mono text-xs mx-2">{t.cloudLogin}</span>
               </button>
             )}
 
-            <button type="button" onClick={() => { safeOpenModal(setIsCartOpen, true); playSynthSound(800, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`relative flex items-center justify-center w-10 h-10 sm:w-auto sm:px-5 sm:py-2 rounded-full transition-all shadow-[0_0_15px_rgba(20,184,166,0.5)] bg-teal-500 text-white hover:bg-teal-400 hover:scale-105 flex-shrink-0`}>
+            <button type="button" onClick={() => { safeOpenModal(setIsCartOpen, true); playSynthSound(800, 'sine', 0.1); }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`hidden md:flex relative items-center justify-center w-10 h-10 sm:w-auto sm:px-5 sm:py-2 rounded-full transition-all shadow-[0_0_15px_rgba(20,184,166,0.5)] bg-teal-500 text-white hover:bg-teal-400 hover:scale-105 flex-shrink-0`}>
               <i className={`fas fa-shopping-cart text-lg`}></i>
               <span className="font-mono text-sm hidden sm:inline font-bold ml-2 mr-2">{totalQty.toString().padStart(2, '0')}</span>
               <span className={`absolute -top-1.5 -right-1.5 w-6 h-6 font-mono text-xs font-bold rounded-full flex items-center justify-center shadow-lg bg-red-600 text-white border-2 ${isDarkMode ? 'border-[#0f172a]' : 'border-white'}`}>{totalQty}</span>
@@ -1286,6 +1412,47 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {!isAdminMode && (
+        <div className={`md:hidden fixed bottom-0 left-0 right-0 z-40 backdrop-blur-xl border-t flex justify-around items-center px-2 py-2 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.1)] transition-colors duration-500 ${isDarkMode ? 'bg-slate-900/95 border-teal-500/20' : 'bg-white/95 border-teal-200'}`}>
+            <button onClick={() => safeOpenModal(setIsSideMenuOpen, true)} className={`flex flex-col items-center p-2 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-teal-400' : 'text-slate-500 hover:text-teal-600'}`}>
+                <i className="fas fa-bars text-xl mb-1"></i>
+                <span className="text-[10px] font-bold">{t.menu}</span>
+            </button>
+
+            <button onClick={() => document.getElementById('productsSection').scrollIntoView({ behavior: 'smooth' })} className={`flex flex-col items-center p-2 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-teal-400' : 'text-slate-500 hover:text-teal-600'}`}>
+                <i className="fa-solid fa-store text-xl mb-1"></i>
+                <span className="text-[10px] font-bold">الكتالوج</span>
+            </button>
+
+            <button onClick={() => { safeOpenModal(setIsCartOpen, true); playSynthSound(800, 'sine', 0.1); }} className="relative flex flex-col items-center p-2 -mt-6">
+                <div className="w-14 h-14 bg-gradient-to-r from-teal-500 to-emerald-500 text-white rounded-full flex items-center justify-center shadow-[0_5px_20px_rgba(20,184,166,0.4)] border-4 border-transparent bg-clip-padding" style={{boxShadow: isDarkMode ? '0 0 0 4px #0f172a' : '0 0 0 4px #f4f7f6'}}>
+                    <i className="fas fa-shopping-cart text-xl"></i>
+                    {totalQty > 0 && (
+                        <span className="absolute top-0 right-0 w-5 h-5 bg-red-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-md animate-bounce border-2 border-white dark:border-[#0f172a]">{totalQty}</span>
+                    )}
+                </div>
+                <span className={`text-[10px] font-bold mt-1 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>{t.cart}</span>
+            </button>
+
+            <button onClick={() => { setIsDarkMode(!isDarkMode); playSynthSound(isDarkMode ? 800 : 400, 'sine', 0.1); }} className={`flex flex-col items-center p-2 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-yellow-400' : 'text-slate-500 hover:text-teal-600'}`}>
+                <i className={`fas ${isDarkMode ? 'fa-sun' : 'fa-moon'} text-xl mb-1`}></i>
+                <span className="text-[10px] font-bold">{isDarkMode ? 'فاتح' : 'داكن'}</span>
+            </button>
+
+            {user ? (
+               <button onClick={handleLogout} className={`flex flex-col items-center p-2 transition-colors ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>
+                   <img src={user?.photoURL || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'} onError={(e) => { e.currentTarget.src = 'https://cdn-icons-png.flaticon.com/512/149/149071.png'; }} alt="pfp" className="w-6 h-6 rounded-full border border-teal-400 object-cover mb-0.5" />
+                   <span className="text-[10px] font-bold">خروج</span>
+               </button>
+            ) : (
+               <button onClick={handleGoogleLogin} className={`flex flex-col items-center p-2 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-teal-400' : 'text-slate-500 hover:text-teal-600'}`}>
+                   <i className={`fas fa-user text-xl mb-1`}></i>
+                   <span className="text-[10px] font-bold">دخول</span>
+               </button>
+            )}
+        </div>
+      )}
 
       <div className={`fixed inset-y-0 ${lang === 'en' ? 'left-0' : 'right-0'} w-72 shadow-[0_0_30px_rgba(0,0,0,0.8)] z-[100] transform transition-transform duration-300 flex flex-col ${isSideMenuOpen ? 'translate-x-0' : (lang === 'en' ? '-translate-x-full' : 'translate-x-full')} ${isDarkMode ? 'bg-[#1e293b] border-teal-500/20' : 'bg-white border-teal-200'}`}>
         <div className={`p-5 border-b flex justify-between items-center ${isDarkMode ? 'border-teal-500/20 bg-slate-900/50' : 'border-teal-100 bg-slate-50'}`}>
@@ -1295,7 +1462,7 @@ export default function App() {
           </button>
         </div>
         
-        <div className="p-5 flex flex-col gap-4 flex-grow overflow-y-auto custom-scrollbar">
+        <div className="p-5 flex flex-col gap-4 flex-grow overflow-y-auto custom-scrollbar pb-24 md:pb-5">
           
           <button onClick={handleProjectsClick} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500 hover:text-slate-900' : 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-500 hover:text-white'}`}>
             <i className="fa-solid fa-diagram-project text-2xl"></i> 
@@ -1333,55 +1500,57 @@ export default function App() {
       )}
 
       {isAdminMode && user?.uid === ADMIN_UID ? (
-        <Suspense fallback={<div className="flex-grow flex items-center justify-center min-h-screen text-teal-500 font-bold animate-pulse text-xl"><i className="fas fa-spinner fa-spin ml-2"></i> جاري تحميل بيئة الإدارة السريعة...</div>}>
-            <AdminPanel 
-            products={products} setProducts={setProducts}
-            handleSaveProduct={handleSaveProduct} handleDeleteProduct={handleDeleteProduct} handleEditClick={handleEditClick}
-            newProdName={newProdName} setNewProdName={setNewProdName}
-            newProdPrice={newProdPrice} setNewProdPrice={setNewProdPrice}
-            newProdImg={newProdImg} setNewProdImg={setNewProdImg}
-            newProdDesc={newProdDesc} setNewProdDesc={setNewProdDesc} 
-            newProdImages={newProdImages} setNewProdImages={setNewProdImages} 
-            newProdStock={newProdStock} setNewProdStock={setNewProdStock} 
-            newProdOrderIndex={newProdOrderIndex} setNewProdOrderIndex={setNewProdOrderIndex}
-            newProdCategory={newProdCategory} setNewProdCategory={setNewProdCategory}
-            categories={categories}
-            handleAddCategory={handleAddCategory}
-            handleDeleteCategory={handleDeleteCategory}
-            handleEditCategory={handleEditCategory}
-            newProdChip={newProdChip} setNewProdChip={setNewProdChip}
-            newProdCode={newProdCode} setNewProdCode={setNewProdCode}
-            
-            newProdCompatLink={newProdCompatLink} setNewProdCompatLink={setNewProdCompatLink}
-            newProdCompatIds={newProdCompatIds} setNewProdCompatIds={setNewProdCompatIds}
-            newProdLibLink={newProdLibLink} setNewProdLibLink={setNewProdLibLink}
-            newProdCodeSnippet={newProdCodeSnippet} setNewProdCodeSnippet={setNewProdCodeSnippet}
-            
-            newProdEnableWholesale={newProdEnableWholesale} setNewProdEnableWholesale={setNewProdEnableWholesale}
-            newProdDiscount10={newProdDiscount10} setNewProdDiscount10={setNewProdDiscount10}
-            newProdDiscount20={newProdDiscount20} setNewProdDiscount20={setNewProdDiscount20}
+        <div className="relative z-10">
+          <Suspense fallback={<div className="flex-grow flex items-center justify-center min-h-screen text-teal-500 font-bold animate-pulse text-xl"><i className="fas fa-spinner fa-spin ml-2"></i> جاري تحميل بيئة الإدارة السريعة...</div>}>
+              <AdminPanel 
+              products={products} setProducts={setProducts}
+              handleSaveProduct={handleSaveProduct} handleDeleteProduct={handleDeleteProduct} handleEditClick={handleEditClick}
+              newProdName={newProdName} setNewProdName={setNewProdName}
+              newProdPrice={newProdPrice} setNewProdPrice={setNewProdPrice}
+              newProdImg={newProdImg} setNewProdImg={setNewProdImg}
+              newProdDesc={newProdDesc} setNewProdDesc={setNewProdDesc} 
+              newProdImages={newProdImages} setNewProdImages={setNewProdImages} 
+              newProdStock={newProdStock} setNewProdStock={setNewProdStock} 
+              newProdOrderIndex={newProdOrderIndex} setNewProdOrderIndex={setNewProdOrderIndex}
+              newProdCategory={newProdCategory} setNewProdCategory={setNewProdCategory}
+              categories={categories}
+              handleAddCategory={handleAddCategory}
+              handleDeleteCategory={handleDeleteCategory}
+              handleEditCategory={handleEditCategory}
+              newProdChip={newProdChip} setNewProdChip={setNewProdChip}
+              newProdCode={newProdCode} setNewProdCode={setNewProdCode}
+              
+              newProdCompatLink={newProdCompatLink} setNewProdCompatLink={setNewProdCompatLink}
+              newProdCompatIds={newProdCompatIds} setNewProdCompatIds={setNewProdCompatIds}
+              newProdLibLink={newProdLibLink} setNewProdLibLink={setNewProdLibLink}
+              newProdCodeSnippet={newProdCodeSnippet} setNewProdCodeSnippet={setNewProdCodeSnippet}
+              
+              newProdEnableWholesale={newProdEnableWholesale} setNewProdEnableWholesale={setNewProdEnableWholesale}
+              newProdDiscount10={newProdDiscount10} setNewProdDiscount10={setNewProdDiscount10}
+              newProdDiscount20={newProdDiscount20} setNewProdDiscount20={setNewProdDiscount20}
 
-            projectsList={projectsList} setProjectsList={setProjectsList} fetchProjectsData={fetchProjectsData}
-            
-            externalLinks={externalLinks} setExternalLinks={setExternalLinks}
+              projectsList={projectsList} setProjectsList={setProjectsList} fetchProjectsData={fetchProjectsData}
+              
+              externalLinks={externalLinks} setExternalLinks={setExternalLinks}
 
-            editProdId={editProdId}
-            orders={orders} fetchOrders={fetchOrders}
-            handleDeleteOrder={handleDeleteOrder} 
-            handleCancelOrder={handleCancelOrder}
-            handleCompleteOrder={handleCompleteOrder} 
-            visitorCount={visitorCount}
-            handleResetVisitors={handleResetVisitors} 
-            deliveryLocations={deliveryLocations} 
-            setDeliveryLocations={setDeliveryLocations} 
-            
-            cartAnnouncement={cartAnnouncement}
-            handleSaveCartAnnouncement={handleSaveCartAnnouncement}
-            />
-        </Suspense>
+              editProdId={editProdId}
+              orders={orders} fetchOrders={fetchOrders}
+              handleDeleteOrder={handleDeleteOrder} 
+              handleCancelOrder={handleCancelOrder}
+              handleCompleteOrder={handleCompleteOrder} 
+              visitorCount={visitorCount}
+              handleResetVisitors={handleResetVisitors} 
+              deliveryLocations={deliveryLocations} 
+              setDeliveryLocations={setDeliveryLocations} 
+              
+              cartAnnouncement={cartAnnouncement}
+              handleSaveCartAnnouncement={handleSaveCartAnnouncement}
+              />
+          </Suspense>
+        </div>
       ) : (
         <div className="flex-grow flex flex-col w-full">
-          <section className="min-h-auto flex flex-col justify-center items-center text-center px-4 sm:px-8 pt-32 pb-10 relative overflow-hidden">
+          <section className="relative z-10 min-h-auto flex flex-col justify-center items-center text-center px-4 sm:px-8 pt-32 pb-10 overflow-hidden">
             <span className={`text-6xl sm:text-7xl font-bold tracking-tighter uppercase m-auto p-4 sm:p-7 leading-none text-[#4ef542]`}>M <span className="text-[#ff8800]">S</span> A</span>
             <span className={`font-mono text-lg sm:text-2xl tracking-[0.04em] mb-3 animate-deep-pulse ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>{t.heroSub}</span>
             
@@ -1405,7 +1574,7 @@ export default function App() {
             </div>
           </section>
 
-          <section className={`max-w-7xl mx-auto px-2 sm:px-4 py-4 border-t flex-grow w-full ${isDarkMode ? 'border-teal-500/10' : 'border-teal-200'}`} id="productsSection">
+          <section className={`relative z-10 max-w-7xl mx-auto px-2 sm:px-4 py-4 border-t flex-grow w-full ${isDarkMode ? 'border-teal-500/10' : 'border-teal-200'}`} id="productsSection">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4 px-2">
               <div>
                 <h2 className={`text-2xl md:text-5xl font-extrabold tracking-tight mt-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{t.catTitle}</h2>
@@ -1424,45 +1593,60 @@ export default function App() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onMouseEnter={handleMouseEnterInteractive} 
                 onMouseLeave={handleMouseLeaveInteractive}
-                className={`w-full p-3 sm:p-4 ${lang === 'en' ? 'pl-12' : 'pr-12'} rounded-2xl text-xs sm:text-sm outline-none transition-all shadow-lg focus:ring-2 focus:ring-teal-300 ${isDarkMode ? 'border border-teal-500 bg-white text-slate-900 placeholder-gray-500 focus:border-teal-600' : 'border border-teal-200 bg-white text-slate-900 placeholder-slate-400 focus:border-teal-500 shadow-teal-500/10'}`}
+                className={`w-full p-3 sm:p-4 ${lang === 'en' ? 'pl-12' : 'pr-12'} rounded-2xl text-xs sm:text-sm outline-none transition-all shadow-lg focus:ring-2 focus:ring-teal-300 ${isDarkMode ? 'border border-teal-500 bg-[#0f172a] text-white placeholder-gray-500 focus:border-teal-400' : 'border border-teal-200 bg-white text-slate-900 placeholder-slate-400 focus:border-teal-500 shadow-teal-500/10'}`}
               />
             </div>
 
-            <div className={`flex flex-wrap gap-2 mb-6 px-2 justify-center md:justify-start custom-scrollbar ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
-               <button 
-                  onClick={() => setSelectedCatFilter('')} 
-                  onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-                  className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
-               >
-                  All / الكل
-               </button>
-
-               <button 
-                  onClick={() => setSelectedCatFilter('ادوات مشروع')} 
-                  onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-                  className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-md flex items-center gap-2 ${selectedCatFilter === 'ادوات مشروع' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold border-transparent shadow-[0_0_15px_rgba(147,51,234,0.5)] scale-105' : (isDarkMode ? 'bg-[#1e1136] text-purple-400 border-purple-500/30 hover:border-purple-400 hover:text-purple-300' : 'bg-purple-50 text-purple-700 border-purple-200 hover:border-purple-400 hover:text-purple-600')}`}
-               >
-                  <i className="fa-solid fa-toolbox"></i> ادوات مشروع
-               </button>
-
-               {categories.map(c => {
-                   if (c.name === 'ادوات مشروع') return null; 
-                   return (
+            {/* أدوات الفلترة و تبديل وضع العرض */}
+            <div className="flex flex-col gap-3 mb-6 px-2 w-full">
+                <div className="flex justify-between items-center gap-2 w-full">
+                    <div className={`flex flex-wrap gap-2 flex-grow custom-scrollbar overflow-x-auto pb-1 ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
                        <button 
-                          key={c.id} 
-                          onClick={() => setSelectedCatFilter(c.name)} 
+                          onClick={() => setSelectedCatFilter('')} 
                           onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-                          className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
+                          className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
                        >
-                          {c.name}
+                          All / الكل
                        </button>
-                   );
-               })}
+
+                       <button 
+                          onClick={() => setSelectedCatFilter('ادوات مشروع')} 
+                          onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
+                          className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-md flex items-center gap-2 ${selectedCatFilter === 'ادوات مشروع' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold border-transparent shadow-[0_0_15px_rgba(147,51,234,0.5)] scale-105' : (isDarkMode ? 'bg-[#1e1136]/80 backdrop-blur-md text-purple-400 border-purple-500/30 hover:border-purple-400 hover:text-purple-300' : 'bg-purple-50/80 backdrop-blur-md text-purple-700 border-purple-200 hover:border-purple-400 hover:text-purple-600')}`}
+                       >
+                          <i className="fa-solid fa-toolbox"></i> ادوات مشروع
+                       </button>
+
+                       {categories.map(c => {
+                           if (c.name === 'ادوات مشروع') return null; 
+                           return (
+                               <button 
+                                  key={c.id} 
+                                  onClick={() => setSelectedCatFilter(c.name)} 
+                                  onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
+                                  className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
+                               >
+                                  {c.name}
+                               </button>
+                           );
+                       })}
+                    </div>
+                    
+                    {/* زر التبديل بين القائمة والشبكة */}
+                    <div className={`flex items-center gap-1 border rounded-full p-1 shrink-0 shadow-sm ${isDarkMode ? 'bg-slate-800/80 backdrop-blur-md border-teal-500/30' : 'bg-white/80 backdrop-blur-md border-teal-200'}`}>
+                        <button onClick={() => setViewMode('grid')} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${viewMode === 'grid' ? 'bg-teal-500 text-white shadow-md' : 'text-gray-400 hover:text-teal-500'}`} title="عرض شبكي">
+                            <i className="fa-solid fa-border-all text-sm"></i>
+                        </button>
+                        <button onClick={() => setViewMode('list')} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${viewMode === 'list' ? 'bg-teal-500 text-white shadow-md' : 'text-gray-400 hover:text-teal-500'}`} title="عرض كقائمة">
+                            <i className="fa-solid fa-list-ul text-sm"></i>
+                        </button>
+                    </div>
+                </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-6 items-stretch pb-12 w-full px-1 sm:px-2">
+            <div className={`${viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-6' : 'flex flex-col gap-3 sm:gap-4'} items-stretch w-full px-1 sm:px-2`}>
               {filteredProducts.length === 0 ? (
-                <div className={`col-span-2 sm:col-span-3 lg:col-span-4 text-center py-16 border rounded-2xl border-dashed mx-2 ${isDarkMode ? 'border-teal-500/20 bg-slate-800/40' : 'border-teal-300 bg-white'}`}>
+                <div className={`col-span-2 sm:col-span-3 lg:col-span-4 text-center py-16 border rounded-2xl border-dashed mx-2 ${isDarkMode ? 'border-teal-500/20 bg-slate-800/40' : 'border-teal-300 bg-white/80'}`}>
                   <i className="fas fa-microchip text-3xl sm:text-5xl text-teal-500/30 mb-4 animate-pulse"></i>
                   <h3 className={`text-lg sm:text-xl font-bold ${isDarkMode ? 'text-gray-300' : 'text-slate-800'}`}>{t.notFoundTitle}</h3>
                   <p className={`text-xs sm:text-sm mt-2 ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>{t.notFoundDesc}</p>
@@ -1477,12 +1661,14 @@ export default function App() {
                         isDarkMode={isDarkMode}
                         lang={lang}
                         t={t}
+                        viewMode={viewMode}
                         onCardMove={handleCardMove}
                         onCardLeave={handleCardLeave}
                         onMouseEnter={handleMouseEnterInteractive}
                         onMouseLeave={handleMouseLeaveInteractive}
                         onSelect={handleProductSelect}
                         onAddToCart={handleAddToCartCard}
+                        onUpdateQty={updateQty}
                      />
                   ))}
                   
@@ -1496,7 +1682,7 @@ export default function App() {
         </div>
       )}
 
-      <footer className={`w-full border-t py-8 flex flex-col items-center justify-center mt-auto ${isDarkMode ? 'bg-[#0b1120] border-teal-500/20' : 'bg-white border-teal-200'}`}>
+      <footer className={`relative z-10 w-full border-t py-8 flex flex-col items-center justify-center mt-auto ${isDarkMode ? 'bg-[#0b1120]/80 backdrop-blur-md border-teal-500/20' : 'bg-white/80 backdrop-blur-md border-teal-200'} pb-24 md:pb-8`}>
          <div className="text-center">
             <p className={`font-mono text-sm tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>جميع الحقوق محفوظة لدى MSA &copy; 2026</p>
          </div>
@@ -1505,7 +1691,7 @@ export default function App() {
       {/* ========================================== */}
       {/* سلة الطلبات الرقمية (تصميم احترافي مطابق للصورة) */}
       {/* ========================================== */}
-      <div className={`fixed inset-y-0 ${lang === 'en' ? 'right-0' : 'left-0'} w-full xl:w-[950px] shadow-[0_0_60px_rgba(0,0,0,0.9)] z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] flex flex-col ${isCartOpen ? 'translate-x-0' : (lang === 'en' ? 'translate-x-full' : '-translate-x-full')} ${isDarkMode ? 'bg-[#080c14] border-teal-500/30' : 'bg-white border-teal-200'}`}>
+      <div className={`fixed inset-y-0 ${lang === 'en' ? 'right-0' : 'left-0'} w-full xl:w-[950px] shadow-[0_0_60px_rgba(0,0,0,0.9)] z-[110] transform transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] flex flex-col ${isCartOpen ? 'translate-x-0' : (lang === 'en' ? 'translate-x-full' : '-translate-x-full')} ${isDarkMode ? 'bg-[#080c14] border-teal-500/30' : 'bg-white border-teal-200'}`}>
         
         {/* Header السلة */}
         <div className={`h-20 px-6 flex justify-between items-center shrink-0 border-b relative z-10 ${isDarkMode ? 'bg-[#0b101a] border-teal-500/20' : 'bg-slate-50 border-teal-100'}`}>
@@ -1524,7 +1710,7 @@ export default function App() {
         </div>
 
         {/* Content Body للسلة (مقسم لعمودين للشاشات الكبيرة) */}
-        <div className="flex flex-col md:flex-row flex-grow overflow-y-auto md:overflow-hidden relative z-0 cart-pro-scrollbar">
+        <div className="flex flex-col md:flex-row flex-grow overflow-y-auto md:overflow-hidden relative z-0 cart-pro-scrollbar pb-20 md:pb-0">
             
             {/* Right Column: قائمة المواد المطلوبة */}
             <div className={`w-full md:w-[55%] flex flex-col h-auto md:h-full shrink-0 border-b md:border-b-0 ${isDarkMode ? 'bg-transparent border-teal-500/20 md:border-l' : 'bg-slate-50/50 border-gray-200 md:border-r'}`}>
@@ -1705,14 +1891,14 @@ export default function App() {
         </div>
       </div>
 
-      {isCartOpen && <div onClick={() => { safeCloseModal(setIsCartOpen, false); }} className={`fixed inset-0 z-40 transition-opacity ${isDarkMode ? 'bg-slate-900/80 backdrop-blur-sm' : 'bg-slate-800/40 backdrop-blur-sm'}`}></div>}
+      {isCartOpen && <div onClick={() => { safeCloseModal(setIsCartOpen, false); }} className={`fixed inset-0 z-[100] transition-opacity ${isDarkMode ? 'bg-slate-900/80 backdrop-blur-sm' : 'bg-slate-800/40 backdrop-blur-sm'}`}></div>}
 
       {/* ========================================== */}
       {/* باقي واجهات النظام (نوافذ وتفاصيل القطع والمشاريع) */}
       {/* ========================================== */}
 
       {selectedProduct && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-2 sm:p-6 transition-opacity duration-300">
           <div 
             className={`absolute inset-0 backdrop-blur-sm ${isDarkMode ? 'bg-slate-900/90' : 'bg-slate-800/70'}`} 
             onClick={() => { safeCloseModal(setSelectedProduct, null); playSynthSound(400, 'sine', 0.1); }}
