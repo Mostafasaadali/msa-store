@@ -148,9 +148,6 @@ const normalizeText = (text) => {
 
 let globalAudioCtx = null;
 
-// ==========================================
-// مكون البطاقة الذكي المعزول لتسريع الأداء (مُحدّث بالتحكم السريع ووضع القائمة)
-// ==========================================
 const ProductCard = React.memo(({
   prod, prodInCartQty, isDarkMode, lang, t, viewMode,
   onCardMove, onCardLeave, onMouseEnter, onMouseLeave, onSelect, onAddToCart, onUpdateQty
@@ -1247,13 +1244,13 @@ export default function App() {
               position: absolute;
               border-radius: 50%;
               filter: blur(70px);
-              opacity: 0.2; 
+              opacity: 0.4; 
               will-change: transform;
               mix-blend-mode: screen; 
           }
 
           body.light-mode .win7-orb {
-              opacity: 0.5; 
+              opacity: 0.7; 
               mix-blend-mode: multiply;
           }
 
