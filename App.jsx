@@ -1614,12 +1614,12 @@ export default function App() {
 
             {/* أدوات الفلترة و تبديل وضع العرض */}
             <div className="flex flex-col gap-3 mb-6 px-2 w-full">
-                <div className="flex justify-between items-center gap-2 w-full">
-                    <div className={`flex flex-wrap gap-2 flex-grow custom-scrollbar overflow-x-auto pb-1 ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 w-full">
+                    <div className={`flex flex-nowrap gap-2 w-full sm:flex-grow custom-scrollbar overflow-x-auto pb-2 scroll-smooth ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
                        <button 
                           onClick={() => setSelectedCatFilter('')} 
                           onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-                          className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
+                          className={`shrink-0 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
                        >
                           All / الكل
                        </button>
@@ -1627,7 +1627,7 @@ export default function App() {
                        <button 
                           onClick={() => setSelectedCatFilter('ادوات مشروع')} 
                           onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-                          className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-md flex items-center gap-2 ${selectedCatFilter === 'ادوات مشروع' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold border-transparent shadow-[0_0_15px_rgba(147,51,234,0.5)] scale-105' : (isDarkMode ? 'bg-[#1e1136]/80 backdrop-blur-md text-purple-400 border-purple-500/30 hover:border-purple-400 hover:text-purple-300' : 'bg-purple-50/80 backdrop-blur-md text-purple-700 border-purple-200 hover:border-purple-400 hover:text-purple-600')}`}
+                          className={`shrink-0 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-md flex items-center gap-2 ${selectedCatFilter === 'ادوات مشروع' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold border-transparent shadow-[0_0_15px_rgba(147,51,234,0.5)] scale-105' : (isDarkMode ? 'bg-[#1e1136]/80 backdrop-blur-md text-purple-400 border-purple-500/30 hover:border-purple-400 hover:text-purple-300' : 'bg-purple-50/80 backdrop-blur-md text-purple-700 border-purple-200 hover:border-purple-400 hover:text-purple-600')}`}
                        >
                           <i className="fa-solid fa-toolbox"></i> ادوات مشروع
                        </button>
@@ -1639,7 +1639,7 @@ export default function App() {
                                   key={c.id} 
                                   onClick={() => setSelectedCatFilter(c.name)} 
                                   onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-                                  className={`px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
+                                  className={`shrink-0 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
                                >
                                   {c.name}
                                </button>
@@ -1648,7 +1648,7 @@ export default function App() {
                     </div>
                     
                     {/* زر التبديل بين القائمة والشبكة */}
-                    <div className={`flex items-center gap-1 border rounded-full p-1 shrink-0 shadow-sm ${isDarkMode ? 'bg-slate-800/80 backdrop-blur-md border-teal-500/30' : 'bg-white/80 backdrop-blur-md border-teal-200'}`}>
+                    <div className={`flex items-center gap-1 border rounded-full p-1 shrink-0 shadow-sm self-end sm:self-auto ${isDarkMode ? 'bg-slate-800/80 backdrop-blur-md border-teal-500/30' : 'bg-white/80 backdrop-blur-md border-teal-200'}`}>
                         <button onClick={() => setViewMode('grid')} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${viewMode === 'grid' ? 'bg-teal-500 text-white shadow-md' : 'text-gray-400 hover:text-teal-500'}`} title="عرض شبكي">
                             <i className="fa-solid fa-border-all text-sm"></i>
                         </button>
