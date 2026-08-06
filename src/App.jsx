@@ -148,6 +148,9 @@ const normalizeText = (text) => {
 
 let globalAudioCtx = null;
 
+// ==========================================
+// مكون البطاقة الذكي المعزول لتسريع الأداء (مُحدّث بالتحكم السريع ووضع القائمة)
+// ==========================================
 const ProductCard = React.memo(({
   prod, prodInCartQty, isDarkMode, lang, t, viewMode,
   onCardMove, onCardLeave, onMouseEnter, onMouseLeave, onSelect, onAddToCart, onUpdateQty
@@ -873,19 +876,24 @@ export default function App() {
     document.body.classList.remove('hover-state');
   }, []);
 
+  // --- تحديث تسريع الأداء: استخدام requestAnimationFrame لتحسين الأداء أثناء تحريك الفأرة ---
   const handleCardMove = useCallback((e, card) => {
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
-    const rect = card.getBoundingClientRect();
-    const x = e.clientX - rect.left; const y = e.clientY - rect.top;
-    card.style.setProperty('--mouse-x', `${(x / rect.width) * 100}%`); card.style.setProperty('--mouse-y', `${(y / rect.height) * 100}%`);
-    const centerX = rect.width / 2; const centerY = rect.height / 2;
-    const rotateX = ((centerY - y) / centerY) * 12; const rotateY = ((x - centerX) / centerX) * 12;
-    card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`;
+    window.requestAnimationFrame(() => {
+      const rect = card.getBoundingClientRect();
+      const x = e.clientX - rect.left; const y = e.clientY - rect.top;
+      card.style.setProperty('--mouse-x', `${(x / rect.width) * 100}%`); card.style.setProperty('--mouse-y', `${(y / rect.height) * 100}%`);
+      const centerX = rect.width / 2; const centerY = rect.height / 2;
+      const rotateX = ((centerY - y) / centerY) * 12; const rotateY = ((x - centerX) / centerX) * 12;
+      card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02) translateZ(0)`;
+    });
   }, []);
 
   const handleCardLeave = useCallback((card) => {
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
-    card.style.transform = `rotateX(0deg) rotateY(0deg) scale(1)`;
+    window.requestAnimationFrame(() => {
+      card.style.transform = `rotateX(0deg) rotateY(0deg) scale(1) translateZ(0)`;
+    });
   }, []);
 
   const addToCart = useCallback((id, name, price, image, stock, qtyToAdd = 1, enableWholesale = false, discount10 = 250, discount20 = 500) => {
@@ -1008,6 +1016,14 @@ export default function App() {
         return;
     }
     
+    // --- التعديل المطلوب: منع رقم الهاتف إذا كان يتكون من 10 أرقام فقط ---
+    const phoneClean = customerPhone.replace(/\s+/g, '');
+    if(phoneClean.length === 10) {
+        alert(lang === 'ar' ? 'الرجاء إدخال رقم هاتف صحيح. لا يمكن إتمام الطلب برقم يتكون من 10 أرقام فقط.' : 'Please enter a valid phone number. Cannot complete order with 10 digits.');
+        return;
+    }
+    // ----------------------------------------------------------------------
+
     playSynthSound(1500, 'sine', 0.5);
     
     const payloadData = {
@@ -1229,7 +1245,9 @@ export default function App() {
           .cart-pro-scrollbar::-webkit-scrollbar-thumb { background: rgba(20, 184, 166, 0.3); border-radius: 10px; }
           .cart-pro-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(20, 184, 166, 0.8); }
           
-
+          /* ========================================================
+             تأثير كرات بدء تشغيل Windows 7 الساحرة (ألوان مايكروسوفت)
+             ======================================================== */
           .win7-bg-container {
               position: fixed;
               top: 0; left: 0;
@@ -1238,80 +1256,81 @@ export default function App() {
               pointer-events: none;
               overflow: hidden;
               background-color: transparent;
+              will-change: transform;
           }
           
           .win7-orb {
               position: absolute;
               border-radius: 50%;
               filter: blur(70px);
-              opacity: 0.6; 
-              will-change: transform;
+              opacity: 0.2; 
+              will-change: transform, opacity;
+              transform: translateZ(0); /* تسريع الأجهزة Hardware Acceleration */
               mix-blend-mode: screen; 
           }
 
           body.light-mode .win7-orb {
-              opacity: 0.4; 
+              opacity: 0.5; 
               mix-blend-mode: multiply;
           }
 
-
-                    .orb-red {
+          /* كرة مايكروسوفت الحمراء */
+          .orb-red {
               width: 45vw; height: 45vw;
-              background-color: #1c22d9;
+              background-color: #6a76f9;
               top: -10%; left: -10%;
               animation: floatRed 12s infinite alternate ease-in-out;
           }
           
-
-          
-                    .orb-green {
+          /* كرة مايكروسوفت الخضراء */
+          .orb-green {
               width: 40vw; height: 40vw;
-              background-color: #02ddff; 
+              background-color: #02fff2; 
               top: -5%; right: -10%;
               animation: floatGreen 14s infinite alternate ease-in-out;
           }
           
-
-                    .orb-blue {
+          /* كرة مايكروسوفت الزرقاء */
+          .orb-blue {
               width: 50vw; height: 50vw;
               background-color: #00a4ef; 
               bottom: -15%; left: -5%;
               animation: floatBlue 15s infinite alternate ease-in-out;
           }
           
-
-                    .orb-yellow {
+          /* كرة مايكروسوفت الصفراء */
+          .orb-yellow {
               width: 42vw; height: 42vw;
-              background-color: #059985;
+              background-color: #6702f5;
               bottom: -10%; right: -5%;
               animation: floatYellow 13s infinite alternate ease-in-out;
           }
 
-
-                    @keyframes floatRed {
-              0% { transform: translate(0, 0) scale(1); }
-              50% { transform: translate(30vw, 40vh) scale(1.2); }
-              100% { transform: translate(10vw, 60vh) scale(0.9); }
+          /* مسارات حركة الألوان بحيث تتداخل بمنتصف الشاشة باستمرار */
+          @keyframes floatRed {
+              0% { transform: translate3d(0, 0, 0) scale(1); }
+              50% { transform: translate3d(30vw, 40vh, 0) scale(1.2); }
+              100% { transform: translate3d(10vw, 60vh, 0) scale(0.9); }
           }
           @keyframes floatGreen {
-              0% { transform: translate(0, 0) scale(1); }
-              50% { transform: translate(-30vw, 30vh) scale(1.3); }
-              100% { transform: translate(-10vw, 50vh) scale(1.1); }
+              0% { transform: translate3d(0, 0, 0) scale(1); }
+              50% { transform: translate3d(-30vw, 30vh, 0) scale(1.3); }
+              100% { transform: translate3d(-10vw, 50vh, 0) scale(1.1); }
           }
           @keyframes floatBlue {
-              0% { transform: translate(0, 0) scale(1); }
-              50% { transform: translate(40vw, -30vh) scale(1.1); }
-              100% { transform: translate(20vw, -50vh) scale(1.3); }
+              0% { transform: translate3d(0, 0, 0) scale(1); }
+              50% { transform: translate3d(40vw, -30vh, 0) scale(1.1); }
+              100% { transform: translate3d(20vw, -50vh, 0) scale(1.3); }
           }
           @keyframes floatYellow {
-              0% { transform: translate(0, 0) scale(1); }
-              50% { transform: translate(-40vw, -40vh) scale(1.4); }
-              100% { transform: translate(-20vw, -20vh) scale(1); }
+              0% { transform: translate3d(0, 0, 0) scale(1); }
+              50% { transform: translate3d(-40vw, -40vh, 0) scale(1.4); }
+              100% { transform: translate3d(-20vw, -20vh, 0) scale(1); }
           }
       `}</style>
       
-
-            <div className="win7-bg-container">
+      {/* طبقة الألوان المتحركة (Windows 7 Startup Style) */}
+      <div className="win7-bg-container">
           <div className="win7-orb orb-red"></div>
           <div className="win7-orb orb-green"></div>
           <div className="win7-orb orb-blue"></div>
@@ -1593,8 +1612,8 @@ export default function App() {
               />
             </div>
 
-
-                        <div className="flex flex-col gap-3 mb-6 px-2 w-full">
+            {/* أدوات الفلترة و تبديل وضع العرض */}
+            <div className="flex flex-col gap-3 mb-6 px-2 w-full">
                 <div className="flex justify-between items-center gap-2 w-full">
                     <div className={`flex flex-wrap gap-2 flex-grow custom-scrollbar overflow-x-auto pb-1 ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
                        <button 
@@ -1628,8 +1647,8 @@ export default function App() {
                        })}
                     </div>
                     
-
-                                      <div className={`flex items-center gap-1 border rounded-full p-1 shrink-0 shadow-sm ${isDarkMode ? 'bg-slate-800/80 backdrop-blur-md border-teal-500/30' : 'bg-white/80 backdrop-blur-md border-teal-200'}`}>
+                    {/* زر التبديل بين القائمة والشبكة */}
+                    <div className={`flex items-center gap-1 border rounded-full p-1 shrink-0 shadow-sm ${isDarkMode ? 'bg-slate-800/80 backdrop-blur-md border-teal-500/30' : 'bg-white/80 backdrop-blur-md border-teal-200'}`}>
                         <button onClick={() => setViewMode('grid')} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${viewMode === 'grid' ? 'bg-teal-500 text-white shadow-md' : 'text-gray-400 hover:text-teal-500'}`} title="عرض شبكي">
                             <i className="fa-solid fa-border-all text-sm"></i>
                         </button>
@@ -1684,13 +1703,13 @@ export default function App() {
          </div>
       </footer>
 
-
-      
-
-            <div className={`fixed inset-y-0 ${lang === 'en' ? 'right-0' : 'left-0'} w-full xl:w-[950px] shadow-[0_0_60px_rgba(0,0,0,0.9)] z-[110] transform transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] flex flex-col ${isCartOpen ? 'translate-x-0' : (lang === 'en' ? 'translate-x-full' : '-translate-x-full')} ${isDarkMode ? 'bg-[#080c14] border-teal-500/30' : 'bg-white border-teal-200'}`}>
+      {/* ========================================== */}
+      {/* سلة الطلبات الرقمية (تصميم احترافي مطابق للصورة) */}
+      {/* ========================================== */}
+      <div className={`fixed inset-y-0 ${lang === 'en' ? 'right-0' : 'left-0'} w-full xl:w-[950px] shadow-[0_0_60px_rgba(0,0,0,0.9)] z-[110] transform transition-transform duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] flex flex-col ${isCartOpen ? 'translate-x-0' : (lang === 'en' ? 'translate-x-full' : '-translate-x-full')} ${isDarkMode ? 'bg-[#080c14] border-teal-500/30' : 'bg-white border-teal-200'}`}>
         
-
-                <div className={`h-20 px-6 flex justify-between items-center shrink-0 border-b relative z-10 ${isDarkMode ? 'bg-[#0b101a] border-teal-500/20' : 'bg-slate-50 border-teal-100'}`}>
+        {/* Header السلة */}
+        <div className={`h-20 px-6 flex justify-between items-center shrink-0 border-b relative z-10 ${isDarkMode ? 'bg-[#0b101a] border-teal-500/20' : 'bg-slate-50 border-teal-100'}`}>
           <div className="flex items-center gap-4">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDarkMode ? 'bg-teal-500/10 text-teal-400 border border-teal-500/30' : 'bg-teal-50 text-teal-600 border border-teal-200'}`}>
                 <i className="fa-solid fa-cart-flatbed text-xl"></i>
@@ -1705,11 +1724,11 @@ export default function App() {
           </button>
         </div>
 
-
-                <div className="flex flex-col md:flex-row flex-grow overflow-y-auto md:overflow-hidden relative z-0 cart-pro-scrollbar pb-20 md:pb-0">
+        {/* Content Body للسلة (مقسم لعمودين للشاشات الكبيرة) */}
+        <div className="flex flex-col md:flex-row flex-grow overflow-y-auto md:overflow-hidden relative z-0 cart-pro-scrollbar pb-20 md:pb-0">
             
-
-                              <div className={`w-full md:w-[55%] flex flex-col h-auto md:h-full shrink-0 border-b md:border-b-0 ${isDarkMode ? 'bg-transparent border-teal-500/20 md:border-l' : 'bg-slate-50/50 border-gray-200 md:border-r'}`}>
+            {/* Right Column: قائمة المواد المطلوبة */}
+            <div className={`w-full md:w-[55%] flex flex-col h-auto md:h-full shrink-0 border-b md:border-b-0 ${isDarkMode ? 'bg-transparent border-teal-500/20 md:border-l' : 'bg-slate-50/50 border-gray-200 md:border-r'}`}>
                
                <div className="px-6 py-4 flex justify-between items-center shrink-0">
                   <h4 className={`font-bold text-sm flex items-center gap-2 ${isDarkMode ? 'text-teal-400' : 'text-teal-700'}`}>
@@ -1720,8 +1739,8 @@ export default function App() {
                   </span>
                </div>
 
-
-                             {cartAnnouncement && (
+               {/* إعلان السلة (إن وجد) */}
+               {cartAnnouncement && (
                  <div className={`mx-6 mb-4 px-4 py-3 rounded-2xl border flex items-start gap-3 shadow-sm ${isDarkMode ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-yellow-50 border-yellow-200'}`}>
                     <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center shrink-0 border border-yellow-500/30 mt-0.5">
                         <i className="fa-solid fa-bullhorn text-yellow-500 text-xs animate-pulse"></i>
@@ -1752,13 +1771,13 @@ export default function App() {
                         return (
                            <div key={item.id} className={`p-4 rounded-2xl border flex flex-row items-center gap-4 transition-all shadow-md group ${isDarkMode ? 'bg-[#121926] border-teal-500/10 hover:border-teal-500/30 hover:bg-[#161f30]' : 'bg-white border-gray-200 hover:border-teal-300 hover:shadow-lg'}`}>
                               
-
-                                                           <div className={`w-16 h-16 rounded-xl p-1.5 flex-shrink-0 flex items-center justify-center overflow-hidden border bg-white ${isDarkMode ? 'border-teal-500/20 shadow-[inset_0_0_10px_rgba(0,0,0,0.1)]' : 'border-gray-200'}`}>
+                              {/* الصورة */}
+                              <div className={`w-16 h-16 rounded-xl p-1.5 flex-shrink-0 flex items-center justify-center overflow-hidden border bg-white ${isDarkMode ? 'border-teal-500/20 shadow-[inset_0_0_10px_rgba(0,0,0,0.1)]' : 'border-gray-200'}`}>
                                   <img src={item.image} loading="lazy" alt="" className="max-w-full max-h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500" />
                               </div>
 
-
-                                                           <div className="flex-grow flex flex-col items-start min-w-0">
+                              {/* المعلومات */}
+                              <div className="flex-grow flex flex-col items-start min-w-0">
                                   <h4 className={`font-bold text-[13px] sm:text-sm line-clamp-2 break-words w-full ${isDarkMode ? 'text-gray-100 group-hover:text-teal-400 transition-colors' : 'text-slate-800'}`}>{item.name}</h4>
                                   <div className={`font-mono text-xs mt-1.5 flex items-center gap-2 ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>
                                      <span className="font-bold">{effectivePrice.toLocaleString()} {t.currency}</span>
@@ -1768,8 +1787,8 @@ export default function App() {
                                   </div>
                               </div>
 
-
-                             <div className={`flex items-center justify-between w-24 h-10 rounded-full border px-1 shadow-inner shrink-0 ${isDarkMode ? 'bg-[#080c14] border-teal-500/20' : 'bg-slate-100 border-gray-300'}`} dir="ltr">
+                              {/* أزرار التحكم بالكمية */}
+                              <div className={`flex items-center justify-between w-24 h-10 rounded-full border px-1 shadow-inner shrink-0 ${isDarkMode ? 'bg-[#080c14] border-teal-500/20' : 'bg-slate-100 border-gray-300'}`} dir="ltr">
                                   <button onClick={() => updateQty(item.id, -1)} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-7 h-7 rounded-full flex items-center justify-center font-bold transition-colors ${isDarkMode ? 'text-red-400 hover:bg-red-500/20' : 'text-red-600 hover:bg-red-100'}`}>-</button>
                                   <span className={`font-mono text-xs font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{item.qty}</span>
                                   <button onClick={() => updateQty(item.id, 1)} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-7 h-7 rounded-full flex items-center justify-center font-bold transition-colors ${isDarkMode ? 'text-teal-400 hover:bg-teal-500/20' : 'text-teal-600 hover:bg-teal-100'}`}>+</button>
@@ -1781,8 +1800,8 @@ export default function App() {
                </div>
             </div>
 
-
-                      <div className={`w-full md:w-[45%] flex flex-col h-auto md:h-full shrink-0 ${isDarkMode ? 'bg-[#060910]' : 'bg-white'}`}>
+            {/* Left Column: إدخال البيانات والملخص */}
+            <div className={`w-full md:w-[45%] flex flex-col h-auto md:h-full shrink-0 ${isDarkMode ? 'bg-[#060910]' : 'bg-white'}`}>
                <div className="flex-grow overflow-y-auto p-6 space-y-6 cart-pro-scrollbar">
                    <div className="space-y-4">
                         <h4 className={`font-bold text-sm mb-3 flex items-center gap-2 ${isDarkMode ? 'text-gray-300' : 'text-slate-700'}`}>
@@ -1806,16 +1825,16 @@ export default function App() {
                    </div>
                </div>
 
-
-              <div className={`p-6 border-t ${isDarkMode ? 'bg-[#080d16] border-teal-500/20' : 'bg-white border-gray-200'} shrink-0 space-y-4 shadow-[0_-10px_30px_rgba(0,0,0,0.2)]`}>
+               {/* ملخص الفاتورة */}
+               <div className={`p-6 border-t ${isDarkMode ? 'bg-[#080d16] border-teal-500/20' : 'bg-white border-gray-200'} shrink-0 space-y-4 shadow-[0_-10px_30px_rgba(0,0,0,0.2)]`}>
                     
                     <div className={`flex justify-between items-center font-tech text-sm font-bold px-1 ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
                         <span>المجموع الفرعي الأصلي:</span>
                         <span className={isDarkMode ? 'text-gray-100' : 'text-slate-800'}>{rawTotal.toLocaleString()} {t.currency}</span>
                     </div>
 
-
-                {(autoDiscount > 0 || rawTotal >= 100000) && (
+                    {/* صندوق إشعار الخصم الاحترافي */}
+                    {(autoDiscount > 0 || rawTotal >= 100000) && (
                         <div className={`relative overflow-hidden flex flex-col gap-2 p-4 rounded-2xl border shadow-sm ${isDarkMode ? 'bg-[#061811] border-[#10b981]/30' : 'bg-green-50 border-green-200'}`}>
                             <div className="absolute top-0 right-0 w-20 h-20 bg-[#10b981]/20 rounded-full blur-2xl pointer-events-none"></div>
                             
@@ -1875,7 +1894,7 @@ export default function App() {
                                 safeCloseModal(setIsCartOpen, false); 
                                 playSynthSound(400, 'sawtooth', 0.2); 
                             }
-                        }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`shrink-0 w-14 h-14 rounded-2xl font-extrabold transition-all shadow-md flex items-center justify-center ${isDarkMode ? 'bg-[#1a0f14] text-red-500 hover:bg-red-500 hover:text-white border border-red-500/30 hover:shadow-red-500/20' : 'bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border border-red-200'}`} title={t.cancelOrder}>
+                        }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`shrink-0 w-14 h-14 rounded-2xl font-extrabold transition-all shadow-md flex items-center justify-center ${isDarkMode ? 'bg-[#1a0f14] text-red-500 hover:bg-red-50 hover:text-white border border-red-500/30 hover:shadow-red-500/20' : 'bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border border-red-200'}`} title={t.cancelOrder}>
                             <i className="fa-solid fa-trash-can text-xl"></i>
                         </button>
                         <button type="button" onClick={handleCheckout} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className="flex-grow h-14 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-black text-sm tracking-wider transition-all shadow-lg shadow-teal-500/20 flex items-center justify-center gap-3 hover:scale-[1.02] hover:shadow-teal-500/40">

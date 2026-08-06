@@ -14,7 +14,6 @@ export default function AdminPanel({
   
   newProdCategory, setNewProdCategory,
   
-  // خصائص السعر بالجملة
   newProdEnableWholesale, setNewProdEnableWholesale,
   newProdDiscount10, setNewProdDiscount10,
   newProdDiscount20, setNewProdDiscount20,
@@ -81,6 +80,15 @@ export default function AdminPanel({
   const activeOrders = orders.filter(o => o.status !== 'completed');
   const completedOrders = orders.filter(o => o.status === 'completed');
 
+  // وظيفة النسخ السريع لبيانات العميل
+  const copyToClipboard = (text, type) => {
+    navigator.clipboard.writeText(text).then(() => {
+        alert(`تم نسخ ${type} بنجاح: \n${text}`);
+    }).catch(err => {
+        console.error('Failed to copy: ', err);
+    });
+  };
+
   const confirmAndCompleteOrder = (order) => {
     if(window.confirm("هل أنت متأكد من إنجاز هذا الطلب؟ (هذا الخيار يعني أنك قمت بتسليمه بنجاح ولن يتم إرجاع المخزون وسينقل للمكتملة)")) {
       handleCompleteOrder(order);
@@ -112,8 +120,7 @@ export default function AdminPanel({
       setNewGovTime('');
       alert("تمت إضافة منطقة التوصيل بنجاح!");
     } catch (err) {
-      console.error("Firestore error:", err);
-      alert("حدث خطأ في الاتصال بالسحابة. تأكد من قواعد الحماية.");
+      alert("حدث خطأ في الاتصال بالسحابة.");
     }
   };
 
@@ -127,7 +134,6 @@ export default function AdminPanel({
            return updated;
          });
        } catch(err) {
-         console.error("Delete error:", err);
          alert("حدث خطأ أثناء الحذف من السحابة.");
        }
     }
@@ -635,7 +641,6 @@ export default function AdminPanel({
         </div>
       )}
 
-      {/* مودال إعلان السلة */}
       {showAnnouncementManager && (
         <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setShowAnnouncementManager(false)}></div>
@@ -842,34 +847,61 @@ export default function AdminPanel({
                 <div className={`w-full lg:w-2/5 flex flex-col bg-[#0d131f] border-b lg:border-b-0 lg:border-l p-4 sm:p-5 lg:overflow-y-auto order-scrollbar shrink-0 ${selectedOrder.status === 'completed' ? 'border-blue-500/10' : 'border-emerald-500/10'}`}>
                    
                    <div className="mb-5">
-                      <h4 className={`${selectedOrder.status === 'completed' ? 'text-blue-400' : 'text-emerald-400'} font-bold mb-3 flex items-center gap-2 text-xs`}>
-                         <i className="fa-solid fa-id-card"></i> بيانات الزبون
-                      </h4>
+                      <div className="flex justify-between items-center mb-3">
+                          <h4 className={`${selectedOrder.status === 'completed' ? 'text-blue-400' : 'text-emerald-400'} font-bold flex items-center gap-2 text-xs`}>
+                             <i className="fa-solid fa-id-card"></i> بيانات الزبون
+                          </h4>
+                          <button 
+                             onClick={() => {
+                                const details = `الاسم: ${selectedOrder.customerName}\nرقم الهاتف: ${selectedOrder.customerPhone}\n${selectedOrder.customerPhone2 ? `رقم إضافي: ${selectedOrder.customerPhone2}\n` : ''}العنوان: ${selectedOrder.location}`;
+                                copyToClipboard(details, 'جميع البيانات');
+                             }}
+                             className="text-gray-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
+                          >
+                             <i className="fa-solid fa-copy"></i> نسخ الكل
+                          </button>
+                      </div>
                       <div className="space-y-2.5">
+                         
+                         {/* اسم المستلم */}
                          <div className={`bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-center gap-3 transition-colors ${selectedOrder.status === 'completed' ? 'hover:border-blue-500/30' : 'hover:border-emerald-500/30'}`}>
                             <div className="bg-blue-500/10 text-blue-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"><i className="fa-solid fa-user"></i></div>
                             <div className="min-w-0 flex-grow">
                                <p className="text-gray-500 text-[10px] font-mono mb-0.5">اسم المستلم</p>
-                               <p className="text-white font-bold text-xs truncate">{selectedOrder.customerName}</p>
+                               <div className="flex items-center gap-2 justify-between">
+                                  <p className="text-white font-bold text-xs truncate">{selectedOrder.customerName}</p>
+                                  <button onClick={() => copyToClipboard(selectedOrder.customerName, 'اسم العميل')} className="text-gray-400 hover:text-white p-1 rounded bg-neutral-800 text-[10px]"><i className="fa-solid fa-copy"></i></button>
+                               </div>
                             </div>
                          </div>
                          
+                         {/* أرقام الهواتف */}
                          <div className={`bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-center gap-3 transition-colors ${selectedOrder.status === 'completed' ? 'hover:border-blue-500/30' : 'hover:border-emerald-500/30'}`}>
                             <div className="bg-green-500/10 text-green-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"><i className="fa-solid fa-phone"></i></div>
                             <div className="min-w-0 flex-grow">
                                <p className="text-gray-500 text-[10px] font-mono mb-0.5">أرقام الهواتف</p>
-                               <a href={`tel:${selectedOrder.customerPhone}`} className={`text-white font-bold text-xs transition-colors truncate block ${selectedOrder.status === 'completed' ? 'hover:text-blue-400' : 'hover:text-emerald-400'}`} dir="ltr">{selectedOrder.customerPhone}</a>
+                               <div className="flex items-center justify-between gap-2">
+                                  <a href={`tel:${selectedOrder.customerPhone}`} className={`text-white font-bold text-xs transition-colors truncate block ${selectedOrder.status === 'completed' ? 'hover:text-blue-400' : 'hover:text-emerald-400'}`} dir="ltr">{selectedOrder.customerPhone}</a>
+                                  <button onClick={() => copyToClipboard(selectedOrder.customerPhone, 'رقم الهاتف الأساسي')} className="text-gray-400 hover:text-white p-1 rounded bg-neutral-800 text-[10px]"><i className="fa-solid fa-copy"></i></button>
+                               </div>
                                {selectedOrder.customerPhone2 && (
-                                  <a href={`tel:${selectedOrder.customerPhone2}`} className={`text-gray-300 font-bold text-[11px] transition-colors truncate block mt-1 ${selectedOrder.status === 'completed' ? 'hover:text-blue-400' : 'hover:text-emerald-400'}`} dir="ltr">{selectedOrder.customerPhone2} (إضافي)</a>
+                                  <div className="flex items-center justify-between gap-2 mt-1 pt-1 border-t border-neutral-800/50">
+                                      <a href={`tel:${selectedOrder.customerPhone2}`} className={`text-gray-300 font-bold text-[11px] transition-colors truncate block ${selectedOrder.status === 'completed' ? 'hover:text-blue-400' : 'hover:text-emerald-400'}`} dir="ltr">{selectedOrder.customerPhone2} (إضافي)</a>
+                                      <button onClick={() => copyToClipboard(selectedOrder.customerPhone2, 'رقم الهاتف الإضافي')} className="text-gray-400 hover:text-white p-1 rounded bg-neutral-800 text-[10px]"><i className="fa-solid fa-copy"></i></button>
+                                  </div>
                                )}
                             </div>
                          </div>
                          
+                         {/* الموقع المختار والتفاصيل */}
                          <div className={`bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-start gap-3 transition-colors ${selectedOrder.status === 'completed' ? 'hover:border-blue-500/30' : 'hover:border-emerald-500/30'}`}>
                             <div className="bg-orange-500/10 text-orange-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm mt-0.5"><i className="fa-solid fa-map-location-dot"></i></div>
                             <div className="min-w-0 flex-grow">
                                <p className="text-gray-500 text-[10px] font-mono mb-0.5">الموقع المختار والتفاصيل</p>
-                               <p className="text-white font-bold text-xs leading-relaxed">{selectedOrder.location}</p>
+                               <div className="flex items-start justify-between gap-2">
+                                  <p className="text-white font-bold text-xs leading-relaxed">{selectedOrder.location}</p>
+                                  <button onClick={() => copyToClipboard(selectedOrder.location, 'عنوان العميل')} className="text-gray-400 hover:text-white p-1 rounded bg-neutral-800 text-[10px] shrink-0 mt-1"><i className="fa-solid fa-copy"></i></button>
+                               </div>
                             </div>
                          </div>
                          
