@@ -1702,7 +1702,7 @@ export default function App() {
         </div>
       )}
 
-      <footer className={`relative z-10 w-full border-t py-8 flex flex-col items-center justify-center mt-auto ${isDarkMode ? 'bg-[#0b1120]/80 backdrop-blur-md border-teal-500/20' : 'bg-white/80 backdrop-blur-md border-teal-200'} pb-24 md:pb-8`}>
+      <footer className={`relative z-10 w-full border-t py-8 flex flex-col items-center justify-center mt-auto ${isDarkMode ? 'bg-[#162033]/80 backdrop-blur-md border-teal-500/20' : 'bg-white/80 backdrop-blur-md border-teal-200'} pb-24 md:pb-8`}>
          <div className="text-center">
             <p className={`font-mono text-sm tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>جميع الحقوق محفوظة لدى MSA &copy; 2026</p>
          </div>
@@ -1934,7 +1934,7 @@ export default function App() {
               <i className="fas fa-times text-sm sm:text-lg"></i>
             </button>
 
-            <div className={`w-full md:w-5/12 p-1 sm:p-8 flex flex-col items-center justify-start sm:justify-center border-b md:border-b-0 md:border-${lang === 'en' ? 'r' : 'l'} flex-shrink-0 md:flex-shrink ${isDarkMode ? 'border-teal-500/20 bg-[#0b1120]' : 'border-gray-200 bg-slate-50'}`}>
+            <div className={`w-full md:w-5/12 p-1 sm:p-8 flex flex-col items-center justify-start sm:justify-center border-b md:border-b-0 md:border-${lang === 'en' ? 'r' : 'l'} flex-shrink-0 md:flex-shrink ${isDarkMode ? 'border-teal-500/20 bg-[#162033]' : 'border-gray-200 bg-slate-50'}`}>
               
               <div 
                   className={`w-full h-64 sm:h-80 md:h-[26rem] shrink-0 bg-white rounded-3xl p-4 sm:p-8 flex items-center justify-center relative overflow-hidden border-4 group cursor-pointer ${isDarkMode ? 'shadow-[inset_0_0_20px_rgba(0,0,0,0.05)] border-slate-800' : 'shadow-inner border-white shadow-gray-200'}`}
@@ -2025,7 +2025,7 @@ export default function App() {
               )}
             </div>
 
-            <div className={`w-full md:w-7/12 p-2 sm:p-8 flex flex-col justify-start h-auto md:h-auto flex-1 ${isDarkMode ? 'bg-slate-900/50' : 'bg-white'}`}>
+            <div className={`w-full md:w-7/12 p-2 sm:p-8 flex flex-col justify-start h-auto md:h-auto flex-1 ${isDarkMode ? 'bg-[#162033]/50' : 'bg-white'}`}>
               
               <div className="mb-4 flex flex-col gap-4 flex-shrink-0">
                 
@@ -2033,11 +2033,11 @@ export default function App() {
                   <div className="flex-1 min-w-0">
                     <h2 className={`text-xl sm:text-3xl font-black mb-2 break-words ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{selectedProduct.name}</h2>
                     <div className="flex gap-1 text-xs sm:text-sm text-yellow-500">
-                      <i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i><i className="fas fa-star"></i>
+
                     </div>
                   </div>
 
-                  <div className={`flex flex-row items-center p-2 sm:p-3 rounded-xl border shadow-inner shrink-0 gap-3 ${isDarkMode ? 'bg-[#0a0a0f] border-teal-500/20' : 'bg-slate-50 border-gray-200'}`}>
+                  <div className={`flex flex-row items-center p-2 sm:p-3 rounded-xl border shadow-inner shrink-0 gap-3 ${isDarkMode ? 'bg-[#162033] border-teal-500/20' : 'bg-slate-50 border-gray-200'}`}>
                       <span className={`font-mono font-bold text-sm uppercase tracking-widest whitespace-nowrap ${isDarkMode ? 'text-gray-300' : 'text-slate-500'}`}>
                           {t.price}
                       </span>
@@ -2069,7 +2069,7 @@ export default function App() {
                     const availableStock = Math.max(0, (parseInt(selectedProduct.stock)||0) - currentCartQty);
                     
                     return (
-                        <div className={`border p-4 rounded-xl shadow-inner flex flex-col sm:flex-row items-center justify-between gap-4 ${isDarkMode ? 'bg-[#0b101a] border-teal-500/20' : 'bg-slate-50 border-gray-200'}`}>
+                        <div className={`border p-4 rounded-xl shadow-inner flex flex-col sm:flex-row items-center justify-between gap-4 ${isDarkMode ? 'bg-[#162033] border-teal-500/20' : 'bg-slate-50 border-gray-200'}`}>
                             <div className="flex flex-col gap-1 w-full sm:w-auto">
                                 <span className={`font-bold text-xs sm:text-sm flex items-center gap-2 ${isDarkMode ? 'text-gray-400' : 'text-slate-600'}`}>
                                     <i className="fas fa-layer-group"></i> الكمية المطلوبة:
@@ -2082,7 +2082,7 @@ export default function App() {
                             </div>
                             
                             <div className="flex items-center gap-3">
-                                <div className={`flex items-center gap-2 border rounded-xl px-2 py-1 ${availableStock <= 0 ? 'border-red-500/30 opacity-50' : (isDarkMode ? 'border-teal-500/30 bg-[#0a0a0f]' : 'border-gray-300 bg-white')}`}>
+                                <div className={`flex items-center gap-2 border rounded-xl px-2 py-1 ${availableStock <= 0 ? 'border-red-500/30 opacity-50' : (isDarkMode ? 'border-teal-500/30 bg-[#162033]' : 'border-gray-300 bg-white')}`}>
                                     <button 
                                         type="button" 
                                         disabled={availableStock <= 0}
@@ -2103,7 +2103,7 @@ export default function App() {
                                         disabled={availableStock <= 0 || modalQty <= 1}
                                         onClick={() => handleModalQtyChange(-1, availableStock)} 
                                         onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-                                        className={`w-10 h-10 rounded-lg transition-colors font-bold text-xl flex items-center justify-center disabled:cursor-not-allowed ${isDarkMode ? 'bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-slate-900' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
+                                        className={`w-8 h-8 rounded-lg transition-colors font-bold text-xl flex items-center justify-center disabled:cursor-not-allowed ${isDarkMode ? 'bg-rose-500/20 text-rose-400 hover:text-rose-400 hover:text-slate-900' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
                                     >-</button>
                                 </div>
                             </div>
@@ -2239,7 +2239,7 @@ export default function App() {
                   )}
                   
                   {modalTab === 'code' && (
-                      <div className={`p-4 rounded-xl border overflow-x-auto text-left h-fit shadow-inner ${isDarkMode ? 'bg-[#0a0a0f] border-teal-500/20' : 'bg-gray-100 border-gray-300'}`} dir="ltr">
+                      <div className={`p-4 rounded-xl border overflow-x-auto text-left h-fit shadow-inner ${isDarkMode ? 'bg-[#162033] border-teal-500/20' : 'bg-gray-100 border-gray-300'}`} dir="ltr">
                           <pre className={`font-mono text-xs sm:text-sm ${isDarkMode ? 'text-teal-300' : 'text-slate-800'}`}>
                               {selectedProduct.codeSnippet || '// لا يوجد كود برمجي متاح لهذه القطعة حالياً.\n// يمكنك إضافة الكود من لوحة الإدارة.'}
                           </pre>
