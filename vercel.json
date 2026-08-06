@@ -2,6 +2,10 @@
   "cleanUrls": true,
   "routes": [
     { "handle": "filesystem" },
+    { 
+      "src": "/__/auth/(.*)", 
+      "dest": "https://msa-store-b125f.firebaseapp.com/__/auth/$1" 
+    },
     { "src": "/(.*)", "dest": "/index.html" }
   ],
   "headers": [
