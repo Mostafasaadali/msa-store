@@ -4,13 +4,13 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  base: '/', // <-- هذا هو السطر الأهم الذي يجب إضافته
   plugins: [
     react(),
-    tailwindcss(), // هذا السطر هو المسؤول عن توليد الكلاسات بدلاً من الـ CDN
+    tailwindcss(), 
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'masked-icon.svg'],
-      // إضافة إعدادات workbox لحل مشكلة التوجيه مع Firebase
       workbox: {
         navigateFallbackDenylist: [/^\/__/]
       },
@@ -18,9 +18,9 @@ export default defineConfig({
         name: 'MSA Store',
         short_name: 'MSA',
         description: 'متجرك المتكامل للحصول على بوردات التحكم والقطع الإلكترونية',
-        theme_color: '#000000', // لون شريط الإشعارات
+        theme_color: '#000000', 
         background_color: '#000000',
-        display: 'standalone', // لعرض الموقع كتطبيق بدون شريط متصفح
+        display: 'standalone', 
         icons: [
           {
             src: 'pwa-192x192.png',
