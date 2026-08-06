@@ -1244,13 +1244,13 @@ export default function App() {
               position: absolute;
               border-radius: 50%;
               filter: blur(70px);
-              opacity: 0.4; 
+              opacity: 0.6; 
               will-change: transform;
               mix-blend-mode: screen; 
           }
 
           body.light-mode .win7-orb {
-              opacity: 0.7; 
+              opacity: 0.4; 
               mix-blend-mode: multiply;
           }
 
