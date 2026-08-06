@@ -149,7 +149,7 @@ const normalizeText = (text) => {
 let globalAudioCtx = null;
 
 // ==========================================
-// مكون البطاقة الذكي المعزول لتسريع الأداء (مُحدّث بالتحكم السريع ووضع القائمة)
+// مكون البطاقة الذكي
 // ==========================================
 const ProductCard = React.memo(({
   prod, prodInCartQty, isDarkMode, lang, t, viewMode,
@@ -203,7 +203,7 @@ const ProductCard = React.memo(({
           </div>
         </div>
 
-        {/* Content Wrapper for Layout Adjustments */}
+        {/* Content Wrapper */}
         <div className={`flex flex-col flex-grow min-w-0 ${viewMode === 'list' ? 'justify-between' : 'w-full'}`}>
           <div className="flex justify-between items-center mb-1.5 sm:mb-2 flex-shrink-0 min-w-0 gap-1 w-full overflow-hidden">
             <span className={`font-mono text-[9px] sm:text-[10px] tracking-widest font-bold truncate ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>// {prod.code || 'GENERIC'}</span>
@@ -876,7 +876,6 @@ export default function App() {
     document.body.classList.remove('hover-state');
   }, []);
 
-  // --- تحديث تسريع الأداء: استخدام requestAnimationFrame لتحسين الأداء أثناء تحريك الفأرة ---
   const handleCardMove = useCallback((e, card) => {
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
     window.requestAnimationFrame(() => {
@@ -1016,13 +1015,11 @@ export default function App() {
         return;
     }
     
-    // --- التعديل المطلوب: منع رقم الهاتف إذا كان يتكون من 10 أرقام فقط ---
     const phoneClean = customerPhone.replace(/\s+/g, '');
     if(phoneClean.length === 10) {
         alert(lang === 'ar' ? 'الرجاء إدخال رقم هاتف صحيح. لا يمكن إتمام الطلب برقم يتكون من 10 أرقام فقط.' : 'Please enter a valid phone number. Cannot complete order with 10 digits.');
         return;
     }
-    // ----------------------------------------------------------------------
 
     playSynthSound(1500, 'sine', 0.5);
     
@@ -1597,7 +1594,8 @@ export default function App() {
               <p className={`max-w-sm text-xs sm:text-sm font-mono ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>{t.catDesc}</p>
             </div>
 
-            <div className="mb-6 relative w-full md:w-1/2 lg:w-1/3 px-2">
+            {/* شريط البحث */}
+            <div className="mb-4 relative w-full px-2">
               <div className={`absolute inset-y-0 ${lang === 'en' ? 'left-4' : 'right-4'} flex items-center pointer-events-none`}>
                 <i className={`fas fa-search ${isDarkMode ? 'text-teal-600' : 'text-teal-500'}`}></i>
               </div>
@@ -1612,14 +1610,16 @@ export default function App() {
               />
             </div>
 
-            {/* أدوات الفلترة و تبديل وضع العرض */}
-            <div className="flex flex-col gap-3 mb-6 px-2 w-full">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 w-full">
-                    <div className={`flex flex-nowrap gap-2 w-full sm:flex-grow custom-scrollbar overflow-x-auto pb-2 scroll-smooth ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
+            {/* أدوات الفلترة و تبديل وضع العرض المعزولة كلياً */}
+            <div className="flex flex-col gap-4 mb-6 px-2 w-full max-w-full overflow-hidden">
+                
+                {/* شريط التصنيفات (التمرير الأفقي) */}
+                <div className="relative w-full">
+                    <div className={`flex flex-nowrap items-center gap-2 overflow-x-auto pb-4 pt-1 w-full scroll-smooth custom-scrollbar snap-x touch-pan-x ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
                        <button 
                           onClick={() => setSelectedCatFilter('')} 
                           onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-                          className={`shrink-0 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
+                          className={`shrink-0 snap-start px-5 py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
                        >
                           All / الكل
                        </button>
@@ -1627,7 +1627,7 @@ export default function App() {
                        <button 
                           onClick={() => setSelectedCatFilter('ادوات مشروع')} 
                           onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-                          className={`shrink-0 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-md flex items-center gap-2 ${selectedCatFilter === 'ادوات مشروع' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold border-transparent shadow-[0_0_15px_rgba(147,51,234,0.5)] scale-105' : (isDarkMode ? 'bg-[#1e1136]/80 backdrop-blur-md text-purple-400 border-purple-500/30 hover:border-purple-400 hover:text-purple-300' : 'bg-purple-50/80 backdrop-blur-md text-purple-700 border-purple-200 hover:border-purple-400 hover:text-purple-600')}`}
+                          className={`shrink-0 snap-start px-5 py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-md flex items-center gap-2 ${selectedCatFilter === 'ادوات مشروع' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold border-transparent shadow-[0_0_15px_rgba(147,51,234,0.5)] scale-105' : (isDarkMode ? 'bg-[#1e1136]/80 backdrop-blur-md text-purple-400 border-purple-500/30 hover:border-purple-400 hover:text-purple-300' : 'bg-purple-50/80 backdrop-blur-md text-purple-700 border-purple-200 hover:border-purple-400 hover:text-purple-600')}`}
                        >
                           <i className="fa-solid fa-toolbox"></i> ادوات مشروع
                        </button>
@@ -1639,16 +1639,21 @@ export default function App() {
                                   key={c.id} 
                                   onClick={() => setSelectedCatFilter(c.name)} 
                                   onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-                                  className={`shrink-0 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
+                                  className={`shrink-0 snap-start px-5 py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
                                >
                                   {c.name}
                                </button>
                            );
                        })}
                     </div>
-                    
-                    {/* زر التبديل بين القائمة والشبكة */}
-                    <div className={`flex items-center gap-1 border rounded-full p-1 shrink-0 shadow-sm self-end sm:self-auto ${isDarkMode ? 'bg-slate-800/80 backdrop-blur-md border-teal-500/30' : 'bg-white/80 backdrop-blur-md border-teal-200'}`}>
+                </div>
+                
+                {/* شريط التحكم بطريقة العرض وعدد المنتجات */}
+                <div className="flex justify-between items-center w-full px-1 border-b pb-4 mb-2 border-teal-500/10 dark:border-teal-500/20">
+                    <div className={`text-xs font-mono font-bold ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
+                        <i className="fa-solid fa-microchip mr-1"></i> {filteredProducts.length} {t.itemCount} متاحة
+                    </div>
+                    <div className={`flex items-center gap-1 border rounded-full p-1 shrink-0 shadow-sm ${isDarkMode ? 'bg-slate-800/80 backdrop-blur-md border-teal-500/30' : 'bg-white/80 backdrop-blur-md border-teal-200'}`}>
                         <button onClick={() => setViewMode('grid')} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${viewMode === 'grid' ? 'bg-teal-500 text-white shadow-md' : 'text-gray-400 hover:text-teal-500'}`} title="عرض شبكي">
                             <i className="fa-solid fa-border-all text-sm"></i>
                         </button>
