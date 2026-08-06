@@ -114,6 +114,7 @@ body.light-mode .robot-glow-container::before {
 /* تخصيص شريط التمرير (Scrollbar) */
 .custom-scrollbar::-webkit-scrollbar {
     width: 10px;
+    height: 25px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
