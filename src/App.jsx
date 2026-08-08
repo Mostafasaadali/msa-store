@@ -157,6 +157,7 @@ const ProductCard = React.memo(({
 }) => {
   const stockCount = parseInt(prod.stock) || 0;
   const isOutOfStock = stockCount <= 0;
+  const isSpecialCategory = prod.category === 'مشاريع';
 
   return (
     <div className={`card-perspective w-full min-w-0 ${viewMode === 'list' ? 'col-span-full' : 'h-full'}`}>
@@ -190,7 +191,7 @@ const ProductCard = React.memo(({
             <div className={`absolute top-1 sm:top-2 ${lang === 'en' ? 'right-1 sm:right-2' : 'left-1 sm:left-2'} px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-xs font-mono font-bold border ${isDarkMode ? 'bg-teal-500/20 text-teal-600 border-teal-500/30' : 'bg-teal-50 text-teal-700 border-teal-200'}`}>{prod.chip || 'NEW MCU'}</div>
           )}
           
-          {isOutOfStock && (
+          {isOutOfStock && !isSpecialCategory && (
              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center backdrop-blur-[2px] bg-slate-900/60">
                 <span className="bg-red-600 text-white font-bold px-2 py-1 sm:px-6 sm:py-2 rounded border border-red-400 shadow-[0_0_15px_rgba(220,38,38,0.5)] transform -rotate-12 text-[10px] sm:text-lg uppercase tracking-widest">
                   نافذ
@@ -208,7 +209,7 @@ const ProductCard = React.memo(({
           <div className="flex justify-between items-center mb-1.5 sm:mb-2 flex-shrink-0 min-w-0 gap-1 w-full overflow-hidden">
             <span className={`font-mono text-[9px] sm:text-[10px] tracking-widest font-bold truncate ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>// {prod.code || 'GENERIC'}</span>
             {prod.category && (
-              <span className={`font-mono text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full border truncate ${prod.category === 'ادوات مشروع' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : (isDarkMode ? 'bg-teal-500/10 text-teal-300 border-teal-500/20' : 'bg-teal-50 text-teal-700 border-teal-200')}`}>{prod.category}</span>
+              <span className={`font-mono text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full border truncate ${prod.category === 'ادوات مشروع' ? 'bg-purple-500/20 text-purple-400 border-purple-500/30' : (prod.category === 'مشاريع' ? 'bg-green-500/20 text-green-400 border-green-500/30' : (isDarkMode ? 'bg-teal-500/10 text-teal-300 border-teal-500/20' : 'bg-teal-50 text-teal-700 border-teal-200'))}`}>{prod.category}</span>
             )}
           </div>
 
@@ -221,15 +222,28 @@ const ProductCard = React.memo(({
             <div className={`text-center sm:text-right min-w-0 flex ${viewMode === 'list' ? 'flex-col items-start gap-0.5' : 'w-full justify-between items-end'}`}>
                <div>
                    <span className={`block text-[8px] sm:text-[10px] font-mono font-bold truncate ${isDarkMode ? 'text-gray-300' : 'text-slate-500'}`}>{t.price}</span>
-                   <span className={`text-xs sm:text-xl font-bold font-mono truncate block ${isOutOfStock ? 'text-red-400 opacity-60' : (isDarkMode ? 'text-teal-300 drop-shadow-md' : 'text-teal-600')}`}>{prod.price?.toLocaleString() || 0}</span>
+                   {isSpecialCategory ? (
+                       <span className={`text-xs sm:text-lg font-bold font-mono truncate block text-green-500`}>حسب الاتفاق</span>
+                   ) : (
+                       <span className={`text-xs sm:text-xl font-bold font-mono truncate block ${isOutOfStock ? 'text-red-400 opacity-60' : (isDarkMode ? 'text-teal-300 drop-shadow-md' : 'text-teal-600')}`}>{prod.price?.toLocaleString() || 0}</span>
+                   )}
                </div>
-               {prod.enableWholesale && viewMode !== 'list' && (
+               {prod.enableWholesale && !isSpecialCategory && viewMode !== 'list' && (
                    <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md ${isDarkMode ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-yellow-100 text-yellow-700 border border-yellow-300'}`}>يتوفر خصم جملة</span>
                )}
             </div>
 
             <div className={`${viewMode === 'list' ? 'w-auto flex-shrink-0 min-w-[100px] sm:min-w-[140px]' : 'w-full mt-2'}`}>
-              {prodInCartQty > 0 ? (
+              {isSpecialCategory ? (
+                <a 
+                  href={`https://wa.me/9647760599953?text=${encodeURIComponent(`مرحباً، أود الاستفسار عن المنتج المميز: ${prod.name}`)}`}
+                  target="_blank" rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()} 
+                  className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 rounded-full font-bold text-[9px] sm:text-xs transition-all relative overflow-hidden z-20 shadow-md bg-green-500 text-white hover:bg-green-400`}
+                >
+                  <i className="fab fa-whatsapp"></i> <span className="truncate">طلب عبر الواتساب</span>
+                </a>
+              ) : prodInCartQty > 0 ? (
                 <div className={`flex items-center justify-between w-full h-8 sm:h-10 rounded-full border px-1 shadow-inner ${isDarkMode ? 'bg-slate-900/80 border-teal-500/40' : 'bg-slate-100 border-gray-300'}`} dir="ltr" onClick={(e) => e.stopPropagation()}>
                     <button onClick={(e) => { e.stopPropagation(); onUpdateQty(prod.id, -1); }} className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold transition-colors ${isDarkMode ? 'text-red-400 hover:bg-red-500/30' : 'text-red-600 hover:bg-red-100'}`}>-</button>
                     <span className={`font-mono text-xs sm:text-sm font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{prodInCartQty}</span>
@@ -1152,11 +1166,16 @@ export default function App() {
       const matchSearch = normalizedQuery === '' || normName.includes(normalizedQuery) || normDesc.includes(normalizedQuery) || normCat.includes(normalizedQuery) || normChip.includes(normalizedQuery) || normCode.includes(normalizedQuery) || priceStr.includes(normalizedQuery);
 
       let matchCat = true;
-      if (selectedCatFilter === '') matchCat = prod.category !== 'ادوات مشروع';
-      else matchCat = prod.category === selectedCatFilter;
+      if (selectedCatFilter !== '') {
+          matchCat = prod.category === selectedCatFilter;
+      }
 
       return matchSearch && matchCat;
     }).sort((a, b) => {
+       const isProjA = a.category === 'ادوات مشروع' ? 1 : 0;
+       const isProjB = b.category === 'ادوات مشروع' ? 1 : 0;
+       if (isProjA !== isProjB) return isProjA - isProjB;
+
        const indexA = a.orderIndex !== undefined && a.orderIndex !== null && a.orderIndex !== '' ? parseInt(a.orderIndex) : 999;
        const indexB = b.orderIndex !== undefined && b.orderIndex !== null && b.orderIndex !== '' ? parseInt(b.orderIndex) : 999;
        return indexA - indexB;
@@ -1613,33 +1632,41 @@ export default function App() {
             {/* أدوات الفلترة و تبديل وضع العرض المعزولة كلياً */}
             <div className="flex flex-col gap-4 mb-6 px-2 w-full max-w-full overflow-hidden">
                 
-                {/* شريط التصنيفات (التمرير الأفقي) */}
+                {/* شريط التصنيفات (مرتب بخاصية flex-wrap) */}
                 <div className="relative w-full">
-                    <div className={`flex flex-nowrap items-center gap-2 overflow-x-auto pb-4 pt-1 w-full scroll-smooth custom-scrollbar snap-x touch-pan-x ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <div className={`flex flex-wrap justify-center items-center gap-2 pb-4 pt-1 w-full ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
+                      
                        <button 
-                          onClick={() => setSelectedCatFilter('')} 
+                          onClick={() => setSelectedCatFilter('مشاريع')} 
                           onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-                          className={`shrink-0 snap-start px-5 py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
+                          className={`shrink-0 px-5 py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-md flex items-center gap-2 ${selectedCatFilter === ' مشاريع' ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold border-transparent shadow-[0_0_15px_rgba(16,185,129,0.5)] scale-105' : (isDarkMode ? 'bg-[#064e3b]/80 backdrop-blur-md text-green-400 border-green-500/30 hover:border-green-400 hover:text-green-300' : 'bg-green-50/80 backdrop-blur-md text-green-700 border-green-200 hover:border-green-400 hover:text-green-600')}`}
                        >
-                          All / الكل
+                          <i className="fab fa-whatsapp text-lg"></i> مشاريع
                        </button>
 
                        <button 
                           onClick={() => setSelectedCatFilter('ادوات مشروع')} 
                           onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-                          className={`shrink-0 snap-start px-5 py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-md flex items-center gap-2 ${selectedCatFilter === 'ادوات مشروع' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold border-transparent shadow-[0_0_15px_rgba(147,51,234,0.5)] scale-105' : (isDarkMode ? 'bg-[#1e1136]/80 backdrop-blur-md text-purple-400 border-purple-500/30 hover:border-purple-400 hover:text-purple-300' : 'bg-purple-50/80 backdrop-blur-md text-purple-700 border-purple-200 hover:border-purple-400 hover:text-purple-600')}`}
+                          className={`shrink-0 px-5 py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-md flex items-center gap-2 ${selectedCatFilter === 'ادوات مشروع' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold border-transparent shadow-[0_0_15px_rgba(147,51,234,0.5)] scale-105' : (isDarkMode ? 'bg-[#1e1136]/80 backdrop-blur-md text-purple-400 border-purple-500/30 hover:border-purple-400 hover:text-purple-300' : 'bg-purple-50/80 backdrop-blur-md text-purple-700 border-purple-200 hover:border-purple-400 hover:text-purple-600')}`}
                        >
                           <i className="fa-solid fa-toolbox"></i> ادوات مشروع
                        </button>
+                       <button 
+                          onClick={() => setSelectedCatFilter('')} 
+                          onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
+                          className={`shrink-0 px-5 py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
+                       >
+                          All / الكل
+                       </button>
 
                        {categories.map(c => {
-                           if (c.name === 'ادوات مشروع') return null; 
+                           if (c.name === 'ادوات مشروع' || c.name === 'مشاريع') return null; 
                            return (
                                <button 
                                   key={c.id} 
                                   onClick={() => setSelectedCatFilter(c.name)} 
                                   onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-                                  className={`shrink-0 snap-start px-5 py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
+                                  className={`shrink-0 px-5 py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
                                >
                                   {c.name}
                                </button>
@@ -1996,7 +2023,7 @@ export default function App() {
                       {selectedProduct.chip || 'NEW MCU'}
                   </div>
                   
-                  {(parseInt(selectedProduct.stock)||0) <= 0 && (
+                  {(parseInt(selectedProduct.stock)||0) <= 0 && selectedProduct.category !== 'مشاريع' && (
                      <div className="absolute inset-0 bg-white/60 z-20 flex flex-col items-center justify-center backdrop-blur-[2px]">
                         <span className="bg-red-600 text-white font-bold px-4 py-2 sm:px-6 sm:py-2 rounded border border-red-400 shadow-[0_0_15px_rgba(220,38,38,0.5)] transform -rotate-12 text-sm sm:text-lg uppercase tracking-widest">
                           نافذ
@@ -2043,28 +2070,36 @@ export default function App() {
                       </span>
                       <div className="flex flex-col items-end gap-1">
                           <div className="flex items-center gap-2">
-                              <span className={`text-2xl sm:text-3xl font-black font-mono tracking-tight leading-none ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'text-red-400 opacity-60' : (isDarkMode ? 'text-teal-400 drop-shadow-[0_0_15px_rgba(20,184,166,0.3)]' : 'text-teal-600')}`}>
-                                  {(() => {
-                                      let effP = Number(selectedProduct.price) || 0;
-                                      if (selectedProduct.enableWholesale) {
-                                          if (modalQty >= 20) effP = Math.max(0, effP - (Number(selectedProduct.discount20) || 500));
-                                          else if (modalQty >= 10) effP = Math.max(0, effP - (Number(selectedProduct.discount10) || 250));
-                                      }
-                                      return effP.toLocaleString();
-                                  })()}
-                              </span>
-                              <span className={`border px-2 py-1 rounded-lg font-bold text-xs sm:text-sm whitespace-nowrap ${isDarkMode ? 'bg-teal-500/10 border-teal-500/30 text-teal-400' : 'bg-teal-50 border-teal-200 text-teal-700'}`}>
-                                  {t.currency}
-                              </span>
+                              {selectedProduct.category === 'مشاريع' ? (
+                                  <span className={`text-xl sm:text-2xl font-black font-mono tracking-tight leading-none text-green-500 drop-shadow-md`}>
+                                      السعر حسب الاتفاق
+                                  </span>
+                              ) : (
+                                  <>
+                                      <span className={`text-2xl sm:text-3xl font-black font-mono tracking-tight leading-none ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'text-red-400 opacity-60' : (isDarkMode ? 'text-teal-400 drop-shadow-[0_0_15px_rgba(20,184,166,0.3)]' : 'text-teal-600')}`}>
+                                          {(() => {
+                                              let effP = Number(selectedProduct.price) || 0;
+                                              if (selectedProduct.enableWholesale) {
+                                                  if (modalQty >= 20) effP = Math.max(0, effP - (Number(selectedProduct.discount20) || 500));
+                                                  else if (modalQty >= 10) effP = Math.max(0, effP - (Number(selectedProduct.discount10) || 250));
+                                              }
+                                              return effP.toLocaleString();
+                                          })()}
+                                      </span>
+                                      <span className={`border px-2 py-1 rounded-lg font-bold text-xs sm:text-sm whitespace-nowrap ${isDarkMode ? 'bg-teal-500/10 border-teal-500/30 text-teal-400' : 'bg-teal-50 border-teal-200 text-teal-700'}`}>
+                                          {t.currency}
+                                      </span>
+                                  </>
+                              )}
                           </div>
-                          {selectedProduct.enableWholesale && (
+                          {selectedProduct.enableWholesale && selectedProduct.category !== 'مشاريع' && (
                              <span className="text-yellow-500 text-[9px] font-bold tracking-widest"><i className="fa-solid fa-tags"></i> تفعيل خصم الجملة للكميات</span>
                           )}
                       </div>
                   </div>
                 </div>
 
-                {(() => {
+                {selectedProduct.category !== 'مشاريع' && (() => {
                     const currentCartQty = cart.find(item => item.id === selectedProduct.id)?.qty || 0;
                     const availableStock = Math.max(0, (parseInt(selectedProduct.stock)||0) - currentCartQty);
                     
@@ -2111,26 +2146,38 @@ export default function App() {
                     );
                 })()}
 
-                <button 
-                    type="button" 
-                    disabled={(parseInt(selectedProduct.stock)||0) <= 0 || ((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0}
-                    onClick={(e) => { 
-                        e.stopPropagation(); 
-                        addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock, modalQty, selectedProduct.enableWholesale, selectedProduct.discount10, selectedProduct.discount20); 
-                        setModalQty(1);
-                    }} 
-                    onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
-                    className={`relative overflow-hidden w-full py-3 sm:py-4 rounded-xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0 ? 'bg-slate-300 text-gray-500 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-white hover:scale-[1.02] hover:shadow-lg hover:-translate-y-1'}`}
-                >
-                    <i className="fas fa-cart-plus text-2xl"></i> 
-                    {((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0 ? 'المنتج نافذ من المخزن' : t.addToCart}
+                {selectedProduct.category === 'مشاريع' ? (
+                    <a 
+                        href={`https://wa.me/9647760599953?text=${encodeURIComponent(`مرحباً، أود الاستفسار عن المنتج المميز: ${selectedProduct.name}`)}`}
+                        target="_blank" rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className={`relative overflow-hidden w-full py-3 sm:py-4 rounded-xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 bg-gradient-to-r from-green-500 to-green-400 text-white hover:scale-[1.02] hover:shadow-lg hover:-translate-y-1 mt-4`}
+                    >
+                        <i className="fab fa-whatsapp text-2xl"></i> 
+                        طلب واستفسار عبر الواتساب
+                    </a>
+                ) : (
+                    <button 
+                        type="button" 
+                        disabled={(parseInt(selectedProduct.stock)||0) <= 0 || ((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0}
+                        onClick={(e) => { 
+                            e.stopPropagation(); 
+                            addToCart(selectedProduct.id, selectedProduct.name, selectedProduct.price, (selectedProduct.images && selectedProduct.images.length > 0) ? selectedProduct.images[0] : selectedProduct.img, selectedProduct.stock, modalQty, selectedProduct.enableWholesale, selectedProduct.discount10, selectedProduct.discount20); 
+                            setModalQty(1);
+                        }} 
+                        onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
+                        className={`relative overflow-hidden w-full py-3 sm:py-4 rounded-xl font-black text-lg sm:text-xl tracking-wide transition-all duration-300 flex items-center justify-center gap-3 ${((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0 ? 'bg-slate-300 text-gray-500 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-teal-500 to-emerald-400 text-white hover:scale-[1.02] hover:shadow-lg hover:-translate-y-1'}`}
+                    >
+                        <i className="fas fa-cart-plus text-2xl"></i> 
+                        {((parseInt(selectedProduct.stock)||0) - (cart.find(item => item.id === selectedProduct.id)?.qty || 0)) <= 0 ? 'المنتج نافذ من المخزن' : t.addToCart}
 
-                    {cart.find(item => item.id === selectedProduct.id)?.qty > 0 && (
-                        <span className={`absolute left-4 text-xs sm:text-sm font-mono px-3 py-1.5 rounded-lg border shadow-lg flex items-center gap-1 animate-pulse ${isDarkMode ? 'bg-slate-900/90 text-teal-400 border-teal-500/50' : 'bg-white text-teal-600 border-white/50'}`}>
-                            <i className="fas fa-check-circle"></i> الكمية: {cart.find(item => item.id === selectedProduct.id).qty}
-                        </span>
-                    )}
-                </button>
+                        {cart.find(item => item.id === selectedProduct.id)?.qty > 0 && (
+                            <span className={`absolute left-4 text-xs sm:text-sm font-mono px-3 py-1.5 rounded-lg border shadow-lg flex items-center gap-1 animate-pulse ${isDarkMode ? 'bg-slate-900/90 text-teal-400 border-teal-500/50' : 'bg-white text-teal-600 border-white/50'}`}>
+                                <i className="fas fa-check-circle"></i> الكمية: {cart.find(item => item.id === selectedProduct.id).qty}
+                            </span>
+                        )}
+                    </button>
+                )}
 
                 <div className={`flex flex-wrap gap-2 sm:gap-4 border-b mt-4 pb-2 flex-shrink-0 justify-start ${isDarkMode ? 'border-teal-500/20' : 'border-gray-200'}`}>
                     <button onClick={() => setModalTab('compat')} className={`pb-2 px-1 text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${modalTab === 'compat' ? (isDarkMode ? 'text-teal-400 border-b-2 border-teal-400' : 'text-teal-600 border-b-2 border-teal-600') : (isDarkMode ? 'text-gray-500 hover:text-gray-300' : 'text-slate-500 hover:text-slate-800')}`}>
