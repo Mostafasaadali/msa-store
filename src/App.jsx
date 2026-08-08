@@ -373,6 +373,21 @@ export default function App() {
     setDisplayCount(20);
   }, [deferredSearchQuery, selectedCatFilter]);
 
+  // إضافة دالة التمرير السلس بعد اختيار القسم
+  const handleCategoryClickAndScroll = useCallback((catName) => {
+    setSelectedCatFilter(catName);
+    setTimeout(() => {
+      const grid = document.getElementById('productsGrid');
+      if (grid) {
+        const gridTop = grid.getBoundingClientRect().top + window.scrollY;
+        window.scrollTo({
+          top: gridTop - 120, // طرح 120 بكسل لتجنب التغطية بواسطة شريط التنقل
+          behavior: 'smooth'
+        });
+      }
+    }, 50); // مهلة 50 جزء من الثانية لضمان تطبيق الفلتر قبل النزول
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('msa_theme', isDarkMode ? 'dark' : 'light');
     if (!isDarkMode) {
@@ -1637,7 +1652,7 @@ export default function App() {
                     <div className={`flex flex-wrap justify-center items-center gap-2 pb-4 pt-1 w-full ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
                       
                        <button 
-                          onClick={() => setSelectedCatFilter('مشاريع')} 
+                          onClick={() => handleCategoryClickAndScroll('مشاريع')} 
                           onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                           className={`shrink-0 px-5 py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-md flex items-center gap-2 ${selectedCatFilter === ' مشاريع' ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold border-transparent shadow-[0_0_15px_rgba(16,185,129,0.5)] scale-105' : (isDarkMode ? 'bg-[#064e3b]/80 backdrop-blur-md text-green-400 border-green-500/30 hover:border-green-400 hover:text-green-300' : 'bg-green-50/80 backdrop-blur-md text-green-700 border-green-200 hover:border-green-400 hover:text-green-600')}`}
                        >
@@ -1645,14 +1660,14 @@ export default function App() {
                        </button>
 
                        <button 
-                          onClick={() => setSelectedCatFilter('ادوات مشروع')} 
+                          onClick={() => handleCategoryClickAndScroll('ادوات مشروع')} 
                           onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                           className={`shrink-0 px-5 py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-md flex items-center gap-2 ${selectedCatFilter === 'ادوات مشروع' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold border-transparent shadow-[0_0_15px_rgba(147,51,234,0.5)] scale-105' : (isDarkMode ? 'bg-[#1e1136]/80 backdrop-blur-md text-purple-400 border-purple-500/30 hover:border-purple-400 hover:text-purple-300' : 'bg-purple-50/80 backdrop-blur-md text-purple-700 border-purple-200 hover:border-purple-400 hover:text-purple-600')}`}
                        >
                           <i className="fa-solid fa-toolbox"></i> ادوات مشروع
                        </button>
                        <button 
-                          onClick={() => setSelectedCatFilter('')} 
+                          onClick={() => handleCategoryClickAndScroll('')} 
                           onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                           className={`shrink-0 px-5 py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === '' ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
                        >
@@ -1664,7 +1679,7 @@ export default function App() {
                            return (
                                <button 
                                   key={c.id} 
-                                  onClick={() => setSelectedCatFilter(c.name)} 
+                                  onClick={() => handleCategoryClickAndScroll(c.name)} 
                                   onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
                                   className={`shrink-0 px-5 py-2.5 rounded-full font-mono text-xs border whitespace-nowrap transition-all shadow-sm ${selectedCatFilter === c.name ? 'bg-teal-500 text-white font-bold border-teal-500' : (isDarkMode ? 'bg-slate-800/60 text-gray-300 border-teal-500/20 hover:border-teal-400' : 'bg-white/80 backdrop-blur-md text-slate-600 border-gray-200 hover:border-teal-400 hover:text-teal-600')}`}
                                >
@@ -1691,7 +1706,8 @@ export default function App() {
                 </div>
             </div>
 
-            <div className={`${viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-6' : 'flex flex-col gap-3 sm:gap-4'} items-stretch w-full px-1 sm:px-2`}>
+            {/* تم إضافة id="productsGrid" هنا لاستهدافه عند التمرير */}
+            <div id="productsGrid" className={`${viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-6' : 'flex flex-col gap-3 sm:gap-4'} items-stretch w-full px-1 sm:px-2`}>
               {filteredProducts.length === 0 ? (
                 <div className={`col-span-2 sm:col-span-3 lg:col-span-4 text-center py-16 border rounded-2xl border-dashed mx-2 ${isDarkMode ? 'border-teal-500/20 bg-slate-800/40' : 'border-teal-300 bg-white/80'}`}>
                   <i className="fas fa-microchip text-3xl sm:text-5xl text-teal-500/30 mb-4 animate-pulse"></i>
