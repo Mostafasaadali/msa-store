@@ -478,17 +478,30 @@ export default function App() {
       }
   }, []);
 
+  // إضافة حالة ابتدائية لمنع الخروج
+  useEffect(() => {
+      window.history.pushState('app-root', null, null);
+  }, []);
+
+  // تعديل التقاط حدث الرجوع لمنع الخروج نهائياً
   useEffect(() => {
       const handlePopState = (e) => {
           if (historyDepth.current > 0) {
               historyDepth.current -= 1;
           }
           
-          if (activeGallery) { setActiveGallery(null); }
-          else if (isProjectsModalOpen) { setIsProjectsModalOpen(false); }
-          else if (selectedProduct) { setSelectedProduct(null); }
-          else if (isCartOpen) { setIsCartOpen(false); }
-          else if (isSideMenuOpen) { setIsSideMenuOpen(false); }
+          let handled = false;
+          if (activeGallery) { setActiveGallery(null); handled = true; }
+          else if (isProjectsModalOpen) { setIsProjectsModalOpen(false); handled = true; }
+          else if (selectedProduct) { setSelectedProduct(null); handled = true; }
+          else if (isCartOpen) { setIsCartOpen(false); handled = true; }
+          else if (isSideMenuOpen) { setIsSideMenuOpen(false); handled = true; }
+          
+          if (!handled) {
+              // إذا لم تكن هناك أي نوافذ منبثقة مفتوحة، يتم إعادة دفع حالة جديدة 
+              // لإبقاء المستخدم داخل التطبيق ومنعه من الخروج
+              window.history.pushState('app-root', null, null);
+          }
           
           playSynthSound(400, 'sine', 0.1);
       };
@@ -1289,7 +1302,7 @@ export default function App() {
               position: absolute;
               border-radius: 50%;
               filter: blur(70px);
-              opacity: 0.3; 
+              opacity: 0.2; 
               will-change: transform, opacity;
               transform: translateZ(0); /* تسريع الأجهزة Hardware Acceleration */
               mix-blend-mode: screen; 
