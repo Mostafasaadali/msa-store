@@ -234,7 +234,7 @@ const ProductCard = React.memo(({
             <div className={`${viewMode === 'list' ? 'w-auto flex-shrink-0 min-w-[100px] sm:min-w-[140px]' : 'w-full mt-2'}`}>
               {isSpecialCategory ? (
                 <a 
-                  href={`https://wa.me/9647760599953?text=${encodeURIComponent(`مرحباً، أود الاستفسار عن المنتج المميز: ${prod.name}`)}`}
+                  href={`https://wa.me/9647760599953?text=${encodeURIComponent(`السلام عليكم ، أود الاستفسار عن المنتج : ${prod.name}`)}`}
                   target="_blank" rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()} 
                   className={`w-full flex items-center justify-center gap-1 p-1.5 sm:p-2 sm:px-4 rounded-full font-bold text-[9px] sm:text-xs transition-all relative overflow-hidden z-20 shadow-md bg-green-500 text-white hover:bg-green-400`}
@@ -1289,7 +1289,7 @@ export default function App() {
               position: absolute;
               border-radius: 50%;
               filter: blur(70px);
-              opacity: 0.2; 
+              opacity: 0.3; 
               will-change: transform, opacity;
               transform: translateZ(0); /* تسريع الأجهزة Hardware Acceleration */
               mix-blend-mode: screen; 
