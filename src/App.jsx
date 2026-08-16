@@ -177,8 +177,7 @@ const ProductCard = React.memo(({
           ${isOutOfStock ? (isDarkMode ? 'border-red-500/10 group-hover:border-red-500/30' : 'border-red-100') : (isDarkMode ? 'border-teal-500/10 group-hover:border-teal-500/30' : 'border-gray-100')}`}
           title={t.viewDetails}
         >
-          <img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} loading="lazy" decoding="async" alt={prod.name} className={`object-contain h-full w-full max-h-full max-w-full mix-blend-multiply transition-all duration-500 p-2 ${isOutOfStock ? 'opacity-50 grayscale' : 'group-hover:scale-110 group-hover:rotate-3'}`} />
-          
+<img src={prod.images && prod.images.length > 0 ? prod.images[0] : prod.img} loading="lazy" decoding="async" alt={prod.name} className={`object-contain h-full w-full max-h-full max-w-full mix-blend-multiply transition-all duration-500 p-2 ${isOutOfStock ? '' : 'group-hover:scale-110 group-hover:rotate-3'}`} />          
           {prod.images && prod.images.length > 1 && viewMode !== 'list' && (
              <div className={`absolute bottom-1 sm:bottom-2 ${lang === 'en' ? 'left-1 sm:left-2' : 'right-1 sm:right-2'} px-1 py-0.5 sm:px-2 sm:py-1 rounded text-[8px] sm:text-xs font-mono shadow-md backdrop-blur-sm ${isDarkMode ? 'bg-slate-900/80 text-white' : 'bg-white/90 text-slate-800 border border-gray-200'}`}>
                 <i className="fas fa-images"></i> +{prod.images.length - 1}
@@ -190,8 +189,8 @@ const ProductCard = React.memo(({
           )}
           
           {isOutOfStock && !isSpecialCategory && (
-             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center backdrop-blur-[2px] bg-slate-900/60">
-                <span className="bg-red-600 text-white font-bold px-2 py-1 sm:px-6 sm:py-2 rounded border border-red-400 shadow-[0_0_15px_rgba(220,38,38,0.5)] transform -rotate-12 text-[10px] sm:text-lg uppercase tracking-widest">
+<div className="absolute inset-0 z-10 flex flex-col items-center justify-end">
+                  <span className="bg-red-600 text-white font-bold px-2 py-1 sm:px-6 sm:py-2 rounded border border-red-400 shadow-[0_0_15px_rgba(220,38,38,0.5)] transform -rotate-12 text-[10px] sm:text-lg uppercase tracking-widest">
                   نافذ
                 </span>
              </div>
@@ -1245,7 +1244,11 @@ export default function App() {
     }, { rootMargin: '300px' });
     if (node) observer.current.observe(node);
   }, [displayCount, filteredProducts.length]);
-
+const cartItemsMap = useMemo(() => {
+    const map = new Map();
+    cart.forEach(item => map.set(item.id, item.qty));
+    return map;
+  }, [cart]);
   return (
     <div className={`relative min-h-screen font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 flex flex-col w-full pb-20 md:pb-0 ${isDarkMode ? 'text-gray-100' : 'text-slate-800'}`} style={{ backgroundColor: isDarkMode ? '#0f172a' : '#f4f7f6' }} dir={lang === 'en' ? 'ltr' : 'rtl'}>
       
@@ -1287,36 +1290,37 @@ export default function App() {
           .cart-pro-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(20, 184, 166, 0.8); }
           
 
-          .win7-bg-container {
-              position: fixed;
-              top: 0; left: 0;
-              width: 100vw; height: 100vh;
-              z-index: 0;
-              pointer-events: none;
-              overflow: hidden;
-              background-color: transparent;
-              will-change: transform;
-          }
-          
-          .win7-orb {
-              position: absolute;
-              border-radius: 50%;
-              filter: blur(70px);
-              opacity: 0.2; 
-              will-change: transform, opacity;
-              transform: translateZ(0); /* تسريع الأجهزة Hardware Acceleration */
-              mix-blend-mode: screen; 
-          }
+.win7-bg-container {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background-color: transparent;
+    will-change: transform;
+    transform: translateZ(0); /* تفعيل تسريع الهاردوير */
+}
+
+.win7-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(40px); /* تقليل الضبابية يضاعف الأداء 3 مرات */
+    opacity: 0.2; 
+    will-change: transform;
+    transform: translate3d(0, 0, 0); 
+    mix-blend-mode: screen; 
+}
 
           body.light-mode .win7-orb {
-              opacity: 0.2; 
+              opacity: 0.0; 
               mix-blend-mode: multiply;
           }
 
 
           .orb-red {
               width: 45vw; height: 45vw;
-              background-color: #f700a1;
+              background-color: #00caf7;
               top: -10%; left: -10%;
               animation: floatRed 12s infinite alternate ease-in-out;
           }
@@ -1340,7 +1344,7 @@ export default function App() {
 
           .orb-yellow {
               width: 42vw; height: 42vw;
-              background-color: #5a00d8;
+              background-color: #00d8ad;
               bottom: -10%; right: -5%;
               animation: floatYellow 13s infinite alternate ease-in-out;
           }
@@ -1605,7 +1609,11 @@ export default function App() {
       ) : (
         <div className="flex-grow flex flex-col w-full">
           <section className="relative z-10 min-h-auto flex flex-col justify-center items-center text-center px-4 sm:px-8 pt-32 pb-10 overflow-hidden">
-            <span className={`text-6xl sm:text-7xl font-bold tracking-tighter uppercase m-auto p-4 sm:p-7 leading-none text-[#4ef542]`}>M <span className="text-[#ff8800]">S</span> A</span>
+
+<span dir="ltr" className="text-6xl sm:text-7xl font-bold tracking-tighter uppercase m-auto p-4 sm:p-7 leading-none text-[#4ef542]" style={{ textShadow: '0 0 25px rgba(78, 245, 66, 0.3)' }}>
+   M <span className="text-[#ff8800]" style={{ textShadow: '0 0 25px rgba(255, 136, 0, 0.4)' }}>S</span> A
+</span>
+
             <span className={`font-mono text-lg sm:text-2xl tracking-[0.04em] mb-3 animate-deep-pulse ${isDarkMode ? 'text-teal-400' : 'text-teal-600'}`}>{t.heroSub}</span>
             
             <h1 className="text-4xl md:text-8xl font-cairo-black uppercase leading-tight relative z-10 flex items-center justify-center flex-wrap">
@@ -2016,7 +2024,7 @@ export default function App() {
                       loading="lazy"
                       decoding="async"
                       alt={selectedProduct.name} 
-                      className={`object-contain h-full w-full mix-blend-multiply transition-transform duration-500 group-hover:scale-110 ${(parseInt(selectedProduct.stock)||0) <= 0 ? 'opacity-50 grayscale' : ''}`} 
+className={`object-contain h-full w-full mix-blend-multiply transition-transform duration-500 group-hover:scale-110`}
                   />
                   
                   {selectedProduct.images?.length > 1 && (
@@ -2042,7 +2050,7 @@ export default function App() {
                   </div>
                   
                   {(parseInt(selectedProduct.stock)||0) <= 0 && selectedProduct.category !== 'مشاريع' && (
-                     <div className="absolute inset-0 bg-white/60 z-20 flex flex-col items-center justify-center backdrop-blur-[2px]">
+                     <div className="absolute inset-0 z-20 flex flex-col items-center justify-center">
                         <span className="bg-red-600 text-white font-bold px-4 py-2 sm:px-6 sm:py-2 rounded border border-red-400 shadow-[0_0_15px_rgba(220,38,38,0.5)] transform -rotate-12 text-sm sm:text-lg uppercase tracking-widest">
                           نافذ
                         </span>
