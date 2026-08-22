@@ -5,6 +5,7 @@ import {ADMIN_UID, db, auth, provider } from './firebase';
 import { collection, addDoc, doc, setDoc, getDocs, query, orderBy, limit, deleteDoc, updateDoc, getDoc, onSnapshot, increment, where } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'; 
 import { gsap } from 'gsap';
+import ParticlesBackground from './ParticlesBackground';
 
 const AdminPanel = React.lazy(() => import('./AdminPanel'));
 
@@ -159,14 +160,14 @@ const ProductCard = React.memo(({
 
   return (
     <div className={`card-perspective w-full min-w-0 ${viewMode === 'list' ? 'col-span-full' : 'h-full'}`}>
-      <div 
+<div 
         onMouseMove={(e) => onCardMove(e, e.currentTarget)}
         onMouseLeave={(e) => { onCardLeave(e.currentTarget); onMouseLeave(e); }}
         onMouseEnter={onMouseEnter} 
         onClick={() => onSelect(prod)}
         className={`card-tilt cursor-pointer w-full flex rounded-xl sm:rounded-2xl p-3 sm:p-5 relative group transition-all duration-300 border overflow-hidden break-words min-w-0 
         ${viewMode === 'list' ? 'flex-row items-center sm:items-stretch h-auto gap-3 sm:gap-5' : 'flex-col h-full'}
-        ${isDarkMode ? (isOutOfStock ? 'bg-neutral-900/60 border-red-500/20 hover:border-red-400/60' : 'bg-slate-900/60 backdrop-blur-md border-teal-500/20 hover:border-teal-400/60') : (isOutOfStock ? 'bg-white border-red-200 hover:border-red-400 shadow-md' : 'bg-white/80 border-gray-100 hover:border-teal-300 shadow-xl hover:shadow-2xl backdrop-blur-sm')}`}
+        ${isDarkMode ? (isOutOfStock ? 'bg-slate-900/80 backdrop-blur-lg border-red-500/30 hover:border-red-400/60' : 'bg-slate-900/80 backdrop-blur-lg border-teal-500/30 hover:border-teal-400/60') : (isOutOfStock ? 'bg-white border-red-200 hover:border-red-400 shadow-md' : 'bg-white/90 border-gray-100 hover:border-teal-300 shadow-xl hover:shadow-2xl backdrop-blur-sm')}`}
       >
         <div className="gloss-effect"></div>
         
@@ -286,6 +287,12 @@ const ProductCard = React.memo(({
 export default function App() {
   const [lang, setLang] = useState('ar');
   const t = translations[lang]; 
+const [isDesktop, setIsDesktop] = useState(window.innerWidth > 768);
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth > 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('msa_theme');
@@ -477,12 +484,14 @@ export default function App() {
       }
   }, []);
 
-  // إضافة حالة ابتدائية لمنع الخروج
+// 1. إضافة حالة ابتدائية متينة لمنع الخروج
   useEffect(() => {
-      window.history.pushState('app-root', null, null);
+      // دفع الحالة مرتين لإنشاء "حاجز متين" يمنع الهاتف من تخطي التطبيق عند الضغط السريع
+      window.history.pushState(null, null, window.location.href);
+      window.history.pushState(null, null, window.location.href);
   }, []);
 
-  // تعديل التقاط حدث الرجوع لمنع الخروج نهائياً
+  // 2. التقاط حدث الرجوع لمنع الخروج نهائياً
   useEffect(() => {
       const handlePopState = (e) => {
           if (historyDepth.current > 0) {
@@ -496,10 +505,10 @@ export default function App() {
           else if (isCartOpen) { setIsCartOpen(false); handled = true; }
           else if (isSideMenuOpen) { setIsSideMenuOpen(false); handled = true; }
           
+          // إذا تم الضغط على الرجوع ولم تكن هناك أي نافذة منبثقة مفتوحة
+          // نقوم بإعادة دفع الحالة فوراً ليبقى المستخدم محتجزاً داخل التطبيق
           if (!handled) {
-              // إذا لم تكن هناك أي نوافذ منبثقة مفتوحة، يتم إعادة دفع حالة جديدة 
-              // لإبقاء المستخدم داخل التطبيق ومنعه من الخروج
-              window.history.pushState('app-root', null, null);
+              window.history.pushState(null, null, window.location.href);
           }
           
           playSynthSound(400, 'sine', 0.1);
@@ -508,7 +517,6 @@ export default function App() {
       window.addEventListener('popstate', handlePopState);
       return () => window.removeEventListener('popstate', handlePopState);
   }, [activeGallery, isProjectsModalOpen, selectedProduct, isCartOpen, isSideMenuOpen, playSynthSound]);
-
   useEffect(() => {
     const savedCart = localStorage.getItem('msa_store_cart');
     const savedTime = localStorage.getItem('msa_store_cart_time');
@@ -1249,8 +1257,8 @@ const cartItemsMap = useMemo(() => {
     cart.forEach(item => map.set(item.id, item.qty));
     return map;
   }, [cart]);
-  return (
-    <div className={`relative min-h-screen font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 flex flex-col w-full pb-20 md:pb-0 ${isDarkMode ? 'text-gray-100' : 'text-slate-800'}`} style={{ backgroundColor: isDarkMode ? '#0f172a' : '#f4f7f6' }} dir={lang === 'en' ? 'ltr' : 'rtl'}>
+return (
+    <div className={`relative min-h-screen font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 flex flex-col w-full pb-20 md:pb-0 ${isDarkMode ? 'text-gray-100' : 'text-slate-800'}`} style={{ backgroundColor: isDarkMode ? (isDesktop ? 'transparent' : '#0f172a') : '#f4f7f6' }} dir={lang === 'en' ? 'ltr' : 'rtl'}>
       
       <style>{`
           .custom-cursor {
@@ -1289,110 +1297,54 @@ const cartItemsMap = useMemo(() => {
           .cart-pro-scrollbar::-webkit-scrollbar-thumb { background: rgba(20, 184, 166, 0.3); border-radius: 10px; }
           .cart-pro-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(20, 184, 166, 0.8); }
           
-
-.win7-bg-container {
-    position: fixed;
-    top: 0; left: 0;
-    width: 100vw; height: 100vh;
-    z-index: 0;
-    pointer-events: none;
-    overflow: hidden;
-    background-color: transparent;
-    will-change: transform;
-    transform: translateZ(0); /* تفعيل تسريع الهاردوير */
-}
-
-.win7-orb {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(40px); /* تقليل الضبابية يضاعف الأداء 3 مرات */
-    opacity: 0.2; 
-    will-change: transform;
-    transform: translate3d(0, 0, 0); 
-    mix-blend-mode: screen; 
-}
-
+          /* أكواد الألوان المتحركة للهاتف */
+          .win7-bg-container {
+              position: fixed;
+              top: 0; left: 0;
+              width: 100vw; height: 100vh;
+              z-index: 0;
+              pointer-events: none;
+              overflow: hidden;
+              background-color: transparent;
+              will-change: transform;
+              transform: translateZ(0); 
+          }
+          .win7-orb {
+              position: absolute;
+              border-radius: 50%;
+              filter: blur(40px); 
+              opacity: 0.2; 
+              will-change: transform;
+              transform: translate3d(0, 0, 0); 
+              mix-blend-mode: screen; 
+          }
           body.light-mode .win7-orb {
               opacity: 0.0; 
               mix-blend-mode: multiply;
           }
-
-
-          .orb-red {
-              width: 45vw; height: 45vw;
-              background-color: #00caf7;
-              top: -10%; left: -10%;
-              animation: floatRed 12s infinite alternate ease-in-out;
-          }
-          
-
-          .orb-green {
-              width: 40vw; height: 40vw;
-              background-color: #01bc7d; 
-              top: -5%; right: -10%;
-              animation: floatGreen 14s infinite alternate ease-in-out;
-          }
-          
-
-          .orb-blue {
-              width: 50vw; height: 50vw;
-              background-color: #00aeff; 
-              bottom: -15%; left: -5%;
-              animation: floatBlue 15s infinite alternate ease-in-out;
-          }
-          
-
-          .orb-yellow {
-              width: 42vw; height: 42vw;
-              background-color: #00d8ad;
-              bottom: -10%; right: -5%;
-              animation: floatYellow 13s infinite alternate ease-in-out;
-          }
-
-
-          @keyframes floatRed {
-              0% { transform: translate3d(0, 0, 0) scale(1); }
-              50% { transform: translate3d(30vw, 40vh, 0) scale(1.2); }
-              100% { transform: translate3d(10vw, 60vh, 0) scale(0.9); }
-          }
-          @keyframes floatGreen {
-              0% { transform: translate3d(0, 0, 0) scale(1); }
-              50% { transform: translate3d(-30vw, 30vh, 0) scale(1.3); }
-              100% { transform: translate3d(-10vw, 50vh, 0) scale(1.1); }
-          }
-          @keyframes floatBlue {
-              0% { transform: translate3d(0, 0, 0) scale(1); }
-              50% { transform: translate3d(40vw, -30vh, 0) scale(1.1); }
-              100% { transform: translate3d(20vw, -50vh, 0) scale(1.3); }
-          }
-          @keyframes floatYellow {
-              0% { transform: translate3d(0, 0, 0) scale(1); }
-              50% { transform: translate3d(-40vw, -40vh, 0) scale(1.4); }
-              100% { transform: translate3d(-20vw, -20vh, 0) scale(1); }
-          }
+          .orb-red { width: 45vw; height: 45vw; background-color: #180467; top: -10%; left: -10%; animation: floatRed 12s infinite alternate ease-in-out; }
+          .orb-green { width: 40vw; height: 40vw; background-color: #0a0074; top: -5%; right: -10%; animation: floatGreen 14s infinite alternate ease-in-out; }
+          .orb-blue { width: 50vw; height: 50vw; background-color: #0c058b; bottom: -15%; left: -5%; animation: floatBlue 15s infinite alternate ease-in-out; }
+          .orb-yellow { width: 42vw; height: 42vw; background-color: #055cd7; bottom: -10%; right: -5%; animation: floatYellow 13s infinite alternate ease-in-out; }
+          @keyframes floatRed { 0% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(30vw, 40vh, 0) scale(1.2); } 100% { transform: translate3d(10vw, 60vh, 0) scale(0.9); } }
+          @keyframes floatGreen { 0% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(-30vw, 30vh, 0) scale(1.3); } 100% { transform: translate3d(-10vw, 50vh, 0) scale(1.1); } }
+          @keyframes floatBlue { 0% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(40vw, -30vh, 0) scale(1.1); } 100% { transform: translate3d(20vw, -50vh, 0) scale(1.3); } }
+          @keyframes floatYellow { 0% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(-40vw, -40vh, 0) scale(1.4); } 100% { transform: translate3d(-20vw, -20vh, 0) scale(1); } }
       `}</style>
       
-      {/* طبقة الألوان المتحركة (Windows 7 Startup Style) */}
-      <div className="win7-bg-container">
-          <div className="win7-orb orb-red"></div>
-          <div className="win7-orb orb-green"></div>
-          <div className="win7-orb orb-blue"></div>
-          <div className="win7-orb orb-yellow"></div>
-      </div>
+      {isDesktop ? (
+         <ParticlesBackground />
+      ) : (
+         <div className="win7-bg-container">
+             <div className="win7-orb orb-red"></div>
+             <div className="win7-orb orb-green"></div>
+             <div className="win7-orb orb-blue"></div>
+             <div className="win7-orb orb-yellow"></div>
+         </div>
+      )}
 
       <div ref={cursorOuterRef} className="custom-cursor hidden md:block"></div>
       <div ref={cursorInnerRef} className="custom-cursor-dot hidden md:block"></div>
-
-      {toast && (
-          <div className="fixed bottom-24 md:bottom-10 left-1/2 -translate-x-1/2 z-[999999] animate-[bounce_1s_infinite]">
-              <div className={`px-5 py-2.5 rounded-full shadow-[0_10px_40px_rgba(20,184,166,0.3)] font-bold text-xs sm:text-sm flex items-center gap-3 border ${isDarkMode ? 'bg-teal-900/90 text-teal-100 border-teal-500/50 backdrop-blur-md' : 'bg-teal-50 text-teal-800 border-teal-200'}`}>
-                  <div className="w-6 h-6 rounded-full bg-teal-500 text-white flex items-center justify-center shrink-0">
-                      <i className="fas fa-check"></i>
-                  </div>
-                  {toast}
-              </div>
-          </div>
-      )}
 
       <header className={`border-b fixed top-0 left-0 right-0 z-50 px-2 sm:px-6 py-2 sm:py-3 backdrop-blur-md transition-colors duration-500 shadow-lg ${isDarkMode ? 'border-teal-500/20 bg-slate-900/90' : 'border-teal-200 bg-white/90 shadow-sm'}`}>
         <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center w-full gap-y-2">
