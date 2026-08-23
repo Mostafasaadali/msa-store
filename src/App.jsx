@@ -46,7 +46,7 @@ const translations = {
     cartEmpty: "السلة فارغة حالياً",
     currency: "د.ع",
     noDesc: "لا يتوفر وصف دقيق لهذا المنتج في الوقت الحالي.",
-    itemCount: "صنف",
+
     installApp: "تثبيت التطبيق",
     whatsappSupport: "ارسل رسالة عبر الواتساب",
     projects: "المشاريع المنجزة",
@@ -88,7 +88,7 @@ const translations = {
     cartEmpty: "Cart is currently empty",
     currency: "IQD",
     noDesc: "No description available.",
-    itemCount: "Items",
+
     installApp: "Install App",
     whatsappSupport: "Send a message via WhatsApp",
     projects: "Completed Projects",
@@ -130,7 +130,7 @@ const translations = {
     cartEmpty: "سەبەتەکە خاڵییە",
     currency: "د.ع",
     noDesc: "هیچ وەسفێکی ورد بەردەست نییە.",
-    itemCount: "پارچە",
+
     installApp: "دابەزاندنی بەرنامە",
     whatsappSupport: "لە ڕێگەی واتسئەپەوە نامە بنێرە",
     projects: "پڕۆژەکان",
@@ -1661,7 +1661,7 @@ return (
 
                 <div className="flex justify-between items-center w-full px-1 border-b pb-4 mb-2 border-teal-500/10 dark:border-teal-500/20">
                     <div className={`text-xs font-mono font-bold ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
-                        <i className="fa-solid fa-microchip mr-1"></i> {filteredProducts.length} {t.itemCount} متاحة
+                        <i className="fa-solid fa-microchip mr-1"></i> هل صليت على محمد وآل محمد
                     </div>
                     <div className={`flex items-center gap-1 border rounded-full p-1 shrink-0 shadow-sm ${isDarkMode ? 'bg-slate-800/80 backdrop-blur-md border-teal-500/30' : 'bg-white/80 backdrop-blur-md border-teal-200'}`}>
                         <button onClick={() => setViewMode('grid')} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${viewMode === 'grid' ? 'bg-teal-500 text-white shadow-md' : 'text-gray-400 hover:text-teal-500'}`} title="عرض شبكي">
@@ -1749,7 +1749,7 @@ return (
                       <i className="fa-solid fa-layer-group"></i> {t.cartItems}
                   </h4>
                   <span className={`font-mono text-[11px] font-bold px-3 py-1 rounded-full border ${isDarkMode ? 'bg-teal-500/10 text-teal-300 border-teal-500/20' : 'bg-white text-teal-700 border-teal-200 shadow-sm'}`}>
-                      {cart.length} {t.itemCount}
+                      {cart.length} 
                   </span>
                </div>
 
