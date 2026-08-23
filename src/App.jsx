@@ -360,6 +360,8 @@ const [isDesktop, setIsDesktop] = useState(window.innerWidth > 768);
   const [modalQty, setModalQty] = useState(1);
   const [modalQtyWarning, setModalQtyWarning] = useState('');
 
+const [isCopied, setIsCopied] = useState(false);
+
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [toast, setToast] = useState(null);
   
@@ -2262,14 +2264,38 @@ className={`object-contain h-full w-full mix-blend-multiply transition-transform
                           {selectedProduct.desc || t.noDesc}
                       </div>
                   )}
+
                   
-                  {modalTab === 'code' && (
-                      <div className={`p-4 rounded-xl border overflow-x-auto text-left h-fit shadow-inner ${isDarkMode ? 'bg-[#162033] border-teal-500/20' : 'bg-gray-100 border-gray-300'}`} dir="ltr">
-                          <pre className={`font-mono text-xs sm:text-sm ${isDarkMode ? 'text-teal-300' : 'text-slate-800'}`}>
-                              {selectedProduct.codeSnippet || '// لا يوجد كود برمجي متاح لهذه القطعة حالياً.\n// يمكنك إضافة الكود من لوحة الإدارة.'}
-                          </pre>
-                      </div>
-                  )}
+{modalTab === 'code' && (
+    <div className={`relative p-4 rounded-xl border overflow-x-auto text-left h-fit shadow-inner ${isDarkMode ? 'bg-[#162033] border-teal-500/20' : 'bg-gray-100 border-gray-300'}`} dir="ltr">
+        
+        {/* زر النسخ (ثابت ومستجيب للضغط) */}
+        <button 
+            onClick={(e) => {
+                e.stopPropagation();
+                const codeToCopy = selectedProduct.codeSnippet || '// لا يوجد كود برمجي متاح لهذه القطعة حالياً.\n// يمكنك إضافة الكود من لوحة الإدارة.';
+                navigator.clipboard.writeText(codeToCopy).then(() => {
+                    playSuccessBeep();
+                    setIsCopied(true); // تفعيل علامة الصح
+                    setTimeout(() => setIsCopied(false), 2000); // إعادتها لأيقونة النسخ بعد ثانيتين
+                }).catch(() => {
+                    playErrorBuzz();
+                    showToast(lang === 'ar' ? 'فشل النسخ' : 'Copy failed');
+                });
+            }}
+            className={`absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-lg border transition-all duration-300 ${isCopied ? 'bg-green-500/20 border-green-500 text-green-500 scale-110' : (isDarkMode ? 'bg-slate-800/80 border-teal-500/30 text-teal-400 hover:bg-teal-500 hover:text-slate-900' : 'bg-white border-gray-300 text-teal-600 hover:bg-teal-500 hover:text-white shadow-sm')}`}
+            title="نسخ الكود"
+        >
+            <i className={isCopied ? "fa-solid fa-check" : "fa-regular fa-copy"}></i>
+        </button>
+
+        {/* الكود البرمجي */}
+        <pre className={`font-mono text-xs sm:text-sm pt-4 ${isDarkMode ? 'text-teal-300' : 'text-slate-800'}`}>
+            {selectedProduct.codeSnippet || '// لا يوجد كود برمجي متاح لهذه القطعة حالياً.\n// يمكنك إضافة الكود من لوحة الإدارة.'}
+        </pre>
+    </div>
+)}
+
 
                   {modalTab === 'links' && (
                       <div className="flex flex-col gap-4 h-fit">
