@@ -1570,7 +1570,7 @@ return (
             
             <h1 className="text-4xl md:text-8xl font-cairo-black uppercase leading-tight relative z-10 flex items-center justify-center flex-wrap">
               <span className={`scanline-text mx-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{t.heroTitle1}</span> 
-              <span className="robot-gradient-scanline mx-4 robot-glow-container text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-500">
+              <span className="robot-gradient-scanline mx-4 text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-500">
                   {t.heroTitle2}
               </span> 
               <span className={`scanline-text mx-2 ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{t.heroTitle3}</span>
