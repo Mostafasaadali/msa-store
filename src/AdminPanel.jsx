@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { doc, setDoc, addDoc, collection, deleteDoc } from 'firebase/firestore'; 
+import React, { useState, useMemo, useEffect } from 'react';
+
+import { doc, setDoc, addDoc, collection, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 
 export default function AdminPanel({
@@ -80,6 +81,22 @@ export default function AdminPanel({
   const activeOrders = orders.filter(o => o.status !== 'completed');
   const completedOrders = orders.filter(o => o.status === 'completed');
 
+const [monthlyVisits, setMonthlyVisits] = useState(0);
+
+  useEffect(() => {
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      const monthRef = doc(db, "system", `visits_${currentMonth}`);
+      
+      // استخدام onSnapshot للتحديث اللحظي بدلاً من getDoc
+      const unsubscribe = onSnapshot(monthRef, (snap) => {
+          if (snap.exists()) {
+              setMonthlyVisits(snap.data().count || 0);
+          }
+      });
+
+      return () => unsubscribe(); // إيقاف الاستماع عند إغلاق اللوحة
+  }, []);
+  
   // وظيفة النسخ السريع لبيانات العميل
   const copyToClipboard = (text, type) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -281,7 +298,14 @@ export default function AdminPanel({
                <span className="text-sm font-black text-white" dir="ltr">{visitorCount}</span>
             </div>
          </div>
-
+{/* بطاقة الزيارات الشهرية التراكمية */}
+<div className="bg-[#11192b] border border-blue-500/30 px-3 py-2 rounded-xl flex items-center gap-3 shadow-lg shrink-0">
+    <i className="fa-solid fa-calendar-days text-blue-400 text-sm"></i>
+    <div className="flex items-center gap-2">
+        <span className="text-[10px] text-gray-400 font-mono">زيارات الشهر:</span>
+        <span className="text-sm font-black text-white" dir="ltr">{monthlyVisits}</span>
+    </div>
+</div>
          <button onClick={() => { setAnnouncementInput(cartAnnouncement || ''); setShowAnnouncementManager(true); }} className="bg-[#11192b] border border-yellow-500/30 hover:bg-yellow-500/20 text-yellow-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
             <i className="fa-solid fa-bullhorn"></i> إعلان السلة
          </button>

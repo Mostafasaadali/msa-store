@@ -65,7 +65,7 @@ const ParticlesBackground = () => {
               enable: true,
               area: 800,
             },
-            value: 250, // مضاعفة عدد النقاط لزيادة الكثافة والخطوط
+            value: 220, // مضاعفة عدد النقاط لزيادة الكثافة والخطوط
           },
           opacity: {
             value: 0.5,
@@ -74,7 +74,7 @@ const ParticlesBackground = () => {
             type: "circle",
           },
           size: {
-            value: { min: 1, max: 3 },
+            value: { min: 1, max: 2 },
           },
         },
         // أبقينا على حماية الهواتف المحمولة من التعليق

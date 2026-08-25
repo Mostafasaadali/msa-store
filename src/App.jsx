@@ -409,12 +409,14 @@ const [isCopied, setIsCopied] = useState(false);
     let outerX = mouseX;
     let outerY = mouseY;
 
-    const moveCursor = (e) => {
+const moveCursor = (e) => {
         mouseX = e.clientX;
         mouseY = e.clientY;
         if (cursorInnerRef.current) {
-            cursorInnerRef.current.style.left = `${mouseX}px`;
-            cursorInnerRef.current.style.top = `${mouseY}px`;
+            // استخدام translate3d لتفعيل تسريع الـ GPU بدلاً من left/top
+            cursorInnerRef.current.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) translate(-50%, -50%)`;
+            cursorInnerRef.current.style.left = '0';
+            cursorInnerRef.current.style.top = '0';
         }
     };
 
@@ -424,8 +426,10 @@ const [isCopied, setIsCopied] = useState(false);
         outerY += (mouseY - outerY) * ease;
 
         if (cursorOuterRef.current) {
-            cursorOuterRef.current.style.left = `${outerX}px`;
-            cursorOuterRef.current.style.top = `${outerY}px`;
+            // استخدام translate3d لتفعيل تسريع الـ GPU
+            cursorOuterRef.current.style.transform = `translate3d(${outerX}px, ${outerY}px, 0) translate(-50%, -50%)`;
+            cursorOuterRef.current.style.left = '0';
+            cursorOuterRef.current.style.top = '0';
         }
         animationFrameId = requestAnimationFrame(renderCursor);
     };
@@ -849,12 +853,28 @@ const [isCopied, setIsCopied] = useState(false);
     };
   }, [fetchProjectsData]);
 
-  useEffect(() => {
+useEffect(() => {
     let vid = user && user.uid ? user.uid : localStorage.getItem('msa_vid');
     if (!vid) { 
       vid = Math.random().toString(36).substring(2, 15); 
       localStorage.setItem('msa_vid', vid); 
     }
+
+    // --- كود الزيارة الشهرية ---
+    const trackMonthlyVisit = async () => {
+        const currentMonth = new Date().toISOString().slice(0, 7); // تنسيق YYYY-MM
+        const visitKey = `msa_visited_${currentMonth}`;
+        if (localStorage.getItem(visitKey) !== 'true') {
+            localStorage.setItem(visitKey, 'true');
+            try {
+                const monthRef = doc(db, "system", `visits_${currentMonth}`);
+                await setDoc(monthRef, { count: increment(1) }, { merge: true });
+            } catch (e) { console.error(e); }
+        }
+    };
+    trackMonthlyVisit();
+    // ---------------------------
+
     const visitorRef = doc(db, "active_visitors", vid);
 
     const pingPresence = () => setDoc(visitorRef, { lastPing: Date.now() }, { merge: true }).catch((e)=>{ console.error("Firebase Blocked Visitor Ping:", e) });
@@ -1619,8 +1639,7 @@ return (
                 
 
                 <div className="relative w-full">
-                    <div className={`flex flex-wrap justify-center items-center gap-2 pb-4 pt-1 w-full ${searchQuery !== '' ? 'opacity-50 pointer-events-none' : ''}`}>
-                      
+<div className="flex flex-wrap justify-center items-center gap-2 pb-4 pt-1 w-full">                     
                        <button 
                           onClick={() => handleCategoryClickAndScroll('مشاريع')} 
                           onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
@@ -1806,7 +1825,12 @@ return (
 
                               <div className={`flex items-center justify-between w-24 h-10 rounded-full border px-1 shadow-inner shrink-0 ${isDarkMode ? 'bg-[#080c14] border-teal-500/20' : 'bg-slate-100 border-gray-300'}`} dir="ltr">
                                   <button onClick={() => updateQty(item.id, -1)} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-7 h-7 rounded-full flex items-center justify-center font-bold transition-colors ${isDarkMode ? 'text-red-400 hover:bg-red-500/20' : 'text-red-600 hover:bg-red-100'}`}>-</button>
-                                  <span className={`font-mono text-xs font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{item.qty}</span>
+<input
+    type="number"
+    value={item.qty}
+    onChange={(e) => setItemQty(item.id, e.target.value)}
+    className={`w-10 text-center font-mono text-xs font-bold bg-transparent outline-none ${isDarkMode ? 'text-white' : 'text-slate-800'}`}
+/>
                                   <button onClick={() => updateQty(item.id, 1)} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-7 h-7 rounded-full flex items-center justify-center font-bold transition-colors ${isDarkMode ? 'text-teal-400 hover:bg-teal-500/20' : 'text-teal-600 hover:bg-teal-100'}`}>+</button>
                               </div>
                            </div>
@@ -2106,12 +2130,43 @@ className={`object-contain h-full w-full mix-blend-multiply transition-transform
                                         className={`w-10 h-10 rounded-lg transition-colors font-bold text-xl flex items-center justify-center disabled:cursor-not-allowed ${isDarkMode ? 'bg-teal-500/20 text-teal-400 hover:bg-teal-500 hover:text-slate-900' : 'bg-teal-50 text-teal-600 hover:bg-teal-100'}`}
                                     >+</button>
                                     
-                                    <input 
-                                        type="text" 
-                                        value={availableStock <= 0 ? '0' : modalQty} 
-                                        readOnly 
-                                        className={`w-14 text-center bg-transparent font-mono font-bold text-xl outline-none pointer-events-none ${isDarkMode ? 'text-white' : 'text-slate-800'}`} 
-                                    />
+<input 
+    type="number" 
+    value={availableStock <= 0 ? '0' : modalQty} 
+    onChange={(e) => {
+        if (availableStock <= 0) return;
+        const valStr = e.target.value;
+        
+        // السماح بمسح الحقل مؤقتاً لكتابة رقم جديد
+        if (valStr === '') {
+            setModalQty('');
+            setModalQtyWarning('');
+            return;
+        }
+        
+        const val = parseInt(valStr, 10);
+        if (!isNaN(val)) {
+            if (val > availableStock) {
+                setModalQty(availableStock); // تحديد الحد الأقصى للمخزون
+                setModalQtyWarning('المنتج نفذ لحد هذه القيمة!');
+            } else if (val < 1) {
+                setModalQty(1); // منع الأرقام السالبة والصفر
+                setModalQtyWarning('');
+            } else {
+                setModalQty(val);
+                setModalQtyWarning('');
+            }
+        }
+    }}
+    onBlur={(e) => {
+        // إعادة القيمة إلى 1 إذا ترك المستخدم الحقل فارغاً
+        if (e.target.value === '' || isNaN(parseInt(e.target.value, 10)) || parseInt(e.target.value, 10) < 1) {
+            setModalQty(1);
+        }
+    }}
+    disabled={availableStock <= 0}
+    className={`w-14 text-center bg-transparent font-mono font-bold text-xl outline-none ${isDarkMode ? 'text-white' : 'text-slate-800'}`} 
+/>
                                     
                                     <button 
                                         type="button" 
