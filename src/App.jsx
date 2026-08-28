@@ -1083,13 +1083,19 @@ useEffect(() => {
         return;
     }
     
-    const phoneClean = customerPhone.replace(/\s+/g, '');
-    if(phoneClean.length === 10) {
-        alert(lang === 'ar' ? 'الرجاء إدخال رقم هاتف صحيح. لا يمكن إتمام الطلب برقم يتكون من 10 أرقام فقط.' : 'Please enter a valid phone number. Cannot complete order with 10 digits.');
+const phoneClean = customerPhone.replace(/\s+/g, '');
+    
+    const iraqiPhoneRegex = /^07[3-9][0-9]{8}$/;
+    
+    if (!iraqiPhoneRegex.test(phoneClean)) {
+        alert(lang === 'ar' ? 'الرجاء إدخال رقم هاتف صحيح (مثال: 07760599953)' : 'Please enter a valid phone number.');
         return;
     }
 
-    playSynthSound(1500, 'sine', 0.5);
+    if (customerName.trim().length < 3 || !/[a-zA-Zأ-ي]/.test(customerName)) {
+        alert(lang === 'ar' ? 'الرجاء إدخال اسم مستلم حقيقي.' : 'Please enter a valid name.');
+        return;
+    }
     
     const payloadData = {
       userId: user && user.uid ? String(user.uid) : "GUEST_USER",
