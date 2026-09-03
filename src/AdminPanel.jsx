@@ -81,18 +81,30 @@ export default function AdminPanel({
   const completedOrders = orders.filter(o => o.status === 'completed');
 
   const [monthlyVisits, setMonthlyVisits] = useState(0);
+  
+  // حالة لحفظ قائمة الزبائن المحظورين (البلاك لست)
+  const [blacklist, setBlacklist] = useState([]);
 
   useEffect(() => {
       const currentMonth = new Date().toISOString().slice(0, 7);
       const monthRef = doc(db, "system", `visits_${currentMonth}`);
       
-      const unsubscribe = onSnapshot(monthRef, (snap) => {
+      const unsubscribeVisits = onSnapshot(monthRef, (snap) => {
           if (snap.exists()) {
               setMonthlyVisits(snap.data().count || 0);
           }
       });
 
-      return () => unsubscribe();
+      // جلب وتحديث قائمة البلاك لست لحظياً
+      const unsubscribeBlacklist = onSnapshot(collection(db, "blacklist"), (snap) => {
+          const bl = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setBlacklist(bl);
+      });
+
+      return () => {
+          unsubscribeVisits();
+          unsubscribeBlacklist();
+      };
   }, []);
   
   const copyToClipboard = (text, type) => {
@@ -111,11 +123,21 @@ export default function AdminPanel({
   };
 
   // ----------------------------------------------------
-  // الدالة الذكية للتعرف على الزبون
+  // الدالة الذكية للتعرف على الزبون (بلاك لست + زبون متكرر)
   // ----------------------------------------------------
   const getCustomerRecognition = (currentOrder) => {
       if (!currentOrder || !currentOrder.timestamp) return "زبون جديد";
       
+      const currentPhone = String(currentOrder.customerPhone || '').replace(/\s+/g, '');
+      const currentPhone2 = String(currentOrder.customerPhone2 || '').replace(/\s+/g, '');
+      
+      // 1. الفحص في البلاك لست أولاً
+      const isBlacklisted = blacklist.some(b => b.id === currentPhone || (currentPhone2 && b.id === currentPhone2));
+      if (isBlacklisted) {
+          return "محظور (بلاك لست) ⚠️";
+      }
+
+      // 2. الفحص التلقائي للزبائن المكررين خلال 4 أيام
       const currentMs = new Date(currentOrder.timestamp).getTime();
       const fourDaysInMs = 4 * 24 * 60 * 60 * 1000;
       
@@ -123,7 +145,6 @@ export default function AdminPanel({
       let matchLocation = false;
       let matchName = false;
 
-      const currentPhone = String(currentOrder.customerPhone || '').replace(/\s+/g, '');
       const currentLocation = String(currentOrder.location || '').trim().toLowerCase();
       const currentName = String(currentOrder.customerName || '').trim().toLowerCase();
 
@@ -155,6 +176,36 @@ export default function AdminPanel({
       if (matchName) return "زبون مكرر (نفس الاسم خلال 4 أيام)";
       
       return "زبون جديد";
+  };
+  // ----------------------------------------------------
+
+  // ----------------------------------------------------
+  // دالة الإضافة أو الإزالة من البلاك لست
+  // ----------------------------------------------------
+  const toggleBlacklist = async (order) => {
+      const phone = String(order.customerPhone || '').replace(/\s+/g, '');
+      if (!phone) return;
+      
+      const isBlacklisted = blacklist.some(b => b.id === phone);
+      try {
+          if (isBlacklisted) {
+              if(window.confirm("هل أنت متأكد من إزالة هذا الزبون من البلاك لست؟")) {
+                  await deleteDoc(doc(db, "blacklist", phone));
+                  alert("تمت إزالة الزبون من قائمة البلاك لست.");
+              }
+          } else {
+              if(window.confirm("هل أنت متأكد من إضافة هذا الزبون إلى البلاك لست (بسبب عدم استلامه للطلبات)؟\nسيتم تمييز أي طلبات مستقبلية من رقمه باللون الأحمر.")) {
+                  await setDoc(doc(db, "blacklist", phone), {
+                      name: order.customerName,
+                      dateAdded: new Date().toISOString(),
+                      reason: "لم يستلم الطلب (أضيف من لوحة الإدارة)"
+                  });
+                  alert("تمت إضافة الزبون للبلاك لست بنجاح.");
+              }
+          }
+      } catch(e) {
+          alert("حدث خطأ أثناء الاتصال بقاعدة البيانات لتحديث البلاك لست.");
+      }
   };
   // ----------------------------------------------------
 
@@ -809,28 +860,33 @@ export default function AdminPanel({
                     <i className="fa-solid fa-inbox text-4xl text-neutral-600 mb-3"></i>
                     <p className="text-gray-500 font-mono text-xs sm:text-sm">لا توجد طلبات قيد التجهيز حالياً.</p>
                  </div>
-               ) : activeOrders.map((order) => (
-                 <div 
-                   key={order.id} 
-                   onClick={() => setSelectedOrder(order)} 
-                   className="border border-neutral-800 bg-black/40 rounded-2xl p-4 sm:p-5 shadow-md hover:border-emerald-500/60 hover:bg-[#14151c] cursor-pointer transition-all relative overflow-hidden group min-w-0 flex flex-col justify-between"
-                 >
-                   <div className="absolute top-0 right-0 bottom-0 w-1 bg-gradient-to-b from-emerald-500 to-blue-600 group-hover:w-2 transition-all"></div>
-                   
-                   <div className="flex justify-between items-start mb-3 min-w-0">
-                     <h4 className="text-emerald-400 font-bold text-base sm:text-lg break-words line-clamp-1 min-w-0 pr-2">{order.customerName}</h4>
-                     <span className="shrink-0 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono font-bold tracking-wider">
-                       #{order.id.slice(-5).toUpperCase()}
-                     </span>
-                   </div>
+               ) : activeOrders.map((order) => {
+                 const recognitionStr = getCustomerRecognition(order);
+                 const isBlacklisted = recognitionStr.includes("محظور");
+                 return (
+                   <div 
+                     key={order.id} 
+                     onClick={() => setSelectedOrder(order)} 
+                     className={`border bg-black/40 rounded-2xl p-4 sm:p-5 shadow-md cursor-pointer transition-all relative overflow-hidden group min-w-0 flex flex-col justify-between ${isBlacklisted ? 'border-red-500/40 hover:border-red-500 hover:bg-[#1f1212]' : 'border-neutral-800 hover:border-emerald-500/60 hover:bg-[#14151c]'}`}
+                   >
+                     <div className={`absolute top-0 right-0 bottom-0 w-1 transition-all group-hover:w-2 ${isBlacklisted ? 'bg-gradient-to-b from-red-500 to-orange-600' : 'bg-gradient-to-b from-emerald-500 to-blue-600'}`}></div>
+                     
+                     <div className="flex justify-between items-start mb-3 min-w-0">
+                       <h4 className={`${isBlacklisted ? 'text-red-400' : 'text-emerald-400'} font-bold text-base sm:text-lg break-words line-clamp-1 min-w-0 pr-2`}>{order.customerName}</h4>
+                       <span className={`shrink-0 border px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono font-bold tracking-wider ${isBlacklisted ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'}`}>
+                         #{order.id.slice(-5).toUpperCase()}
+                       </span>
+                     </div>
 
-                   {getCustomerRecognition(order) !== "زبون جديد" && (
-                       <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 px-2 py-1 rounded-lg text-[10px] font-bold mt-2 w-fit">
-                          <i className="fa-solid fa-star"></i> {getCustomerRecognition(order)}
-                       </div>
-                   )}
-                 </div>
-               ))}
+                     {recognitionStr !== "زبون جديد" && (
+                         <div className={`border px-2 py-1 rounded-lg text-[10px] font-bold mt-2 w-fit flex items-center gap-1 shadow-sm ${isBlacklisted ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'}`}>
+                            <i className={`fa-solid ${isBlacklisted ? 'fa-ban text-red-400' : 'fa-star text-yellow-400'} text-sm`}></i>
+                            <span>{recognitionStr}</span>
+                         </div>
+                     )}
+                   </div>
+                 );
+               })}
             </div>
           </div>
         </div>
@@ -863,28 +919,33 @@ export default function AdminPanel({
                     <i className="fa-solid fa-box-archive text-4xl text-neutral-600 mb-3"></i>
                     <p className="text-gray-500 font-mono text-xs sm:text-sm">لم يتم تسجيل أي طلبات مكتملة حتى الآن.</p>
                  </div>
-               ) : completedOrders.map((order) => (
-                 <div 
-                   key={order.id} 
-                   onClick={() => setSelectedOrder(order)} 
-                   className="border border-neutral-800 bg-black/40 rounded-2xl p-4 sm:p-5 shadow-md hover:border-blue-500/60 hover:bg-[#14151c] cursor-pointer transition-all relative overflow-hidden group min-w-0 flex flex-col justify-between"
-                 >
-                   <div className="absolute top-0 right-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-purple-600 group-hover:w-2 transition-all"></div>
-                   
-                   <div className="flex justify-between items-start mb-3 min-w-0">
-                     <h4 className="text-blue-400 font-bold text-base sm:text-lg break-words line-clamp-1 min-w-0 pr-2">{order.customerName}</h4>
-                     <span className="shrink-0 bg-blue-500/10 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono font-bold tracking-wider">
-                       #{order.id.slice(-5).toUpperCase()}
-                     </span>
-                   </div>
+               ) : completedOrders.map((order) => {
+                 const recognitionStr = getCustomerRecognition(order);
+                 const isBlacklisted = recognitionStr.includes("محظور");
+                 return (
+                   <div 
+                     key={order.id} 
+                     onClick={() => setSelectedOrder(order)} 
+                     className={`border bg-black/40 rounded-2xl p-4 sm:p-5 shadow-md cursor-pointer transition-all relative overflow-hidden group min-w-0 flex flex-col justify-between ${isBlacklisted ? 'border-red-500/40 hover:border-red-500 hover:bg-[#1f1212]' : 'border-neutral-800 hover:border-blue-500/60 hover:bg-[#14151c]'}`}
+                   >
+                     <div className={`absolute top-0 right-0 bottom-0 w-1 transition-all group-hover:w-2 ${isBlacklisted ? 'bg-gradient-to-b from-red-500 to-orange-600' : 'bg-gradient-to-b from-blue-500 to-purple-600'}`}></div>
+                     
+                     <div className="flex justify-between items-start mb-3 min-w-0">
+                       <h4 className={`${isBlacklisted ? 'text-red-400' : 'text-blue-400'} font-bold text-base sm:text-lg break-words line-clamp-1 min-w-0 pr-2`}>{order.customerName}</h4>
+                       <span className={`shrink-0 border px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono font-bold tracking-wider ${isBlacklisted ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'}`}>
+                         #{order.id.slice(-5).toUpperCase()}
+                       </span>
+                     </div>
 
-                   {getCustomerRecognition(order) !== "زبون جديد" && (
-                       <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 px-2 py-1 rounded-lg text-[10px] font-bold mt-2 w-fit">
-                          <i className="fa-solid fa-star"></i> {getCustomerRecognition(order)}
-                       </div>
-                   )}
-                 </div>
-               ))}
+                     {recognitionStr !== "زبون جديد" && (
+                         <div className={`border px-2 py-1 rounded-lg text-[10px] font-bold mt-2 w-fit flex items-center gap-1 shadow-sm ${isBlacklisted ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'}`}>
+                            <i className={`fa-solid ${isBlacklisted ? 'fa-ban text-red-400' : 'fa-star text-yellow-400'} text-sm`}></i>
+                            <span>{recognitionStr}</span>
+                         </div>
+                     )}
+                   </div>
+                 );
+               })}
             </div>
           </div>
         </div>
@@ -926,27 +987,45 @@ export default function AdminPanel({
                 <div className={`w-full lg:w-2/5 flex flex-col bg-[#0d131f] border-b lg:border-b-0 lg:border-l p-4 sm:p-5 lg:overflow-y-auto order-scrollbar shrink-0 ${selectedOrder.status === 'completed' ? 'border-blue-500/10' : 'border-emerald-500/10'}`}>
                    
                    <div className="mb-5">
-                      <div className="flex justify-between items-center mb-3">
+                      <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
                           <h4 className={`${selectedOrder.status === 'completed' ? 'text-blue-400' : 'text-emerald-400'} font-bold flex items-center gap-2 text-xs`}>
                              <i className="fa-solid fa-id-card"></i> بيانات الزبون
                           </h4>
-                          <button 
-                             onClick={() => {
-                                const details = `الاسم: ${selectedOrder.customerName}\nرقم الهاتف: ${selectedOrder.customerPhone}\n${selectedOrder.customerPhone2 ? `رقم إضافي: ${selectedOrder.customerPhone2}\n` : ''}العنوان: ${selectedOrder.location}`;
-                                copyToClipboard(details, 'جميع البيانات');
-                             }}
-                             className="text-gray-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
-                          >
-                             <i className="fa-solid fa-copy"></i> نسخ الكل
-                          </button>
+                          <div className="flex gap-2">
+                              {/* زر إضافة/إزالة البلاك لست */}
+                              <button 
+                                 onClick={() => toggleBlacklist(selectedOrder)}
+                                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shadow-sm ${blacklist.some(b => b.id === String(selectedOrder.customerPhone || '').replace(/\s+/g, '')) ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500 hover:text-white' : 'bg-neutral-800 text-gray-400 border border-neutral-700 hover:bg-red-500 hover:text-white hover:border-red-500'}`}
+                              >
+                                 <i className="fa-solid fa-ban"></i> {blacklist.some(b => b.id === String(selectedOrder.customerPhone || '').replace(/\s+/g, '')) ? 'إزالة من البلاك لست' : 'إضافة للبلاك لست'}
+                              </button>
+
+                              <button 
+                                 onClick={() => {
+                                    const details = `الاسم: ${selectedOrder.customerName}\nرقم الهاتف: ${selectedOrder.customerPhone}\n${selectedOrder.customerPhone2 ? `رقم إضافي: ${selectedOrder.customerPhone2}\n` : ''}العنوان: ${selectedOrder.location}`;
+                                    copyToClipboard(details, 'جميع البيانات');
+                                 }}
+                                 className="text-gray-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
+                              >
+                                 <i className="fa-solid fa-copy"></i> نسخ الكل
+                              </button>
+                          </div>
                       </div>
 
-                      {getCustomerRecognition(selectedOrder) !== "زبون جديد" && (
-                         <div className="bg-yellow-500/10 border border-yellow-500/30 p-2.5 rounded-xl mb-3 flex items-center gap-2 shadow-sm">
-                            <i className="fa-solid fa-star text-yellow-400 text-lg"></i>
-                            <span className="text-yellow-400 text-xs font-bold">{getCustomerRecognition(selectedOrder)}</span>
-                         </div>
-                      )}
+                      {/* شريط الإشعار الخاص بالبلاك لست والزبائن */}
+                      {(() => {
+                          const recognitionStr = getCustomerRecognition(selectedOrder);
+                          const isBL = recognitionStr.includes("محظور");
+                          if (recognitionStr !== "زبون جديد") {
+                              return (
+                                  <div className={`p-2.5 rounded-xl mb-3 flex items-center gap-2 shadow-sm border ${isBL ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'}`}>
+                                      <i className={`fa-solid ${isBL ? 'fa-ban text-lg' : 'fa-star text-lg'}`}></i>
+                                      <span className="text-xs font-bold">{recognitionStr}</span>
+                                  </div>
+                              );
+                          }
+                          return null;
+                      })()}
 
                       <div className="space-y-2.5">
                          
