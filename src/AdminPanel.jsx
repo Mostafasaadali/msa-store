@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect } from 'react';
-
 import { doc, setDoc, addDoc, collection, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -81,23 +80,21 @@ export default function AdminPanel({
   const activeOrders = orders.filter(o => o.status !== 'completed');
   const completedOrders = orders.filter(o => o.status === 'completed');
 
-const [monthlyVisits, setMonthlyVisits] = useState(0);
+  const [monthlyVisits, setMonthlyVisits] = useState(0);
 
   useEffect(() => {
       const currentMonth = new Date().toISOString().slice(0, 7);
       const monthRef = doc(db, "system", `visits_${currentMonth}`);
       
-      // استخدام onSnapshot للتحديث اللحظي بدلاً من getDoc
       const unsubscribe = onSnapshot(monthRef, (snap) => {
           if (snap.exists()) {
               setMonthlyVisits(snap.data().count || 0);
           }
       });
 
-      return () => unsubscribe(); // إيقاف الاستماع عند إغلاق اللوحة
+      return () => unsubscribe();
   }, []);
   
-  // وظيفة النسخ السريع لبيانات العميل
   const copyToClipboard = (text, type) => {
     navigator.clipboard.writeText(text).then(() => {
         alert(`تم نسخ ${type} بنجاح: \n${text}`);
@@ -112,6 +109,54 @@ const [monthlyVisits, setMonthlyVisits] = useState(0);
       setSelectedOrder(null);
     }
   };
+
+  // ----------------------------------------------------
+  // الدالة الذكية للتعرف على الزبون
+  // ----------------------------------------------------
+  const getCustomerRecognition = (currentOrder) => {
+      if (!currentOrder || !currentOrder.timestamp) return "زبون جديد";
+      
+      const currentMs = new Date(currentOrder.timestamp).getTime();
+      const fourDaysInMs = 4 * 24 * 60 * 60 * 1000;
+      
+      let matchPhone = false;
+      let matchLocation = false;
+      let matchName = false;
+
+      const currentPhone = String(currentOrder.customerPhone || '').replace(/\s+/g, '');
+      const currentLocation = String(currentOrder.location || '').trim().toLowerCase();
+      const currentName = String(currentOrder.customerName || '').trim().toLowerCase();
+
+      for (const order of orders) {
+          if (order.id === currentOrder.id) continue;
+          if (!order.timestamp) continue;
+          
+          const orderMs = new Date(order.timestamp).getTime();
+          
+          // فحص الطلبات التي تمت قبل هذا الطلب وخلال 4 أيام فقط
+          if (orderMs < currentMs && (currentMs - orderMs) <= fourDaysInMs) {
+              const phone = String(order.customerPhone || '').replace(/\s+/g, '');
+              const loc = String(order.location || '').trim().toLowerCase();
+              const name = String(order.customerName || '').trim().toLowerCase();
+
+              if (phone !== '' && phone === currentPhone) {
+                  matchPhone = true;
+                  break; // أقوى حالة تطابق نوقف البحث
+              } else if (loc !== '' && loc === currentLocation) {
+                  matchLocation = true;
+              } else if (name !== '' && name === currentName) {
+                  matchName = true;
+              }
+          }
+      }
+
+      if (matchPhone) return "زبون مكرر (نفس الهاتف خلال 4 أيام)";
+      if (matchLocation) return "زبون مكرر (نفس الموقع خلال 4 أيام)";
+      if (matchName) return "زبون مكرر (نفس الاسم خلال 4 أيام)";
+      
+      return "زبون جديد";
+  };
+  // ----------------------------------------------------
 
   const handleAddDeliveryLocation = async (e) => {
     e.preventDefault();
@@ -298,14 +343,13 @@ const [monthlyVisits, setMonthlyVisits] = useState(0);
                <span className="text-sm font-black text-white" dir="ltr">{visitorCount}</span>
             </div>
          </div>
-{/* بطاقة الزيارات الشهرية التراكمية */}
-<div className="bg-[#11192b] border border-blue-500/30 px-3 py-2 rounded-xl flex items-center gap-3 shadow-lg shrink-0">
-    <i className="fa-solid fa-calendar-days text-blue-400 text-sm"></i>
-    <div className="flex items-center gap-2">
-        <span className="text-[10px] text-gray-400 font-mono">زيارات الشهر:</span>
-        <span className="text-sm font-black text-white" dir="ltr">{monthlyVisits}</span>
-    </div>
-</div>
+         <div className="bg-[#11192b] border border-blue-500/30 px-3 py-2 rounded-xl flex items-center gap-3 shadow-lg shrink-0">
+            <i className="fa-solid fa-calendar-days text-blue-400 text-sm"></i>
+            <div className="flex items-center gap-2">
+                <span className="text-[10px] text-gray-400 font-mono">زيارات الشهر:</span>
+                <span className="text-sm font-black text-white" dir="ltr">{monthlyVisits}</span>
+            </div>
+         </div>
          <button onClick={() => { setAnnouncementInput(cartAnnouncement || ''); setShowAnnouncementManager(true); }} className="bg-[#11192b] border border-yellow-500/30 hover:bg-yellow-500/20 text-yellow-400 px-3 py-2 rounded-xl flex items-center gap-2 shadow-sm font-bold transition-all text-[11px] shrink-0">
             <i className="fa-solid fa-bullhorn"></i> إعلان السلة
          </button>
@@ -398,7 +442,6 @@ const [monthlyVisits, setMonthlyVisits] = useState(0);
                  </div>
                </div>
 
-               {/* Wholesale Discount Section (خصم الجملة) */}
                <div className="bg-neutral-900/40 p-3 rounded-xl border border-yellow-500/20 space-y-3 mt-4">
                   <div className="flex items-center gap-3">
                       <input type="checkbox" id="enableWholesale" checked={newProdEnableWholesale} onChange={(e) => setNewProdEnableWholesale(e.target.checked)} className="w-4 h-4 accent-yellow-500 cursor-pointer" />
@@ -442,7 +485,7 @@ const [monthlyVisits, setMonthlyVisits] = useState(0);
                          newImgs[index] = e.target.value;
                          setNewProdImages(newImgs);
                        }} className="w-full p-2 bg-black/60 border border-neutral-700 text-white rounded-lg text-[10px] sm:text-xs focus:outline-none focus:border-teal-500 transition-colors shadow-inner" dir="ltr" />
-                       <button type="button" onClick={(e) => { e.preventDefault(); setNewProdImages(newProdImages.filter((_, i) => i !== index)); }} className="p-2 shrink-0 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-500/20" title="حذف الصورة">
+                       <button type="button" onClick={(e) => { e.preventDefault(); setNewProdImages(newProdImages.filter((_, i) => i !== index)); }} className="p-2 shrink-0 bg-red-500/10 text-red-500 hover:bg-red-50 hover:text-white rounded-lg transition-colors border border-red-500/20" title="حذف الصورة">
                          <i className="fa-solid fa-trash-can text-xs"></i>
                        </button>
                      </div>
@@ -770,7 +813,7 @@ const [monthlyVisits, setMonthlyVisits] = useState(0);
                  <div 
                    key={order.id} 
                    onClick={() => setSelectedOrder(order)} 
-                   className="border border-neutral-800 bg-black/40 rounded-2xl p-4 sm:p-5 shadow-md hover:border-emerald-500/60 hover:bg-[#14151c] cursor-pointer transition-all relative overflow-hidden group min-w-0"
+                   className="border border-neutral-800 bg-black/40 rounded-2xl p-4 sm:p-5 shadow-md hover:border-emerald-500/60 hover:bg-[#14151c] cursor-pointer transition-all relative overflow-hidden group min-w-0 flex flex-col justify-between"
                  >
                    <div className="absolute top-0 right-0 bottom-0 w-1 bg-gradient-to-b from-emerald-500 to-blue-600 group-hover:w-2 transition-all"></div>
                    
@@ -780,6 +823,12 @@ const [monthlyVisits, setMonthlyVisits] = useState(0);
                        #{order.id.slice(-5).toUpperCase()}
                      </span>
                    </div>
+
+                   {getCustomerRecognition(order) !== "زبون جديد" && (
+                       <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 px-2 py-1 rounded-lg text-[10px] font-bold mt-2 w-fit">
+                          <i className="fa-solid fa-star"></i> {getCustomerRecognition(order)}
+                       </div>
+                   )}
                  </div>
                ))}
             </div>
@@ -818,7 +867,7 @@ const [monthlyVisits, setMonthlyVisits] = useState(0);
                  <div 
                    key={order.id} 
                    onClick={() => setSelectedOrder(order)} 
-                   className="border border-neutral-800 bg-black/40 rounded-2xl p-4 sm:p-5 shadow-md hover:border-blue-500/60 hover:bg-[#14151c] cursor-pointer transition-all relative overflow-hidden group min-w-0"
+                   className="border border-neutral-800 bg-black/40 rounded-2xl p-4 sm:p-5 shadow-md hover:border-blue-500/60 hover:bg-[#14151c] cursor-pointer transition-all relative overflow-hidden group min-w-0 flex flex-col justify-between"
                  >
                    <div className="absolute top-0 right-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-purple-600 group-hover:w-2 transition-all"></div>
                    
@@ -828,6 +877,12 @@ const [monthlyVisits, setMonthlyVisits] = useState(0);
                        #{order.id.slice(-5).toUpperCase()}
                      </span>
                    </div>
+
+                   {getCustomerRecognition(order) !== "زبون جديد" && (
+                       <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 px-2 py-1 rounded-lg text-[10px] font-bold mt-2 w-fit">
+                          <i className="fa-solid fa-star"></i> {getCustomerRecognition(order)}
+                       </div>
+                   )}
                  </div>
                ))}
             </div>
@@ -885,6 +940,14 @@ const [monthlyVisits, setMonthlyVisits] = useState(0);
                              <i className="fa-solid fa-copy"></i> نسخ الكل
                           </button>
                       </div>
+
+                      {getCustomerRecognition(selectedOrder) !== "زبون جديد" && (
+                         <div className="bg-yellow-500/10 border border-yellow-500/30 p-2.5 rounded-xl mb-3 flex items-center gap-2 shadow-sm">
+                            <i className="fa-solid fa-star text-yellow-400 text-lg"></i>
+                            <span className="text-yellow-400 text-xs font-bold">{getCustomerRecognition(selectedOrder)}</span>
+                         </div>
+                      )}
+
                       <div className="space-y-2.5">
                          
                          {/* اسم المستلم */}
