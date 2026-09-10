@@ -323,7 +323,7 @@ export default function AdminPanel({
     }
   };
 
-  const filteredAdminProducts = useMemo(() => {
+const filteredAdminProducts = useMemo(() => {
     return products.filter(p => {
       const searchLower = adminSearch.toLowerCase();
       const matchesSearch = adminSearch === '' || 
@@ -333,6 +333,9 @@ export default function AdminPanel({
       if (!matchesSearch) return false;
       
       if (adminFilter === 'outOfStock') return (parseInt(p.stock) || 0) <= 0;
+      // الكود الجديد لفلترة المواد التي توشك على النفاذ (أقل من 15 وأكبر من 0)
+      if (adminFilter === 'lowStock') return (parseInt(p.stock) || 0) > 0 && (parseInt(p.stock) || 0) < 15;
+      
       return true;
     }).sort((a, b) => {
       if (adminFilter === 'bestSeller') {
@@ -347,6 +350,26 @@ export default function AdminPanel({
     });
   }, [products, adminSearch, adminFilter]);
 
+// --- حسابات الإدارة (تُحسب فقط عند فتح طلب معين) ---
+  let customerOrdersCount = 0;
+  let totalSaved = 0;
+
+  if (selectedOrder) {
+      // 1. حساب عدد طلبات الزبون السابقة بناءً على تطابق رقم الهاتف
+      customerOrdersCount = orders.filter(o => String(o.customerPhone).replace(/\s+/g, '') === String(selectedOrder.customerPhone).replace(/\s+/g, '')).length;
+      
+      // 2. حساب قيمة التخفيض الكلي (خصم الجملة + الخصم التراكمي)
+      let totalOriginalItemsPrice = 0;
+      (selectedOrder.items || []).forEach(item => {
+          totalOriginalItemsPrice += (Number(item.originalPrice) || Number(item.price) || 0) * (Number(item.qty) || 1);
+      });
+      const autoDisc = Number(selectedOrder.discountApplied) || 0;
+      const subPlusAuto = (Number(selectedOrder.subtotalAmount) || 0) + autoDisc;
+      const wholesaleDisc = totalOriginalItemsPrice > subPlusAuto ? totalOriginalItemsPrice - subPlusAuto : 0;
+      totalSaved = wholesaleDisc + autoDisc;
+  }
+  // --------------------------------------------------
+  
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 pb-24 font-sans relative w-full">
       
@@ -625,12 +648,16 @@ export default function AdminPanel({
              </h3>
              
              <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-               <div className="flex flex-wrap gap-2">
+<div className="flex flex-wrap gap-2">
                   <button onClick={() => setAdminFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm border ${adminFilter === 'all' ? 'bg-teal-500 text-slate-900 border-teal-500' : 'bg-[#111827] text-gray-400 border-neutral-700 hover:border-teal-500'}`}>
                     الكل
                   </button>
                   <button onClick={() => setAdminFilter('outOfStock')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm border flex items-center gap-1 ${adminFilter === 'outOfStock' ? 'bg-red-500 text-white border-red-500' : 'bg-[#111827] text-gray-400 border-neutral-700 hover:border-red-500'}`}>
                     <i className="fa-solid fa-triangle-exclamation"></i> المواد النافذة
+                  </button>
+                  {/* الزر الجديد الخاص بالكميات القليلة */}
+                  <button onClick={() => setAdminFilter('lowStock')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm border flex items-center gap-1 ${adminFilter === 'lowStock' ? 'bg-orange-500 text-white border-orange-500' : 'bg-[#111827] text-gray-400 border-neutral-700 hover:border-orange-500'}`}>
+                    <i className="fa-solid fa-battery-quarter"></i> أوشكت على النفاذ (أقل من 15)
                   </button>
                   <button onClick={() => setAdminFilter('bestSeller')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm border flex items-center gap-1 ${adminFilter === 'bestSeller' ? 'bg-yellow-500 text-slate-900 border-yellow-500' : 'bg-[#111827] text-gray-400 border-neutral-700 hover:border-yellow-500'}`}>
                     <i className="fa-solid fa-fire"></i> الأكثر مبيعاً
@@ -1035,7 +1062,12 @@ export default function AdminPanel({
                             <div className="min-w-0 flex-grow">
                                <p className="text-gray-500 text-[10px] font-mono mb-0.5">اسم المستلم</p>
                                <div className="flex items-center gap-2 justify-between">
-                                  <p className="text-white font-bold text-xs truncate">{selectedOrder.customerName}</p>
+                                  <p className="text-white font-bold text-xs truncate flex items-center gap-2">
+    {selectedOrder.customerName}
+    <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-lg text-[10px] border border-blue-500/30">
+        عدد طلباته: {customerOrdersCount}
+    </span>
+</p>
                                   <button onClick={() => copyToClipboard(selectedOrder.customerName, 'اسم العميل')} className="text-gray-400 hover:text-white p-1 rounded bg-neutral-800 text-[10px]"><i className="fa-solid fa-copy"></i></button>
                                </div>
                             </div>
@@ -1046,10 +1078,24 @@ export default function AdminPanel({
                             <div className="bg-green-500/10 text-green-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"><i className="fa-solid fa-phone"></i></div>
                             <div className="min-w-0 flex-grow">
                                <p className="text-gray-500 text-[10px] font-mono mb-0.5">أرقام الهواتف</p>
-                               <div className="flex items-center justify-between gap-2">
-                                  <a href={`tel:${selectedOrder.customerPhone}`} className={`text-white font-bold text-xs transition-colors truncate block ${selectedOrder.status === 'completed' ? 'hover:text-blue-400' : 'hover:text-emerald-400'}`} dir="ltr">{selectedOrder.customerPhone}</a>
-                                  <button onClick={() => copyToClipboard(selectedOrder.customerPhone, 'رقم الهاتف الأساسي')} className="text-gray-400 hover:text-white p-1 rounded bg-neutral-800 text-[10px]"><i className="fa-solid fa-copy"></i></button>
-                               </div>
+<div className="flex items-center justify-between gap-2">
+   <div className="flex items-center gap-2">
+       <a href={`tel:${selectedOrder.customerPhone}`} className={`text-white font-bold text-xs transition-colors truncate block ${selectedOrder.status === 'completed' ? 'hover:text-blue-400' : 'hover:text-emerald-400'}`} dir="ltr">{selectedOrder.customerPhone}</a>
+       
+       {selectedOrder.customerPhone && (
+           <a 
+               href={`https://wa.me/${String(selectedOrder.customerPhone).replace(/^0/, '964').replace(/\s+/g, '')}`} 
+               target="_blank" 
+               rel="noopener noreferrer"
+               className="text-green-500 hover:text-green-400 bg-green-500/10 hover:bg-green-500/20 px-2 py-1 rounded-md text-[10px] font-bold transition-colors flex items-center gap-1 border border-green-500/20 shadow-sm"
+               title="مراسلة الزبون عبر واتساب"
+           >
+               <i className="fab fa-whatsapp text-sm"></i> واتساب
+           </a>
+       )}
+   </div>
+   <button onClick={() => copyToClipboard(selectedOrder.customerPhone, 'رقم الهاتف الأساسي')} className="text-gray-400 hover:text-white p-1 rounded bg-neutral-800 text-[10px]"><i className="fa-solid fa-copy"></i></button>
+</div>
                                {selectedOrder.customerPhone2 && (
                                   <div className="flex items-center justify-between gap-2 mt-1 pt-1 border-t border-neutral-800/50">
                                       <a href={`tel:${selectedOrder.customerPhone2}`} className={`text-gray-300 font-bold text-[11px] transition-colors truncate block ${selectedOrder.status === 'completed' ? 'hover:text-blue-400' : 'hover:text-emerald-400'}`} dir="ltr">{selectedOrder.customerPhone2} (إضافي)</a>
@@ -1091,19 +1137,30 @@ export default function AdminPanel({
                          </div>
                          
                          <div className="relative z-10 space-y-2.5">
-                            {selectedOrder.subtotalAmount !== undefined && (
-                               <div className="flex justify-between items-center text-gray-400 text-xs font-bold">
-                                  <span>المجموع الفرعي:</span>
-                                  <span className="font-mono text-white">{selectedOrder.subtotalAmount?.toLocaleString()} د.ع</span>
-                               </div>
-                            )}
-                            
-                            {selectedOrder.deliveryFee !== undefined && (
-                               <div className="flex justify-between items-center text-gray-400 text-xs font-bold pb-3 border-b border-neutral-800/80">
-                                  <span className="truncate pr-2">نقل ({selectedOrder.governorate || 'محدد'}):</span>
-                                  <span className="font-mono text-white whitespace-nowrap">{selectedOrder.deliveryFee?.toLocaleString()} د.ع</span>
-                               </div>
-                            )}
+{selectedOrder.subtotalAmount !== undefined && (
+   <div className="flex justify-between items-center text-gray-400 text-xs font-bold">
+      <span>المجموع الفرعي:</span>
+      <span className="font-mono text-white">{selectedOrder.subtotalAmount?.toLocaleString()} د.ع</span>
+   </div>
+)}
+
+{totalSaved > 0 && (
+   <div className="flex justify-between items-center text-green-400 text-xs font-bold mt-2">
+      <span>التخفيض الكلي (جملة + تراكمي):</span>
+      <span className="font-mono bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20">
+          - {totalSaved.toLocaleString()} د.ع
+      </span>
+   </div>
+)}
+
+{selectedOrder.deliveryFee !== undefined && (
+   <div className="flex justify-between items-center text-gray-400 text-xs font-bold pb-3 border-b border-neutral-800/80 mt-2">
+      <span className="truncate pr-2">نقل ({selectedOrder.governorate || 'محدد'}):</span>
+      <span className="font-mono text-white whitespace-nowrap">
+          {selectedOrder.deliveryFee === 0 ? <span className="text-green-500 bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20">مجاني</span> : `${selectedOrder.deliveryFee?.toLocaleString()} د.ع`}
+      </span>
+   </div>
+)}
 
                             <div className="flex justify-between items-end pt-1">
                                <span className="text-white font-black text-sm">الإجمالي المكتمل:</span>

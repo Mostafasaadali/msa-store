@@ -48,7 +48,7 @@ const translations = {
     noDesc: "لا يتوفر وصف دقيق لهذا المنتج في الوقت الحالي.",
 
     installApp: "تثبيت التطبيق",
-    whatsappSupport: "ارسل رسالة عبر الواتساب",
+    whatsappSupport: "تواصل معنا عبر الواتساب",
     projects: "المشاريع المنجزة",
     menu: "القائمة"
   },
@@ -90,7 +90,7 @@ const translations = {
     noDesc: "No description available.",
 
     installApp: "Install App",
-    whatsappSupport: "Send a message via WhatsApp",
+    whatsappSupport: "Contact us via WhatsApp",
     projects: "Completed Projects",
     menu: "Menu"
   },
@@ -402,7 +402,11 @@ const [isCopied, setIsCopied] = useState(false);
     }
   }, [isDarkMode]);
 
+
   useEffect(() => {
+    // إيقاف تشغيل الكود نهائياً على شاشات الهواتف لتوفير موارد المعالج
+    if (window.innerWidth <= 768) return;
+
     let animationFrameId;
     let mouseX = window.innerWidth / 2;
     let mouseY = window.innerHeight / 2;
@@ -1044,20 +1048,26 @@ useEffect(() => {
     }
   };
 
-  const { subtotal, autoDiscount, rawTotal } = useMemo(() => {
-      let raw = cart.reduce((acc, item) => {
+const { subtotal, autoDiscount, rawTotal, wholesaleSavings } = useMemo(() => {
+      let raw = 0;
+      let wSavings = 0; // متغير لحساب إجمالي توفير خصم الجملة
+
+      cart.forEach((item) => {
           let effectivePrice = Number(item.price) || 0;
+          const originalPrice = effectivePrice;
           const qty = parseInt(item.qty) || 0;
           
           if (item.enableWholesale) {
-              const safeDiscount10 = item.discount10 !== '' ? Number(item.discount10) : (effectivePrice * 0.10);
-              const safeDiscount20 = item.discount20 !== '' ? Number(item.discount20) : (effectivePrice * 0.15);
+              const safeDiscount10 = item.discount10 !== '' ? Number(item.discount10) : (originalPrice * 0.10);
+              const safeDiscount20 = item.discount20 !== '' ? Number(item.discount20) : (originalPrice * 0.15);
               
               if (qty >= 20) effectivePrice = Math.max(25, effectivePrice - safeDiscount20);
               else if (qty >= 10) effectivePrice = Math.max(25, effectivePrice - safeDiscount10);
           }
-          return acc + (effectivePrice * qty);
-      }, 0);
+          
+          raw += (effectivePrice * qty);
+          wSavings += ((originalPrice - effectivePrice) * qty); // إضافة الفارق كخصم جملة
+      });
 
       let discount = 0;
       if (raw >= 10000) {
@@ -1065,14 +1075,19 @@ useEffect(() => {
           discount = (tensCount * 500);  
       }
       
-      return { subtotal: raw - discount, autoDiscount: discount, rawTotal: raw };
+      return { subtotal: raw - discount, autoDiscount: discount, rawTotal: raw, wholesaleSavings: wSavings };
   }, [cart]);
 
   const totalQty = useMemo(() => cart.reduce((acc, item) => acc + (parseInt(item.qty) || 0), 0), [cart]);
   
-  const activeGov = useMemo(() => deliveryLocations.find(g => g.id === selectedGovId) || { price: 0, time: '', name: '' }, [deliveryLocations, selectedGovId]);
+const activeGov = useMemo(() => deliveryLocations.find(g => g.id === selectedGovId) || { price: 0, time: '', name: '' }, [deliveryLocations, selectedGovId]);
   
   const currentDeliveryFee = rawTotal >= 100000 ? 0 : (Number(activeGov.price) || 0);
+
+  // حساب التوفير الكلي للمستخدم (التوصيل + التراكمي + الجملة)
+  // تأكد من أن هذا الكود موجود هنا خارج أي دالة لكي تتمكن الواجهة من قراءته
+  const deliverySavings = rawTotal >= 100000 && activeGov ? (Number(activeGov.price) || 0) : 0;
+  const totalCumulativeDiscount = (wholesaleSavings || 0) + (autoDiscount || 0) + deliverySavings;
 
   const handleCheckout = async () => {
     const finalCart = cart.map(item => ({...item, qty: parseInt(item.qty) || 1})).filter(item => item.qty > 0);
@@ -1096,7 +1111,7 @@ const phoneClean = customerPhone.replace(/\s+/g, '');
         alert(lang === 'ar' ? 'الرجاء إدخال اسم مستلم حقيقي.' : 'Please enter a valid name.');
         return;
     }
-    
+
     const payloadData = {
       userId: user && user.uid ? String(user.uid) : "GUEST_USER",
       customerName: String(customerName || "غير محدد"),
@@ -1288,7 +1303,7 @@ const cartItemsMap = useMemo(() => {
 return (
     <div className={`relative min-h-screen font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 flex flex-col w-full pb-20 md:pb-0 ${isDarkMode ? 'text-gray-100' : 'text-slate-800'}`} style={{ backgroundColor: isDarkMode ? (isDesktop ? 'transparent' : '#0f172a') : '#f4f7f6' }} dir={lang === 'en' ? 'ltr' : 'rtl'}>
       
-      <style>{`
+<style>{`
           .custom-cursor {
               width: 30px;
               height: 30px;
@@ -1324,51 +1339,12 @@ return (
           .cart-pro-scrollbar::-webkit-scrollbar-track { background: transparent; }
           .cart-pro-scrollbar::-webkit-scrollbar-thumb { background: rgba(20, 184, 166, 0.3); border-radius: 10px; }
           .cart-pro-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(20, 184, 166, 0.8); }
-          
-          /* أكواد الألوان المتحركة للهاتف */
-          .win7-bg-container {
-              position: fixed;
-              top: 0; left: 0;
-              width: 100vw; height: 100vh;
-              z-index: 0;
-              pointer-events: none;
-              overflow: hidden;
-              background-color: transparent;
-              will-change: transform;
-              transform: translateZ(0); 
-          }
-          .win7-orb {
-              position: absolute;
-              border-radius: 50%;
-              filter: blur(40px); 
-              opacity: 0.2; 
-              will-change: transform;
-              transform: translate3d(0, 0, 0); 
-              mix-blend-mode: screen; 
-          }
-          body.light-mode .win7-orb {
-              opacity: 0.0; 
-              mix-blend-mode: multiply;
-          }
-          .orb-red { width: 45vw; height: 45vw; background-color: #180467; top: -10%; left: -10%; animation: floatRed 12s infinite alternate ease-in-out; }
-          .orb-green { width: 40vw; height: 40vw; background-color: #0a0074; top: -5%; right: -10%; animation: floatGreen 14s infinite alternate ease-in-out; }
-          .orb-blue { width: 50vw; height: 50vw; background-color: #0c058b; bottom: -15%; left: -5%; animation: floatBlue 15s infinite alternate ease-in-out; }
-          .orb-yellow { width: 42vw; height: 42vw; background-color: #055cd7; bottom: -10%; right: -5%; animation: floatYellow 13s infinite alternate ease-in-out; }
-          @keyframes floatRed { 0% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(30vw, 40vh, 0) scale(1.2); } 100% { transform: translate3d(10vw, 60vh, 0) scale(0.9); } }
-          @keyframes floatGreen { 0% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(-30vw, 30vh, 0) scale(1.3); } 100% { transform: translate3d(-10vw, 50vh, 0) scale(1.1); } }
-          @keyframes floatBlue { 0% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(40vw, -30vh, 0) scale(1.1); } 100% { transform: translate3d(20vw, -50vh, 0) scale(1.3); } }
-          @keyframes floatYellow { 0% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(-40vw, -40vh, 0) scale(1.4); } 100% { transform: translate3d(-20vw, -20vh, 0) scale(1); } }
       `}</style>
       
-      {isDesktop ? (
+{isDesktop ? (
          <ParticlesBackground />
       ) : (
-         <div className="win7-bg-container">
-             <div className="win7-orb orb-red"></div>
-             <div className="win7-orb orb-green"></div>
-             <div className="win7-orb orb-blue"></div>
-             <div className="win7-orb orb-yellow"></div>
-         </div>
+         <div className={`fixed inset-0 z-0 pointer-events-none ${isDarkMode ? 'bg-gradient-to-br from-[#0f172a] via-[#0b1221] to-[#080d16]' : 'bg-gradient-to-br from-[#f4f7f6] via-[#e2e8f0] to-[#f8fafc]'}`}></div>
       )}
 
       <div ref={cursorOuterRef} className="custom-cursor hidden md:block"></div>
@@ -1392,7 +1368,18 @@ return (
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-4 flex-wrap justify-end">
-            
+            <a 
+              href="https://wa.me/9647760599953" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              onMouseEnter={handleMouseEnterInteractive} 
+              onMouseLeave={handleMouseLeaveInteractive}
+              className="flex w-8 h-8 sm:w-10 sm:h-10 md:w-auto md:px-4 md:py-2 items-center justify-center rounded-full font-bold transition-all shadow-md bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:scale-105 shrink-0"
+              title={t.whatsappSupport}
+            >
+              <i className="fab fa-whatsapp text-sm sm:text-lg"></i> 
+              <span className="hidden md:inline font-mono text-xs mx-2">{t.whatsappSupport}</span>
+            </a>
             <button
               onClick={() => { setIsDarkMode(!isDarkMode); playSynthSound(isDarkMode ? 800 : 400, 'sine', 0.1); }}
               onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive}
@@ -1512,11 +1499,6 @@ return (
             <span className="text-sm">{t.installApp}</span>
           </button>
           
-          <a href="https://wa.me/9647760599953" target="_blank" rel="noopener noreferrer" onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500 hover:text-slate-900' : 'bg-green-50 border-green-200 text-green-600 hover:bg-green-500 hover:text-white'}`}>
-            <i className="fab fa-whatsapp text-2xl"></i> 
-            <span className="text-sm">{t.whatsappSupport}</span>
-          </a>
-
           {externalLinks.map(link => (
             <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`w-full flex items-center gap-4 p-4 rounded-xl font-bold shadow-md hover:scale-105 transition-all ${isDarkMode ? 'bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500 hover:text-slate-900' : 'bg-purple-50 border-purple-200 text-purple-600 hover:bg-purple-500 hover:text-white'}`}>
                <i className="fa-solid fa-arrow-up-right-from-square text-2xl"></i>
@@ -1879,37 +1861,43 @@ return (
                         <span className={isDarkMode ? 'text-gray-100' : 'text-slate-800'}>{rawTotal.toLocaleString()} {t.currency}</span>
                     </div>
 
-                    {(autoDiscount > 0 || rawTotal >= 100000) && (
-                        <div className={`relative overflow-hidden flex flex-col gap-2 p-4 rounded-2xl border shadow-sm ${isDarkMode ? 'bg-[#061811] border-[#10b981]/30' : 'bg-green-50 border-green-200'}`}>
-                            <div className="absolute top-0 right-0 w-20 h-20 bg-[#10b981]/20 rounded-full blur-2xl pointer-events-none"></div>
+{totalCumulativeDiscount > 0 && (
+                        <div className={`relative overflow-hidden flex flex-col gap-3 p-4 rounded-2xl border shadow-sm ${isDarkMode ? 'bg-[#061811] border-[#10b981]/30' : 'bg-green-50 border-green-200'}`}>
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-[#10b981]/20 rounded-full blur-2xl pointer-events-none"></div>
                             
-                            {autoDiscount > 0 && (
-                                <div className={`flex justify-between items-center font-tech text-sm font-bold z-10 ${isDarkMode ? 'text-[#10b981]' : 'text-green-600'}`}>
-                                    <span className="flex items-center gap-2">
-                                        <i className="fa-solid fa-gift text-lg animate-bounce"></i> خصم تراكمي:
-                                    </span>
-                                    <span className="bg-[#10b981]/10 px-2 py-1 rounded-lg border border-[#10b981]/20">
-                                        - {autoDiscount.toLocaleString()} {t.currency}
+                            <h4 className={`text-sm font-black z-10 flex items-center gap-2 ${isDarkMode ? 'text-[#10b981]' : 'text-green-700'}`}>
+                                <i className="fa-solid fa-tags"></i> تفاصيل توفيرك من هذا الطلب:
+                            </h4>
+
+                            <div className="flex flex-col gap-2 text-xs font-bold z-10">
+                                {wholesaleSavings > 0 && (
+                                    <div className={`flex justify-between items-center ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
+                                        <span>- خصم كميات الجملة:</span>
+                                        <span className="text-green-500">{wholesaleSavings.toLocaleString()} {t.currency}</span>
+                                    </div>
+                                )}
+                                
+                                {autoDiscount > 0 && (
+                                    <div className={`flex justify-between items-center ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
+                                        <span>- خصم تراكمي (500 لكل 10 آلاف):</span>
+                                        <span className="text-green-500">{autoDiscount.toLocaleString()} {t.currency}</span>
+                                    </div>
+                                )}
+
+                                {deliverySavings > 0 && (
+                                    <div className={`flex justify-between items-center ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
+                                        <span>- أجور التوصيل المجاني:</span>
+                                        <span className="text-green-500">{deliverySavings.toLocaleString()} {t.currency}</span>
+                                    </div>
+                                )}
+
+                                <div className="pt-3 mt-1 border-t border-green-500/20 flex justify-between items-center font-black text-sm">
+                                    <span className={isDarkMode ? 'text-[#10b981]' : 'text-green-700'}>مجموع توفيرك الكلي:</span>
+                                    <span className="bg-[#10b981]/20 px-3 py-1.5 rounded-lg border border-[#10b981]/30 text-green-500 shadow-sm animate-pulse">
+                                        {totalCumulativeDiscount.toLocaleString()} {t.currency}
                                     </span>
                                 </div>
-                            )}
-
-                            {rawTotal >= 100000 && (
-                                <div className={`flex justify-between items-center font-tech text-sm font-bold z-10 ${isDarkMode ? 'text-[#10b981]' : 'text-green-600'}`}>
-                                    <span className="flex items-center gap-2">
-                                        <i className="fa-solid fa-truck-fast text-lg animate-bounce"></i> أجور النقل:
-                                    </span>
-                                    <span className="bg-[#10b981]/10 px-2 py-1 rounded-lg border border-[#10b981]/20">
-                                        توصيل مجاني 🎁
-                                    </span>
-                                </div>
-                            )}
-
-                            <p className={`text-[11px] sm:text-xs font-bold mt-1 z-10 leading-relaxed ${isDarkMode ? 'text-[#10b981]/80' : 'text-green-700'}`}>
-                                {rawTotal >= 100000 
-                                  ? "مبروك! طلبك تجاوز 100 ألف، حصلت على توصيل مجاني وخصم تراكمي رائع! 🎉"
-                                  : "تم تفعيل خصم 500 دينار لكل 10 آلاف! أضف المزيد للوصول للتوصيل المجاني عند 100 ألف! 🚀"}
-                            </p>
+                            </div>
                         </div>
                     )}
 
