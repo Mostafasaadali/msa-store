@@ -366,7 +366,12 @@ const filteredAdminProducts = useMemo(() => {
       const autoDisc = Number(selectedOrder.discountApplied) || 0;
       const subPlusAuto = (Number(selectedOrder.subtotalAmount) || 0) + autoDisc;
       const wholesaleDisc = totalOriginalItemsPrice > subPlusAuto ? totalOriginalItemsPrice - subPlusAuto : 0;
-      totalSaved = wholesaleDisc + autoDisc;
+      // استخراج قيمة التوصيل الأصلية إذا حصل الزبون على توصيل مجاني
+      const govInfo = deliveryLocations.find(g => g.name === selectedOrder.governorate);
+      const originalDeliveryFee = govInfo ? Number(govInfo.price) : 0;
+      const adminDeliverySavings = selectedOrder.deliveryFee === 0 ? originalDeliveryFee : 0;
+
+      totalSaved = wholesaleDisc + autoDisc + adminDeliverySavings;
   }
   // --------------------------------------------------
   
@@ -1146,7 +1151,7 @@ const filteredAdminProducts = useMemo(() => {
 
 {totalSaved > 0 && (
    <div className="flex justify-between items-center text-green-400 text-xs font-bold mt-2">
-      <span>التخفيض الكلي (جملة + تراكمي):</span>
+<span>التخفيض الكلي (جملة + تراكمي + نقل مجاني):</span>
       <span className="font-mono bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20">
           - {totalSaved.toLocaleString()} د.ع
       </span>
