@@ -1336,8 +1336,7 @@ const cartItemsMap = useMemo(() => {
     return map;
   }, [cart]);
 return (
-    <div className={`relative min-h-screen font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 flex flex-col w-full pb-20 md:pb-0 ${isDarkMode ? 'text-gray-100' : 'text-slate-800'}`} style={{ backgroundColor: isDarkMode ? (isDesktop ? 'transparent' : '#0f172a') : '#f4f7f6' }} dir={lang === 'en' ? 'ltr' : 'rtl'}>
-      
+<div className={`relative min-h-[100dvh] font-sans overflow-x-hidden select-none antialiased transition-colors duration-500 flex flex-col w-full pb-20 md:pb-0 ${isDarkMode ? 'text-gray-100' : 'text-slate-800'}`} style={{ backgroundColor: isDarkMode ? (isDesktop ? 'transparent' : '#0f172a') : '#f4f7f6' }} dir={lang === 'en' ? 'ltr' : 'rtl'}>      
 <style>{`
           .custom-cursor {
               width: 30px;

@@ -149,3 +149,10 @@ body.light-mode .robot-glow-container::before {
     animation: deep-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     will-change: opacity;
 }
+/* دعم شاشات الآيفون (النوتش والخط السفلي) */
+.pb-safe {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+.pt-safe {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+}
