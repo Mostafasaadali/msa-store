@@ -303,6 +303,7 @@ const [isDesktop, setIsDesktop] = useState(window.innerWidth > 768);
 
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false); 
   const [isProjectsModalOpen, setIsProjectsModalOpen] = useState(false); 
   
@@ -690,8 +691,18 @@ const moveCursor = (e) => {
       if (orderToCancel.items && Array.isArray(orderToCancel.items)) {
          for (const item of orderToCancel.items) {
              try {
-                 const prodRef = doc(db, "products", String(item.id));
-                 await updateDoc(prodRef, { stock: increment(item.qty), sales: increment(-item.qty) });
+const prodRef = doc(db, "products", String(item.id));
+const prodSnap = await getDoc(prodRef);
+
+if (prodSnap.exists()) {
+    const currentSales = prodSnap.data().sales || 0;
+    const newSales = Math.max(0, currentSales - item.qty); // يمنع القيمة من النزول تحت الصفر
+
+    await updateDoc(prodRef, {
+        stock: increment(item.qty),
+        sales: newSales
+    });
+}
              } catch(e) {}
          }
       }
@@ -1111,7 +1122,26 @@ const phoneClean = customerPhone.replace(/\s+/g, '');
         alert(lang === 'ar' ? 'الرجاء إدخال اسم مستلم حقيقي.' : 'Please enter a valid name.');
         return;
     }
+// --- فحص وتحديث الأسعار من قاعدة البيانات مباشرة قبل الطلب ---
+    let priceChanged = false;
+    const validatedCart = finalCart.map(cartItem => {
+        const liveProduct = products.find(p => p.id === cartItem.id);
+        if (liveProduct && Number(liveProduct.price) !== Number(cartItem.price)) {
+            priceChanged = true;
+            return { ...cartItem, price: Number(liveProduct.price) };
+        }
+        return cartItem;
+    });
 
+    if (priceChanged) {
+        alert(lang === 'ar' ? 'تنبيه: تم تحديث أسعار بعض المنتجات في سلتك بناءً على أحدث تغييرات المتجر. يرجى مراجعة السعر الإجمالي الجديد قبل تأكيد الطلب.' : 'Some prices in your cart were updated based on the latest store prices. Please review your total.');
+        
+        // تحديث السلة بالأسعار الجديدة وإلغاء عملية الإرسال ليعاين الزبون السعر
+        setCart(validatedCart);
+        localStorage.setItem('msa_store_cart', JSON.stringify(validatedCart));
+        return; 
+    }
+    // ----------------------------------------------------------------
     const payloadData = {
       userId: user && user.uid ? String(user.uid) : "GUEST_USER",
       customerName: String(customerName || "غير محدد"),
@@ -1135,6 +1165,7 @@ const phoneClean = customerPhone.replace(/\s+/g, '');
       status: 'pending',
       timestamp: new Date().toISOString()
     };
+setIsCheckingOut(true); 
 
     try {
       const docRef = await addDoc(collection(db, "orders"), payloadData);
@@ -1152,17 +1183,18 @@ const phoneClean = customerPhone.replace(/\s+/g, '');
         }
       } catch (errUser) {}
 
-      try {
+try {
         for (const item of finalCart) {
-            const productInState = products.find(p => p.id === item.id);
-            if (productInState) {
-              const currentStock = parseInt(productInState.stock) || 0;
-              const newStock = Math.max(0, currentStock - item.qty); 
-              const prodRef = doc(db, "products", String(item.id));
-              await updateDoc(prodRef, { stock: newStock, sales: increment(item.qty) });
-            }
+            const prodRef = doc(db, "products", String(item.id));
+            // استخدام increment للخصم والزيادة مباشرة داخل خوادم Firebase لتجنب التضارب
+            await updateDoc(prodRef, { 
+                stock: increment(-item.qty), 
+                sales: increment(item.qty) 
+            });
         }
-      } catch (errStock) {}
+      } catch (errStock) {
+          console.error("خطأ في تحديث المخزون:", errStock);
+      }
 
       alert(lang === 'ar' ? `تم استلام طلبك بنجاح! سيتم التوصيل خلال: ${activeGov.time || 'يحدد لاحقاً'}` : `Order received successfully!`);
       setCart([]);
@@ -1170,8 +1202,11 @@ const phoneClean = customerPhone.replace(/\s+/g, '');
       localStorage.removeItem('msa_store_cart_time');
       safeCloseModal(setIsCartOpen, false); 
       fetchProducts();
-    } catch (errOrder) {
+} catch (errOrder) {
       alert("حدث خطأ أثناء إرسال الطلب. يرجى المحاولة لاحقاً.");
+    } finally {
+      // إيقاف حالة التحميل
+      setIsCheckingOut(false);
     }
   };
 
@@ -1607,19 +1642,48 @@ return (
             </div>
 
 
-            <div className="mb-4 relative w-full px-2">
-              <div className={`absolute inset-y-0 ${lang === 'en' ? 'left-4' : 'right-4'} flex items-center pointer-events-none`}>
-                <i className={`fas fa-search ${isDarkMode ? 'text-teal-600' : 'text-teal-500'}`}></i>
+<div className="mb-4 w-full px-2 flex gap-2">
+              <div className="relative flex-grow">
+                <div className={`absolute inset-y-0 ${lang === 'en' ? 'left-4' : 'right-4'} flex items-center pointer-events-none`}>
+                  <i className={`fas fa-search ${isDarkMode ? 'text-teal-600' : 'text-teal-500'}`}></i>
+                </div>
+                <input 
+                  type="text" 
+                  placeholder={t.searchPlaceholder} 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                          e.target.blur(); // إخفاء الكيبورد في الجوال
+                          // استهداف شبكة المنتجات مباشرة بدلاً من القسم بالكامل
+                          const grid = document.getElementById('productsGrid');
+                          if(grid) {
+                             // استخدمنا 140- لترك مساحة للهيدر العلوي الثابت
+                             const y = grid.getBoundingClientRect().top + window.scrollY - 140;
+                             window.scrollTo({top: y, behavior: 'smooth'});
+                          }
+                      }
+                  }}
+                  onMouseEnter={handleMouseEnterInteractive} 
+                  onMouseLeave={handleMouseLeaveInteractive}
+                  className={`w-full p-3 sm:p-4 ${lang === 'en' ? 'pl-12' : 'pr-12'} rounded-2xl text-xs sm:text-sm outline-none transition-all shadow-lg focus:ring-2 focus:ring-teal-300 ${isDarkMode ? 'border border-teal-500 bg-[#0f172a] text-white placeholder-gray-500 focus:border-teal-400' : 'border border-teal-200 bg-white text-slate-900 placeholder-slate-400 focus:border-teal-500 shadow-teal-500/10'}`}
+                />
               </div>
-              <input 
-                type="text" 
-                placeholder={t.searchPlaceholder} 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onMouseEnter={handleMouseEnterInteractive} 
-                onMouseLeave={handleMouseLeaveInteractive}
-                className={`w-full p-3 sm:p-4 ${lang === 'en' ? 'pl-12' : 'pr-12'} rounded-2xl text-xs sm:text-sm outline-none transition-all shadow-lg focus:ring-2 focus:ring-teal-300 ${isDarkMode ? 'border border-teal-500 bg-[#0f172a] text-white placeholder-gray-500 focus:border-teal-400' : 'border border-teal-200 bg-white text-slate-900 placeholder-slate-400 focus:border-teal-500 shadow-teal-500/10'}`}
-              />
+              
+              <button 
+                  onClick={() => {
+                      const grid = document.getElementById('productsGrid');
+                      if(grid) {
+                         const y = grid.getBoundingClientRect().top + window.scrollY - 140;
+                         window.scrollTo({top: y, behavior: 'smooth'});
+                      }
+                  }}
+                  onMouseEnter={handleMouseEnterInteractive} 
+                  onMouseLeave={handleMouseLeaveInteractive}
+                  className={`shrink-0 px-5 sm:px-8 rounded-2xl font-black text-xs sm:text-sm transition-all shadow-lg flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-emerald-500 text-white hover:scale-105 hover:shadow-teal-500/40`}
+              >
+                  {lang === 'ar' ? 'بحث' : (lang === 'ku' ? 'گەڕان' : 'Search')}
+              </button>
             </div>
 
 
@@ -1930,9 +1994,24 @@ return (
                         }} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className={`shrink-0 w-14 h-14 rounded-2xl font-extrabold transition-all shadow-md flex items-center justify-center ${isDarkMode ? 'bg-[#1a0f14] text-red-500 hover:bg-red-50 hover:text-white border border-red-500/30 hover:shadow-red-500/20' : 'bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border border-red-200'}`} title={t.cancelOrder}>
                             <i className="fa-solid fa-trash-can text-xl"></i>
                         </button>
-                        <button type="button" onClick={handleCheckout} onMouseEnter={handleMouseEnterInteractive} onMouseLeave={handleMouseLeaveInteractive} className="flex-grow h-14 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-black text-sm tracking-wider transition-all shadow-lg shadow-teal-500/20 flex items-center justify-center gap-3 hover:scale-[1.02] hover:shadow-teal-500/40">
-                            <i className="fa-solid fa-square-check text-xl"></i> {t.cartCheckout}
-                        </button>
+<button 
+    type="button" 
+    onClick={handleCheckout} 
+    disabled={isCheckingOut} 
+    onMouseEnter={handleMouseEnterInteractive} 
+    onMouseLeave={handleMouseLeaveInteractive} 
+    className={`flex-grow h-14 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-black text-sm tracking-wider transition-all shadow-lg shadow-teal-500/20 flex items-center justify-center gap-3 hover:scale-[1.02] hover:shadow-teal-500/40 ${isCheckingOut ? 'opacity-70 cursor-not-allowed' : ''}`}
+>
+    {isCheckingOut ? (
+        <>
+            <i className="fas fa-spinner fa-spin text-xl"></i> جاري إرسال الطلب...
+        </>
+    ) : (
+        <>
+            <i className="fa-solid fa-square-check text-xl"></i> {t.cartCheckout}
+        </>
+    )}
+</button>
                     </div>
                </div>
             </div>
