@@ -380,14 +380,16 @@ const [isCopied, setIsCopied] = useState(false);
     setDisplayCount(20);
   }, [deferredSearchQuery, selectedCatFilter]);
 
-  const handleCategoryClickAndScroll = useCallback((catName) => {
+const handleCategoryClickAndScroll = useCallback((catName) => {
     setSelectedCatFilter(catName);
+    setSearchQuery(''); // هذا هو السطر الجديد الذي سيقوم بمسح كلمة البحث فوراً
+
     setTimeout(() => {
       const grid = document.getElementById('productsGrid');
       if (grid) {
         const gridTop = grid.getBoundingClientRect().top + window.scrollY;
         window.scrollTo({
-          top: gridTop - 120, 
+          top: gridTop - 140, // جعلناها 140 لكي تتطابق مع المسافة التي ضبطناها سابقاً للبحث
           behavior: 'smooth'
         });
       }
