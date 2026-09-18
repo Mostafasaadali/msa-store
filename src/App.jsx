@@ -847,28 +847,36 @@ if (prodSnap.exists()) {
     }
   };
 
+// 1. جلب البيانات الأساسية والاستماع لفايربيس (تعمل مرة واحدة فقط عند فتح الموقع)
   useEffect(() => {
     fetchProducts(); 
     fetchCategories();
     fetchDeliveryLocations();
     fetchExternalLinks();
-
-    projectsFetchTimerRef.current = setTimeout(() => fetchProjectsData(), 8000); 
-
+    // الاستماع لإعلانات السلة من فايربيس
     const statsRef = doc(db, "system", "stats");
     const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
       if (docSnap.exists()) setCartAnnouncement(docSnap.data().cartAnnouncement || '');
     });
-
-    const handleBeforeInstallPrompt = (e) => { e.preventDefault(); setDeferredPrompt(e); };
+    // إعدادات PWA (تثبيت التطبيق)
+    const handleBeforeInstallPrompt = (e) => { 
+      e.preventDefault(); 
+      setDeferredPrompt(e); 
+    };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
+    // دالة التنظيف عند خروج المستخدم من الصفحة
     return () => {
-      unsubscribeStats();
+      unsubscribeStats(); // يوقف استهلاك فايربيس فوراً
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []); // 👈 المصفوفة الفارغة هنا تنقذ باقة فايربيس وتمنع التكرار اللانهائي
+  // 2. مؤقت جلب المشاريع (يعمل فقط بناءً على الدالة الخاصة به)
+  useEffect(() => {
+    projectsFetchTimerRef.current = setTimeout(() => fetchProjectsData(), 8000); 
+    return () => {
       if (projectsFetchTimerRef.current) clearTimeout(projectsFetchTimerRef.current);
     };
-  }, [fetchProjectsData]);
+  }, [fetchProjectsData]); // 👈 تم عزل هذه الدالة لوحدها لكي لا تؤثر على باقي الكود
 
 useEffect(() => {
     let vid = user && user.uid ? user.uid : localStorage.getItem('msa_vid');
