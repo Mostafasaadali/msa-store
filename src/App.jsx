@@ -723,7 +723,7 @@ if (prodSnap.exists()) {
   };
 const fetchWithCache = async (collectionName, limitCount = 100) => {
 const cacheKey = `msa_${collectionName}_cache_v3`; 
-const timeKey = `msa_${collectionName}_time_v3`;
+const timeKey = `msa_${collectionName}_time_v4`;
     const now = Date.now();
     
     const cached = localStorage.getItem(cacheKey);
