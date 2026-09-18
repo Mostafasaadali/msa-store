@@ -721,83 +721,66 @@ if (prodSnap.exists()) {
       alert(lang === 'ar' ? "حدث خطأ أثناء إلغاء الطلب." : "Error cancelling order.");
     }
   };
+const fetchWithCache = async (collectionName, limitCount = 100) => {
+const cacheKey = `msa_${collectionName}_cache_v3`; 
+const timeKey = `msa_${collectionName}_time_v3`;
+    const now = Date.now();
+    
+    const cached = localStorage.getItem(cacheKey);
+    const cacheTime = localStorage.getItem(timeKey);
+    
+    // ساعة للمنتجات، و 24 ساعة للباقي
+    const maxAge = collectionName === 'products' ? (60 * 60 * 1000) : (24 * 60 * 60 * 1000);
 
-  const fetchDeliveryLocations = async () => {
+    if (cached && cacheTime && (now - parseInt(cacheTime) < maxAge)) {
+      return JSON.parse(cached); // إرجاع البيانات المحفوظة فوراً
+    }
+
     try {
-      const cached = localStorage.getItem("msa_delivery_cache");
-      if (cached) setDeliveryLocations(JSON.parse(cached));
-
-      const snap = await getDocs(collection(db, "delivery_locations"));
-      if (!snap.empty) {
-        const fetched = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setDeliveryLocations(fetched);
-        localStorage.setItem("msa_delivery_cache", JSON.stringify(fetched));
+      // الاتصال بفايربيس فقط إذا لم يكن هناك كاش أو انتهت صلاحيته
+      const q = query(collection(db, collectionName), limit(limitCount));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // حفظ البيانات الجديدة في المتصفح
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+        localStorage.setItem(timeKey, now.toString());
+        
+        return data;
       }
-    } catch (e) {}
+      return [];
+    } catch (error) {
+      console.error(`Error fetching ${collectionName}:`, error);
+      return [];
+    }
+  };
+  
+  const fetchProducts = async () => {
+    const data = await fetchWithCache("products", 1000);
+    setProducts(data);
   };
 
   const fetchCategories = async () => {
-    try {
-      const cached = localStorage.getItem("msa_categories_cache");
-      if (cached) setCategories(JSON.parse(cached));
-
-      const querySnapshot = await getDocs(collection(db, "categories"));
-      if (!querySnapshot.empty) {
-        const fetched = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setCategories(fetched);
-        localStorage.setItem("msa_categories_cache", JSON.stringify(fetched));
-      }
-    } catch (error) {}
+    const data = await fetchWithCache("categories", 50);
+    setCategories(data);
   };
-  
-  const fetchProjectsData = useCallback(async () => {
-      if (projectsFetchedRef.current) return;
-      projectsFetchedRef.current = true;
-      try {
-          const cached = localStorage.getItem("msa_projects_cache");
-          if (cached) setProjectsList(JSON.parse(cached));
 
-          const q = query(collection(db, "projects"), limit(50));
-          const querySnapshot = await getDocs(q);
-          if (!querySnapshot.empty) {
-              const projData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-              setProjectsList(projData);
-              localStorage.setItem("msa_projects_cache", JSON.stringify(projData));
-          }
-      } catch (error) {
-          projectsFetchedRef.current = false;
-      }
-  }, []);
+  const fetchDeliveryLocations = async () => {
+    const data = await fetchWithCache("delivery_locations", 50); // تم تصحيح اسم الكولكشن
+    setDeliveryLocations(data);
+  };
 
   const fetchExternalLinks = async () => {
-    try {
-      const q = query(collection(db, "external_links"));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) setExternalLinks(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    } catch (error) {}
+    const data = await fetchWithCache("external_links", 20); // تم تصحيح اسم الكولكشن
+    setExternalLinks(data);
   };
 
-  const fetchProducts = async () => {
-    try {
-      const cached = localStorage.getItem('msa_products_cache');
-      const cacheTime = localStorage.getItem('msa_products_time');
-      const now = Date.now();
-      
-      if (cached && cacheTime && (now - parseInt(cacheTime) < 24 * 60 * 60 * 1000)) {
-         setProducts(JSON.parse(cached));
-      }
-
-      const q = query(collection(db, "products"), limit(1000));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const productsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setProducts(productsData);
-        localStorage.setItem('msa_products_cache', JSON.stringify(productsData));
-        localStorage.setItem('msa_products_time', now.toString());
-      }
-    } catch (error) {}
+  const fetchProjectsData = async () => {
+    const data = await fetchWithCache("projects", 50); // تم تبسيط الدالة لتستخدم الكاش الذكي
+    setProjectsList(data);
   };
-
   const handleAddCategory = async (catName) => {
     if(!catName.trim()) return;
     try {
