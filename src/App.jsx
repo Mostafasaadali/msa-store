@@ -2,9 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense, use
 import './App.css';
 
 import {ADMIN_UID, db, auth, provider } from './firebase';
-import { collection, addDoc, doc, setDoc, getDocs, query, orderBy, limit, deleteDoc, updateDoc, getDoc, onSnapshot, increment, where } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, getDocs, query, orderBy, limit, deleteDoc, updateDoc, getDoc, onSnapshot, increment, where, getCountFromServer } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'; 
-import { gsap } from 'gsap';
 import ParticlesBackground from './ParticlesBackground';
 
 const AdminPanel = React.lazy(() => import('./AdminPanel'));
@@ -666,7 +665,7 @@ const moveCursor = (e) => {
 
   const fetchOrders = async () => {
     try {
-      const q = query(collection(db, "orders"), orderBy("timestamp", "desc"), limit(50));
+      const q = query(collection(db, "orders"), orderBy("timestamp", "desc"), limit(500));
       const querySnapshot = await getDocs(q);
       const ordersData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setOrders(ordersData);
@@ -730,7 +729,7 @@ const timeKey = `msa_${collectionName}_time_v3`;
     const cacheTime = localStorage.getItem(timeKey);
     
     // ساعة للمنتجات، و 24 ساعة للباقي
-    const maxAge = collectionName === 'products' ? (60 * 60 * 1000) : (24 * 60 * 60 * 1000);
+    const maxAge = collectionName === 'products' ? (2 * 24 * 60 * 60 * 1000) : (2 *24 * 60 * 60 * 1000);
 
     if (cached && cacheTime && (now - parseInt(cacheTime) < maxAge)) {
       return JSON.parse(cached); // إرجاع البيانات المحفوظة فوراً
@@ -852,15 +851,7 @@ const timeKey = `msa_${collectionName}_time_v3`;
       unsubscribeStats(); // يوقف استهلاك فايربيس فوراً
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
-  }, []); // 👈 المصفوفة الفارغة هنا تنقذ باقة فايربيس وتمنع التكرار اللانهائي
-  // 2. مؤقت جلب المشاريع (يعمل فقط بناءً على الدالة الخاصة به)
-  useEffect(() => {
-    projectsFetchTimerRef.current = setTimeout(() => fetchProjectsData(), 8000); 
-    return () => {
-      if (projectsFetchTimerRef.current) clearTimeout(projectsFetchTimerRef.current);
-    };
-  }, [fetchProjectsData]); // 👈 تم عزل هذه الدالة لوحدها لكي لا تؤثر على باقي الكود
-
+  }, []);
 useEffect(() => {
     let vid = user && user.uid ? user.uid : localStorage.getItem('msa_vid');
     if (!vid) { 
@@ -888,7 +879,7 @@ useEffect(() => {
     const pingPresence = () => setDoc(visitorRef, { lastPing: Date.now() }, { merge: true }).catch((e)=>{ console.error("Firebase Blocked Visitor Ping:", e) });
     
     pingPresence();
-    const pingInterval = setInterval(pingPresence, 15000); 
+    const pingInterval = setInterval(pingPresence, 300000); 
 
     const handleVisibility = () => { if (document.visibilityState === 'visible') pingPresence(); };
     const handleUnload = () => deleteDoc(visitorRef).catch(()=>{});
@@ -902,45 +893,47 @@ useEffect(() => {
       window.removeEventListener('beforeunload', handleUnload);
     };
   }, [user]);
-
+// 1. جلب الطلبات لحظياً (يستهلك قراءة فقط عند وجود طلب جديد)
   useEffect(() => {
-      let unsub;
-      let intervalId;
-      if (isAdminMode) {
-          fetchOrders();
-          const q = query(collection(db, "active_visitors"));
-          let currentDocs = [];
-
-          const updateCount = () => {
-              let activeCount = 0;
-              const now = Date.now();
-              currentDocs.forEach(docSnap => {
-                  const data = docSnap.data();
-                  const pingTime = data.lastPing || 0;
-                  const timeDifference = Math.abs(now - pingTime);
-
-                  if (timeDifference <= 45 * 1000) { 
-                      activeCount++;
-                  } else if (timeDifference > 60 * 1000) { 
-                      deleteDoc(docSnap.ref).catch(()=>{});
-                  }
-              });
-              setVisitorCount(activeCount);
-          };
-
-          unsub = onSnapshot(q, (snap) => {
-              currentDocs = snap.docs;
-              updateCount();
-          });
-          
-          intervalId = setInterval(updateCount, 15000);
-      }
-      return () => {
-          if (unsub) unsub();
-          if (intervalId) clearInterval(intervalId);
-      };
+    if (!isAdminMode) return;
+    // سيقوم هذا الكود بمراقبة أي طلب جديد وإضافته فوراً بدون استنزاف القراءات
+    // استبدل 'createdAt' باسم الحقل الذي يخزن وقت الطلب لديك إذا كان مختلفاً
+    const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(50));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const ordersData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setOrders(ordersData); // تأكد أن اسم الدالة لديك لتحديث حالة الطلبيات هو setOrders
+    });
+    return () => unsubscribe();
   }, [isAdminMode]);
+  // 2. تحديث عدد الزوار (كل 5 دقائق بدلاً من دقيقة لتوفير الموارد)
+  useEffect(() => {
+    if (!isAdminMode) return;
 
+    const updateVisitorCount = async () => {
+      try {
+        // جعلنا الوقت 5 دقائق (5 * 60 * 1000) بدلاً من دقيقة واحدة
+        const cutoff = Date.now() - 5 * 60 * 1000;
+        const q = query(
+          collection(db, "active_visitors"),
+          where("lastPing", ">", cutoff)
+        );
+
+        const countSnap = await getCountFromServer(q);
+        setVisitorCount(countSnap.data().count || 0);
+
+      } catch (e) {
+        console.error("Visitor count error:", e);
+      }
+    };
+    // تشغيل الدالة فوراً عند فتح لوحة الإدارة
+    updateVisitorCount();
+    // تشغيل المؤقت كل 5 دقائق (600000 ملي ثانية)
+    const timer = setInterval(updateVisitorCount, 600000);
+    return () => clearInterval(timer);
+  }, [isAdminMode]);
   const handleMouseEnterInteractive = useCallback(() => {
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) return;
     document.body.classList.add('hover-state');

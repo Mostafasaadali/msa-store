@@ -100,6 +100,7 @@ export default function AdminPanel({
           const bl = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setBlacklist(bl);
       });
+      
 
       return () => {
           unsubscribeVisits();
