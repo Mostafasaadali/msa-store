@@ -82,16 +82,13 @@ export default function AdminPanel({
 
   const [monthlyVisits, setMonthlyVisits] = useState(0);
   
-  // حالة لحفظ قائمة الزبائن المحظورين (البلاك لست)
   const [blacklist, setBlacklist] = useState([]);
 
 useEffect(() => {
-      // 1. تعريف المتغيرات خارج نطاق التنفيذ لتكون متاحة لدالة التنظيف
       let unsubscribeVisits;
       let unsubscribeBlacklist;
 
       try {
-          // استماع لعدد الزيارات
           const currentMonth = new Date().toISOString().slice(0, 7);
           const monthRef = doc(db, "system", `visits_${currentMonth}`);
           
@@ -101,7 +98,6 @@ useEffect(() => {
               }
           });
 
-          // استماع لقائمة البلاك لست (Blacklist) لحظياً
           const blacklistRef = collection(db, "blacklist");
           unsubscribeBlacklist = onSnapshot(blacklistRef, (snap) => {
               const bl = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -112,7 +108,6 @@ useEffect(() => {
           console.error("خطأ أثناء جلب البيانات اللحظية:", error);
       }
 
-      // 2. دالة الإلغاء الآمنة 100%
 return () => {
           if (unsubscribeVisits) unsubscribeVisits();
           if (unsubscribeBlacklist) unsubscribeBlacklist();
@@ -134,22 +129,17 @@ return () => {
     }
   };
 
-  // ----------------------------------------------------
-  // الدالة الذكية للتعرف على الزبون (بلاك لست + زبون متكرر)
-  // ----------------------------------------------------
   const getCustomerRecognition = (currentOrder) => {
       if (!currentOrder || !currentOrder.timestamp) return "زبون جديد";
       
       const currentPhone = String(currentOrder.customerPhone || '').replace(/\s+/g, '');
       const currentPhone2 = String(currentOrder.customerPhone2 || '').replace(/\s+/g, '');
       
-      // 1. الفحص في البلاك لست أولاً
       const isBlacklisted = blacklist.some(b => b.id === currentPhone || (currentPhone2 && b.id === currentPhone2));
       if (isBlacklisted) {
           return "محظور (بلاك لست) ⚠️";
       }
 
-      // 2. الفحص التلقائي للزبائن المكررين خلال 4 أيام
       const currentMs = new Date(currentOrder.timestamp).getTime();
       const fourDaysInMs = 4 * 24 * 60 * 60 * 1000;
       
@@ -166,7 +156,6 @@ return () => {
           
           const orderMs = new Date(order.timestamp).getTime();
           
-          // فحص الطلبات التي تمت قبل هذا الطلب وخلال 4 أيام فقط
           if (orderMs < currentMs && (currentMs - orderMs) <= fourDaysInMs) {
               const phone = String(order.customerPhone || '').replace(/\s+/g, '');
               const loc = String(order.location || '').trim().toLowerCase();
@@ -174,7 +163,7 @@ return () => {
 
               if (phone !== '' && phone === currentPhone) {
                   matchPhone = true;
-                  break; // أقوى حالة تطابق نوقف البحث
+                  break; 
               } else if (loc !== '' && loc === currentLocation) {
                   matchLocation = true;
               } else if (name !== '' && name === currentName) {
@@ -189,11 +178,7 @@ return () => {
       
       return "زبون جديد";
   };
-  // ----------------------------------------------------
 
-  // ----------------------------------------------------
-  // دالة الإضافة أو الإزالة من البلاك لست
-  // ----------------------------------------------------
   const toggleBlacklist = async (order) => {
       const phone = String(order.customerPhone || '').replace(/\s+/g, '');
       if (!phone) return;
@@ -219,7 +204,6 @@ return () => {
           alert("حدث خطأ أثناء الاتصال بقاعدة البيانات لتحديث البلاك لست.");
       }
   };
-  // ----------------------------------------------------
 
   const handleAddDeliveryLocation = async (e) => {
     e.preventDefault();
@@ -345,7 +329,6 @@ const filteredAdminProducts = useMemo(() => {
       if (!matchesSearch) return false;
       
       if (adminFilter === 'outOfStock') return (parseInt(p.stock) || 0) <= 0;
-      // الكود الجديد لفلترة المواد التي توشك على النفاذ (أقل من 15 وأكبر من 0)
       if (adminFilter === 'lowStock') return (parseInt(p.stock) || 0) > 0 && (parseInt(p.stock) || 0) < 15;
       
       return true;
@@ -362,15 +345,12 @@ const filteredAdminProducts = useMemo(() => {
     });
   }, [products, adminSearch, adminFilter]);
 
-// --- حسابات الإدارة (تُحسب فقط عند فتح طلب معين) ---
   let customerOrdersCount = 0;
   let totalSaved = 0;
 
   if (selectedOrder) {
-      // 1. حساب عدد طلبات الزبون السابقة بناءً على تطابق رقم الهاتف
       customerOrdersCount = orders.filter(o => String(o.customerPhone).replace(/\s+/g, '') === String(selectedOrder.customerPhone).replace(/\s+/g, '')).length;
       
-      // 2. حساب قيمة التخفيض الكلي (خصم الجملة + الخصم التراكمي)
       let totalOriginalItemsPrice = 0;
       (selectedOrder.items || []).forEach(item => {
           totalOriginalItemsPrice += (Number(item.originalPrice) || Number(item.price) || 0) * (Number(item.qty) || 1);
@@ -378,7 +358,6 @@ const filteredAdminProducts = useMemo(() => {
       const autoDisc = Number(selectedOrder.discountApplied) || 0;
       const subPlusAuto = (Number(selectedOrder.subtotalAmount) || 0) + autoDisc;
       const wholesaleDisc = totalOriginalItemsPrice > subPlusAuto ? totalOriginalItemsPrice - subPlusAuto : 0;
-      // استخراج قيمة التوصيل الأصلية إذا حصل الزبون على توصيل مجاني
       const govInfo = deliveryLocations.find(g => g.name === selectedOrder.governorate);
       const originalDeliveryFee = govInfo ? Number(govInfo.price) : 0;
       const adminDeliverySavings = selectedOrder.deliveryFee === 0 ? originalDeliveryFee : 0;
@@ -1056,7 +1035,6 @@ const filteredAdminProducts = useMemo(() => {
                           </div>
                       </div>
 
-                      {/* شريط الإشعار الخاص بالبلاك لست والزبائن */}
                       {(() => {
                           const recognitionStr = getCustomerRecognition(selectedOrder);
                           const isBL = recognitionStr.includes("محظور");
@@ -1073,7 +1051,6 @@ const filteredAdminProducts = useMemo(() => {
 
                       <div className="space-y-2.5">
                          
-                         {/* اسم المستلم */}
                          <div className={`bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-center gap-3 transition-colors ${selectedOrder.status === 'completed' ? 'hover:border-blue-500/30' : 'hover:border-emerald-500/30'}`}>
                             <div className="bg-blue-500/10 text-blue-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"><i className="fa-solid fa-user"></i></div>
                             <div className="min-w-0 flex-grow">
@@ -1090,7 +1067,6 @@ const filteredAdminProducts = useMemo(() => {
                             </div>
                          </div>
                          
-                         {/* أرقام الهواتف */}
                          <div className={`bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-center gap-3 transition-colors ${selectedOrder.status === 'completed' ? 'hover:border-blue-500/30' : 'hover:border-emerald-500/30'}`}>
                             <div className="bg-green-500/10 text-green-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm"><i className="fa-solid fa-phone"></i></div>
                             <div className="min-w-0 flex-grow">
@@ -1122,7 +1098,6 @@ const filteredAdminProducts = useMemo(() => {
                             </div>
                          </div>
                          
-                         {/* الموقع المختار والتفاصيل */}
                          <div className={`bg-[#111827] p-3 rounded-xl border border-neutral-800 flex items-start gap-3 transition-colors ${selectedOrder.status === 'completed' ? 'hover:border-blue-500/30' : 'hover:border-emerald-500/30'}`}>
                             <div className="bg-orange-500/10 text-orange-400 w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-sm mt-0.5"><i className="fa-solid fa-map-location-dot"></i></div>
                             <div className="min-w-0 flex-grow">

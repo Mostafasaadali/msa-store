@@ -381,14 +381,14 @@ const [isCopied, setIsCopied] = useState(false);
 
 const handleCategoryClickAndScroll = useCallback((catName) => {
     setSelectedCatFilter(catName);
-    setSearchQuery(''); // هذا هو السطر الجديد الذي سيقوم بمسح كلمة البحث فوراً
+    setSearchQuery(''); 
 
     setTimeout(() => {
       const grid = document.getElementById('productsGrid');
       if (grid) {
         const gridTop = grid.getBoundingClientRect().top + window.scrollY;
         window.scrollTo({
-          top: gridTop - 140, // جعلناها 140 لكي تتطابق مع المسافة التي ضبطناها سابقاً للبحث
+          top: gridTop - 140,
           behavior: 'smooth'
         });
       }
@@ -406,7 +406,6 @@ const handleCategoryClickAndScroll = useCallback((catName) => {
 
 
   useEffect(() => {
-    // إيقاف تشغيل الكود نهائياً على شاشات الهواتف لتوفير موارد المعالج
     if (window.innerWidth <= 768) return;
 
     let animationFrameId;
@@ -419,7 +418,6 @@ const moveCursor = (e) => {
         mouseX = e.clientX;
         mouseY = e.clientY;
         if (cursorInnerRef.current) {
-            // استخدام translate3d لتفعيل تسريع الـ GPU بدلاً من left/top
             cursorInnerRef.current.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) translate(-50%, -50%)`;
             cursorInnerRef.current.style.left = '0';
             cursorInnerRef.current.style.top = '0';
@@ -432,7 +430,6 @@ const moveCursor = (e) => {
         outerY += (mouseY - outerY) * ease;
 
         if (cursorOuterRef.current) {
-            // استخدام translate3d لتفعيل تسريع الـ GPU
             cursorOuterRef.current.style.transform = `translate3d(${outerX}px, ${outerY}px, 0) translate(-50%, -50%)`;
             cursorOuterRef.current.style.left = '0';
             cursorOuterRef.current.style.top = '0';
@@ -496,14 +493,11 @@ const moveCursor = (e) => {
       }
   }, []);
 
-// 1. إضافة حالة ابتدائية متينة لمنع الخروج
   useEffect(() => {
-      // دفع الحالة مرتين لإنشاء "حاجز متين" يمنع الهاتف من تخطي التطبيق عند الضغط السريع
       window.history.pushState(null, null, window.location.href);
       window.history.pushState(null, null, window.location.href);
   }, []);
 
-  // 2. التقاط حدث الرجوع لمنع الخروج نهائياً
   useEffect(() => {
       const handlePopState = (e) => {
           if (historyDepth.current > 0) {
@@ -517,8 +511,6 @@ const moveCursor = (e) => {
           else if (isCartOpen) { setIsCartOpen(false); handled = true; }
           else if (isSideMenuOpen) { setIsSideMenuOpen(false); handled = true; }
           
-          // إذا تم الضغط على الرجوع ولم تكن هناك أي نافذة منبثقة مفتوحة
-          // نقوم بإعادة دفع الحالة فوراً ليبقى المستخدم محتجزاً داخل التطبيق
           if (!handled) {
               window.history.pushState(null, null, window.location.href);
           }
@@ -537,17 +529,14 @@ useEffect(() => {
       if (savedCart && savedTime) {
         const timeDiff = Date.now() - parseInt(savedTime);
         
-        // التحقق مما إذا مر أكثر من 18 ساعة
         if (timeDiff > 18 * 60 * 60 * 1000) {
           localStorage.removeItem('msa_store_cart');
           localStorage.removeItem('msa_store_cart_time');
         } else {
-          // تحويل البيانات المحفوظة إلى مصفوفة السلة
           setCart(JSON.parse(savedCart));
         }
       }
     } catch (error) {
-      // في حال كانت البيانات تالفة (Invalid JSON)، نمنع توقف الموقع ونقوم بتنظيفها
       console.error("خطأ في قراءة سلة المشتريات، جاري إعادة تعيين السلة:", error);
       localStorage.removeItem('msa_store_cart');
       localStorage.removeItem('msa_store_cart_time');
@@ -739,22 +728,19 @@ const timeKey = `msa_${collectionName}_time_v4`;
     const cached = localStorage.getItem(cacheKey);
     const cacheTime = localStorage.getItem(timeKey);
     
-    // ساعة للمنتجات، و 24 ساعة للباقي
     const maxAge = collectionName === 'products' ? ( 12 * 60 * 60 * 1000) : (12 * 60 * 60 * 1000);
 
     if (cached && cacheTime && (now - parseInt(cacheTime) < maxAge)) {
-      return JSON.parse(cached); // إرجاع البيانات المحفوظة فوراً
+      return JSON.parse(cached);
     }
 
     try {
-      // الاتصال بفايربيس فقط إذا لم يكن هناك كاش أو انتهت صلاحيته
       const q = query(collection(db, collectionName), limit(limitCount));
       const querySnapshot = await getDocs(q);
       
       if (!querySnapshot.empty) {
         const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-        // حفظ البيانات الجديدة في المتصفح
         localStorage.setItem(cacheKey, JSON.stringify(data));
         localStorage.setItem(timeKey, now.toString());
         
@@ -840,13 +826,11 @@ const timeKey = `msa_${collectionName}_time_v4`;
     }
   };
 
-// 1. جلب البيانات الأساسية والاستماع لفايربيس (تعمل مرة واحدة فقط عند فتح الموقع)
   useEffect(() => {
     fetchProducts(); 
     fetchCategories();
     fetchDeliveryLocations();
     fetchExternalLinks();
-    // الاستماع لإعلانات السلة من فايربيس
     const statsRef = doc(db, "system", "stats");
     const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
       if (docSnap.exists()) setCartAnnouncement(docSnap.data().cartAnnouncement || '');
@@ -854,15 +838,13 @@ const timeKey = `msa_${collectionName}_time_v4`;
       console.error("خطأ في الاستماع لإعلانات السلة:", error);
     });
 
-    // إعدادات PWA (تثبيت التطبيق)
     const handleBeforeInstallPrompt = (e) => { 
       e.preventDefault(); 
       setDeferredPrompt(e); 
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    // دالة التنظيف عند خروج المستخدم من الصفحة
     return () => {
-      unsubscribeStats(); // يوقف استهلاك فايربيس فوراً
+      unsubscribeStats(); 
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, []);
@@ -873,7 +855,6 @@ useEffect(() => {
       localStorage.setItem('msa_vid', vid); 
     }
 
-    // --- كود الزيارة الشهرية ---
     const trackMonthlyVisit = async () => {
         const currentMonth = new Date().toISOString().slice(0, 7); // تنسيق YYYY-MM
         const visitKey = `msa_visited_${currentMonth}`;
@@ -886,7 +867,6 @@ useEffect(() => {
         }
     };
     trackMonthlyVisit();
-    // ---------------------------
 
     const visitorRef = doc(db, "active_visitors", vid);
 
@@ -907,11 +887,8 @@ useEffect(() => {
       window.removeEventListener('beforeunload', handleUnload);
     };
   }, [user]);
-// 1. جلب الطلبات لحظياً (يستهلك قراءة فقط عند وجود طلب جديد)
   useEffect(() => {
     if (!isAdminMode) return;
-    // سيقوم هذا الكود بمراقبة أي طلب جديد وإضافته فوراً بدون استنزاف القراءات
-    // استبدل 'createdAt' باسم الحقل الذي يخزن وقت الطلب لديك إذا كان مختلفاً
     const q = query(collection(db, 'orders'), orderBy('timestamp', 'desc'), limit(50));
 const unsubscribe = onSnapshot(q, (snapshot) => {
       const ordersData = snapshot.docs.map(doc => ({
@@ -923,16 +900,13 @@ const unsubscribe = onSnapshot(q, (snapshot) => {
       console.error("خطأ في الاستماع اللحظي للطلبات:", error);
     });
 
-    // دالة الإلغاء الآمنة للاستماع اللحظي عند إغلاق وضع الإدارة أو مغادرة المكون
     return () => unsubscribe();
   }, [isAdminMode]);
-  // 2. تحديث عدد الزوار (كل 5 دقائق بدلاً من دقيقة لتوفير الموارد)
   useEffect(() => {
     if (!isAdminMode) return;
 
     const updateVisitorCount = async () => {
       try {
-        // جعلنا الوقت 5 دقائق (5 * 60 * 1000) بدلاً من دقيقة واحدة
         const cutoff = Date.now() - 5 * 60 * 1000;
         const q = query(
           collection(db, "active_visitors"),
@@ -946,9 +920,7 @@ const unsubscribe = onSnapshot(q, (snapshot) => {
         console.error("Visitor count error:", e);
       }
     };
-    // تشغيل الدالة فوراً عند فتح لوحة الإدارة
     updateVisitorCount();
-    // تشغيل المؤقت كل 5 دقائق (600000 ملي ثانية)
     const timer = setInterval(updateVisitorCount, 600000);
     return () => clearInterval(timer);
   }, [isAdminMode]);
@@ -1065,7 +1037,7 @@ const unsubscribe = onSnapshot(q, (snapshot) => {
 
 const { subtotal, autoDiscount, rawTotal, wholesaleSavings } = useMemo(() => {
       let raw = 0;
-      let wSavings = 0; // متغير لحساب إجمالي توفير خصم الجملة
+      let wSavings = 0; 
 
       cart.forEach((item) => {
           let effectivePrice = Number(item.price) || 0;
@@ -1099,8 +1071,6 @@ const activeGov = useMemo(() => deliveryLocations.find(g => g.id === selectedGov
   
   const currentDeliveryFee = rawTotal >= 100000 ? 0 : (Number(activeGov.price) || 0);
 
-  // حساب التوفير الكلي للمستخدم (التوصيل + التراكمي + الجملة)
-  // تأكد من أن هذا الكود موجود هنا خارج أي دالة لكي تتمكن الواجهة من قراءته
   const deliverySavings = rawTotal >= 100000 && activeGov ? (Number(activeGov.price) || 0) : 0;
   const totalCumulativeDiscount = (wholesaleSavings || 0) + (autoDiscount || 0) + deliverySavings;
 
@@ -1126,7 +1096,6 @@ const phoneClean = customerPhone.replace(/\s+/g, '');
         alert(lang === 'ar' ? 'الرجاء إدخال اسم مستلم حقيقي.' : 'Please enter a valid name.');
         return;
     }
-// --- فحص وتحديث الأسعار من قاعدة البيانات مباشرة قبل الطلب ---
     let priceChanged = false;
     const validatedCart = finalCart.map(cartItem => {
         const liveProduct = products.find(p => p.id === cartItem.id);
@@ -1140,7 +1109,6 @@ const phoneClean = customerPhone.replace(/\s+/g, '');
     if (priceChanged) {
         alert(lang === 'ar' ? 'تنبيه: تم تحديث أسعار بعض المنتجات في سلتك بناءً على أحدث تغييرات المتجر. يرجى مراجعة السعر الإجمالي الجديد قبل تأكيد الطلب.' : 'Some prices in your cart were updated based on the latest store prices. Please review your total.');
         
-        // تحديث السلة بالأسعار الجديدة وإلغاء عملية الإرسال ليعاين الزبون السعر
         setCart(validatedCart);
         localStorage.setItem('msa_store_cart', JSON.stringify(validatedCart));
         return; 
@@ -1190,7 +1158,7 @@ setIsCheckingOut(true);
 try {
         for (const item of finalCart) {
             const prodRef = doc(db, "products", String(item.id));
-            // استخدام increment للخصم والزيادة مباشرة داخل خوادم Firebase لتجنب التضارب
+
             await updateDoc(prodRef, { 
                 stock: increment(-item.qty), 
                 sales: increment(item.qty) 
@@ -1657,11 +1625,10 @@ return (
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => {
                       if (e.key === 'Enter') {
-                          e.target.blur(); // إخفاء الكيبورد في الجوال
-                          // استهداف شبكة المنتجات مباشرة بدلاً من القسم بالكامل
+                          e.target.blur(); 
                           const grid = document.getElementById('productsGrid');
                           if(grid) {
-                             // استخدمنا 140- لترك مساحة للهيدر العلوي الثابت
+ 
                              const y = grid.getBoundingClientRect().top + window.scrollY - 140;
                              window.scrollTo({top: y, behavior: 'smooth'});
                           }
@@ -2213,7 +2180,7 @@ className={`object-contain h-full w-full mix-blend-multiply transition-transform
         if (availableStock <= 0) return;
         const valStr = e.target.value;
         
-        // السماح بمسح الحقل مؤقتاً لكتابة رقم جديد
+
         if (valStr === '') {
             setModalQty('');
             setModalQtyWarning('');
@@ -2223,10 +2190,10 @@ className={`object-contain h-full w-full mix-blend-multiply transition-transform
         const val = parseInt(valStr, 10);
         if (!isNaN(val)) {
             if (val > availableStock) {
-                setModalQty(availableStock); // تحديد الحد الأقصى للمخزون
+                setModalQty(availableStock);  
                 setModalQtyWarning('المنتج نفذ لحد هذه القيمة!');
             } else if (val < 1) {
-                setModalQty(1); // منع الأرقام السالبة والصفر
+                setModalQty(1);
                 setModalQtyWarning('');
             } else {
                 setModalQty(val);
