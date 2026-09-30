@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense, useDeferredValue } from 'react';
 import './App.css';
+import { ADMIN_UID, db, auth, provider, analytics } from './firebase';
 
-import {ADMIN_UID, db, auth, provider } from './firebase';
 import { collection, addDoc, doc, setDoc, getDocs, query, orderBy, limit, deleteDoc, updateDoc, getDoc, onSnapshot, increment, where, getCountFromServer } from 'firebase/firestore';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'; 
 import ParticlesBackground from './ParticlesBackground';
@@ -529,17 +529,28 @@ const moveCursor = (e) => {
       window.addEventListener('popstate', handlePopState);
       return () => window.removeEventListener('popstate', handlePopState);
   }, [activeGallery, isProjectsModalOpen, selectedProduct, isCartOpen, isSideMenuOpen, playSynthSound]);
-  useEffect(() => {
-    const savedCart = localStorage.getItem('msa_store_cart');
-    const savedTime = localStorage.getItem('msa_store_cart_time');
-    if (savedCart && savedTime) {
-      const timeDiff = Date.now() - parseInt(savedTime);
-      if (timeDiff > 18 * 60 * 60 * 1000) {
-        localStorage.removeItem('msa_store_cart');
-        localStorage.removeItem('msa_store_cart_time');
-      } else {
-        setCart(JSON.parse(savedCart));
+useEffect(() => {
+    try {
+      const savedCart = localStorage.getItem('msa_store_cart');
+      const savedTime = localStorage.getItem('msa_store_cart_time');
+      
+      if (savedCart && savedTime) {
+        const timeDiff = Date.now() - parseInt(savedTime);
+        
+        // التحقق مما إذا مر أكثر من 18 ساعة
+        if (timeDiff > 18 * 60 * 60 * 1000) {
+          localStorage.removeItem('msa_store_cart');
+          localStorage.removeItem('msa_store_cart_time');
+        } else {
+          // تحويل البيانات المحفوظة إلى مصفوفة السلة
+          setCart(JSON.parse(savedCart));
+        }
       }
+    } catch (error) {
+      // في حال كانت البيانات تالفة (Invalid JSON)، نمنع توقف الموقع ونقوم بتنظيفها
+      console.error("خطأ في قراءة سلة المشتريات، جاري إعادة تعيين السلة:", error);
+      localStorage.removeItem('msa_store_cart');
+      localStorage.removeItem('msa_store_cart_time');
     }
   }, []);
 
@@ -721,15 +732,15 @@ if (prodSnap.exists()) {
     }
   };
 const fetchWithCache = async (collectionName, limitCount = 100) => {
-const cacheKey = `msa_${collectionName}_cache_v3`; 
-const timeKey = `msa_${collectionName}_time_v3`;
+const cacheKey = `msa_${collectionName}_cache_v4`; 
+const timeKey = `msa_${collectionName}_time_v4`;
     const now = Date.now();
     
     const cached = localStorage.getItem(cacheKey);
     const cacheTime = localStorage.getItem(timeKey);
     
     // ساعة للمنتجات، و 24 ساعة للباقي
-    const maxAge = collectionName === 'products' ? (2 * 24 * 60 * 60 * 1000) : (2 *24 * 60 * 60 * 1000);
+    const maxAge = collectionName === 'products' ? ( 12 * 60 * 60 * 1000) : (12 * 60 * 60 * 1000);
 
     if (cached && cacheTime && (now - parseInt(cacheTime) < maxAge)) {
       return JSON.parse(cached); // إرجاع البيانات المحفوظة فوراً
@@ -839,7 +850,10 @@ const timeKey = `msa_${collectionName}_time_v3`;
     const statsRef = doc(db, "system", "stats");
     const unsubscribeStats = onSnapshot(statsRef, (docSnap) => {
       if (docSnap.exists()) setCartAnnouncement(docSnap.data().cartAnnouncement || '');
+    }, (error) => {
+      console.error("خطأ في الاستماع لإعلانات السلة:", error);
     });
+
     // إعدادات PWA (تثبيت التطبيق)
     const handleBeforeInstallPrompt = (e) => { 
       e.preventDefault(); 
@@ -898,14 +912,18 @@ useEffect(() => {
     if (!isAdminMode) return;
     // سيقوم هذا الكود بمراقبة أي طلب جديد وإضافته فوراً بدون استنزاف القراءات
     // استبدل 'createdAt' باسم الحقل الذي يخزن وقت الطلب لديك إذا كان مختلفاً
-    const q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(50));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const q = query(collection(db, 'orders'), orderBy('timestamp', 'desc'), limit(50));
+const unsubscribe = onSnapshot(q, (snapshot) => {
       const ordersData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
-      setOrders(ordersData); // تأكد أن اسم الدالة لديك لتحديث حالة الطلبيات هو setOrders
+      setOrders(ordersData);
+    }, (error) => {
+      console.error("خطأ في الاستماع اللحظي للطلبات:", error);
     });
+
+    // دالة الإلغاء الآمنة للاستماع اللحظي عند إغلاق وضع الإدارة أو مغادرة المكون
     return () => unsubscribe();
   }, [isAdminMode]);
   // 2. تحديث عدد الزوار (كل 5 دقائق بدلاً من دقيقة لتوفير الموارد)
@@ -1361,7 +1379,7 @@ return (
           .cart-pro-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(20, 184, 166, 0.8); }
       `}</style>
       
-{isDesktop ? (
+{isDesktop && isDarkMode ? (
          <ParticlesBackground />
       ) : (
          <div className={`fixed inset-0 z-0 pointer-events-none ${isDarkMode ? 'bg-gradient-to-br from-[#0f172a] via-[#0b1221] to-[#080d16]' : 'bg-gradient-to-br from-[#f4f7f6] via-[#e2e8f0] to-[#f8fafc]'}`}></div>

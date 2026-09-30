@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { doc, setDoc, addDoc, collection, deleteDoc, onSnapshot } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo } from 'react';
+import { collection, onSnapshot, doc } from 'firebase/firestore';
 import { db } from './firebase';
 
 export default function AdminPanel({
@@ -85,26 +85,37 @@ export default function AdminPanel({
   // حالة لحفظ قائمة الزبائن المحظورين (البلاك لست)
   const [blacklist, setBlacklist] = useState([]);
 
-  useEffect(() => {
-      const currentMonth = new Date().toISOString().slice(0, 7);
-      const monthRef = doc(db, "system", `visits_${currentMonth}`);
-      
-      const unsubscribeVisits = onSnapshot(monthRef, (snap) => {
-          if (snap.exists()) {
-              setMonthlyVisits(snap.data().count || 0);
-          }
-      });
+useEffect(() => {
+      // 1. تعريف المتغيرات خارج نطاق التنفيذ لتكون متاحة لدالة التنظيف
+      let unsubscribeVisits;
+      let unsubscribeBlacklist;
 
-      // جلب وتحديث قائمة البلاك لست لحظياً
-      const unsubscribeBlacklist = onSnapshot(collection(db, "blacklist"), (snap) => {
-          const bl = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          setBlacklist(bl);
-      });
-      
+      try {
+          // استماع لعدد الزيارات
+          const currentMonth = new Date().toISOString().slice(0, 7);
+          const monthRef = doc(db, "system", `visits_${currentMonth}`);
+          
+          unsubscribeVisits = onSnapshot(monthRef, (snap) => {
+              if (snap.exists()) {
+                  setMonthlyVisits(snap.data().count || 0);
+              }
+          });
 
-      return () => {
-          unsubscribeVisits();
-          unsubscribeBlacklist();
+          // استماع لقائمة البلاك لست (Blacklist) لحظياً
+          const blacklistRef = collection(db, "blacklist");
+          unsubscribeBlacklist = onSnapshot(blacklistRef, (snap) => {
+              const bl = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+              setBlacklist(bl);
+          });
+
+      } catch (error) {
+          console.error("خطأ أثناء جلب البيانات اللحظية:", error);
+      }
+
+      // 2. دالة الإلغاء الآمنة 100%
+return () => {
+          if (unsubscribeVisits) unsubscribeVisits();
+          if (unsubscribeBlacklist) unsubscribeBlacklist();
       };
   }, []);
   
