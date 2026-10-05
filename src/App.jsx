@@ -2119,7 +2119,7 @@ className={`object-contain h-full w-full mix-blend-multiply transition-transform
                           <div className="flex items-center gap-2">
                               {selectedProduct.category === 'مشاريع' ? (
                                   <span className={`text-xl sm:text-2xl font-black font-mono tracking-tight leading-none text-green-500 drop-shadow-md`}>
-                                      السعر حسب الاتفاق
+                                      السعر حسب الاضافات
                                   </span>
                               ) : (
                                   <>
@@ -2202,8 +2202,8 @@ className={`object-contain h-full w-full mix-blend-multiply transition-transform
         }
     }}
     onBlur={(e) => {
-        // إعادة القيمة إلى 1 إذا ترك المستخدم الحقل فارغاً
-        if (e.target.value === '' || isNaN(parseInt(e.target.value, 10)) || parseInt(e.target.value, 10) < 1) {
+ 
+      if (e.target.value === '' || isNaN(parseInt(e.target.value, 10)) || parseInt(e.target.value, 10) < 1) {
             setModalQty(1);
         }
     }}
