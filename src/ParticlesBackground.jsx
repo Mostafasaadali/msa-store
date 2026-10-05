@@ -65,7 +65,7 @@ const ParticlesBackground = () => {
               enable: true,
               area: 800,
             },
-            value: 220, // مضاعفة عدد النقاط لزيادة الكثافة والخطوط
+            value: 180, // مضاعفة عدد النقاط لزيادة الكثافة والخطوط
           },
           opacity: {
             value: 0.5,
